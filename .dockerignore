@@ -1,0 +1,16 @@
+.git
+helm-chart
+Jenkinsfile
+README*.md
+README-dev.md
+
+**/*.pyc
+**/__pycache__
+venv/
+env/
+local_settings.py
+# _static will be created by the DOCKERFILE itself
+_static/
+
+.idea
+*~
