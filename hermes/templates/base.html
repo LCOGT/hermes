@@ -1,0 +1,44 @@
+{% load static bootstrap4 %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    {% bootstrap_css %}
+    <link rel="stylesheet" href="{% static 'hermes/css/main.css' %}">
+    {% block additional_css %}
+    {% endblock %}
+<!--    <link rel="icon" type="image/x-icon" href="{% static 'tom_common/img/favicon-32.ico' %}" sizes="32x32" />-->
+<!--    <link rel="icon" type="image/x-icon" href="{% static 'tom_common/img/favicon-16.ico' %}" sizes="16x16" />-->
+
+    {% bootstrap_javascript jquery='True' %}
+
+    <title>Hermes</title>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+      <a class="nav-link" href="{% url 'index' %}">Hermes</a>
+      <a class="nav-link" href="{% url 'api-root' %}">API</a>
+
+      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+      </div>
+    </nav>
+
+    <main role="main" class="container">
+      {% bootstrap_messages %}
+      <div class="content">
+        {% block content %}
+        {% endblock %}
+      </div>
+
+    </main>
+
+  {% block javascript %}
+  {% endblock %}
+  {% block extra_javascript %}
+  {% endblock %}
+  </body>
+</html>
