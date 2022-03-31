@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hermes.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "hermes.name" . }}
+    helm.sh/chart: {{ include "hermes.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+
+# write URL dictionary below to urls.json upon install
+data:
+  urls.json: |
+    {
+      "hermesApiUrl": {{ include "hermes.mainDeployUrl" . | quote }}
+    }
+  HERMES_TEST_API_URL: http://hermes-dev.lco.gtn
