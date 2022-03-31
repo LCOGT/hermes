@@ -12,4 +12,4 @@ class Message(models.Model):
         return self.title
 
     def get_absolute_url(self):
-        return reverse('message-detail', kwargs={'pk': self.pk})
+        return reverse('message-info', kwargs={'pk': self.pk})
