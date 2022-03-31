@@ -18,10 +18,15 @@ from django.urls import include, path
 from rest_framework import routers
 from hermes import views
 
+app_name = 'hermes'
+
 router = routers.DefaultRouter()
-router.register(r'messages', views.MessageViewSet)
+router.register(r'messages-api', views.MessageViewSet)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/v1/', include(router.urls))
+    path('', views.MessageListView.as_view(), name='index'),
+    path('message/list/', views.MessageListView.as_view(), name='message-list'),
+    path('message/<int:pk>', views.MessageDetailView.as_view(), name='message-detail'),
+    path('admin/', admin.site.urls, name='admin'),
+    # path('api/v0/', include(router.urls), name='api')
 ]
