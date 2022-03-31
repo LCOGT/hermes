@@ -94,9 +94,9 @@ spec:
           env:
             {{ include "hermes.extraEnv" . | nindent 12 }}
             {{ include "hermes.backendEnv" . | nindent 12 }}
-          envFrom:
-            - secretRef:
-                name: hermes-secrets
+          #envFrom:
+          #  - secretRef:
+          #      name: hermes-secrets
           ports:
             - name: http
               containerPort: 8080
