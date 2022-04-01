@@ -135,6 +135,6 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 try:
-    from hermes.local_settings import *  # noqa
+    from local_settings import *  # noqa
 except ImportError:
     pass
