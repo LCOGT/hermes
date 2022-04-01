@@ -9,6 +9,7 @@ WORKDIR /hermes
 
 COPY requirements.txt /hermes
 RUN pip install --upgrade pip && pip install --no-cache-dir -r /hermes/requirements.txt
+RUN pip install gunicorn[gevent]==20.0.4
 
 COPY . /hermes
 
