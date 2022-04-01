@@ -130,7 +130,7 @@ STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
 # We collect static files into /_static (vs. /static) because our helm-chart configmap.yaml
 # writes to /static
-STATIC_ROOT = os.path.join(BASE_DIR, '_static')
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
