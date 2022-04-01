@@ -9,8 +9,8 @@ README-dev.md
 venv/
 env/
 local_settings.py
-# _static will be created by the DOCKERFILE itself
-_static/
+# static will be created by the DOCKERFILE itself
+static/
 
 .idea
 *~
