@@ -4,3 +4,4 @@ psycopg2-binary
 django-bootstrap4
 whitenoise
 lcogt-logging
+hop-client
