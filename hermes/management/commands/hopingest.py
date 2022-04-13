@@ -1,4 +1,6 @@
+from email import message
 from fileinput import hook_encoded
+import gc
 import json
 from  datetime import datetime, timezone
 import logging
@@ -56,8 +58,8 @@ class Command(BaseCommand):
 
 
     def handle(self, *args, **options):
-        logger.info(f'args: {args}')
-        logger.info(f'options: {options}')
+        logger.debug(f'args: {args}')
+        logger.debug(f'options: {options}')
 
         # interpret command line options
         hop_auth = self._get_hop_authentication(options)
@@ -71,73 +73,13 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
-        #
-        # GCN Circulars
-        #
-
         # instanciate the Stream in a way that sets the io.StartPosition
         stream = Stream(auth=hop_auth, start_at=start_position)
         with stream.open('kafka://kafka.scimma.org/gcn.circular', 'r') as src:
-            limit = 1
             for gcn_circular, metadata in src.read(metadata=True):
                 # type(gcn_circular) is <hop.models.GNCCircular>
                 # type(metadata) is <hop.io.Metadata>
-
-                # first, what does a gcn.circular look like:
-                # logging.info(f'{limit}: type(gcn_circular): {type(gcn_circular)}')
-                # logging.info(f'{limit}: repr(gcn_circular): {repr(gcn_circular)}')
-                # logging.info(f'{limit}: gcn_circular.asdict(): {gcn_circular.asdict()}')
-                # logging.info(f'{limit}: metadata: {metadata}')
-
                 self._update_db_with_gcn_circular(gcn_circular, metadata)
-
-                limit -= 1
-                if limit <= 0:
-                    break
-
-                # hop.models.GCNCircular(
-                #     header = {
-                #         'title': 'GCN CIRCULAR',
-                #         'number': '31806',
-                #         'subject': 'GRB 220330A: Fermi GBM Final Real-time Localization',
-                #         'date': '22/03/30 12:38:33 GMT',
-                #         'from': 'Fermi GBM Team at MSFC/Fermi-GBM  <do_not_reply@GIOC.nsstc.nasa.gov>'
-                #         },
-                #     body="""The Fermi GBM team reports the detection of a likely SHORT GRB\n\n
-                #     At 12:28:09 UT on 30 Mar 2022, the Fermi Gamma-ray Burst Monitor (GBM) triggered
-                #     and located GRB 220330A (trigger 670336094.273364 / 220330520).\n\n
-                #     The on-ground calculated location, using the Fermi GBM trigger data,
-                #     is RA = 324.1, Dec = 63.1 (J2000 degrees, equivalent to J2000 21h 36m, 63d 06'),
-                #     with a statistical uncertainty of 3.8 degrees.\n\nThe angle from the Fermi LAT 
-                #     boresight is 28.0 degrees.\n\n
-                #     The skymap can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_skymap_all_bn220330520.png\n\nThe HEALPix FITS file, including the estimated localization systematic, can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_healpix_all_bn220330520.fit\n\nThe GBM light curve can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_lc_medres34_bn220330520.gif\n\n
-                #     """
-                # )
-
-        #
-        # GCN Notices
-        #
-
-        # at the moment there are no GCN Notices in hopskotch
-
-        # instanciate the Stream in a way that sets the io.StartPosition
-        # stream = Stream(start_at=start_position)
-        # with stream.open('kafka://kafka.scimma.org/gcn.notice', 'r') as src:
-        #     limit = 1
-        #     for gcn_notice, metadata in src.read(metadata=True):
-        #         # decode the timestamp and insert into the gcn_circular dictionary
-        #         t = datetime.fromtimestamp(gcn_notice["timestamp"]/1e6, tz=timezone.utc)
-        #         gcn_notice['utc_time_iso'] = t.isoformat()
- 
-        #         # first, what does a gcn.notice look like:
-        #         # logging.info(f'{limit}: type(gcn_notice): {type(gcn_notice)}')
-        #         # logging.info(f'{limit}: repr(gcn_notice): {repr(gcn_notice)}')
-        #         # logging.info(f'{limit}: gcn_notice: {gcn_notice}')
-        #         # logging.info(f'{limit}: metadata: {metadata}')
-
-        #         limit -= 1
-        #         if limit <= 0:
-        #             break
 
 
     def _test_sys_heartbeat(self, auth):
@@ -157,22 +99,72 @@ class Command(BaseCommand):
                 if limit <= 0:
                     break
 
-                # heartbeat =  {
-                #     'timestamp': 1649861479186756,
-                #     'count': 22798,
-                #     'beat': 'LISTEN',
-                #     'utc_time_iso': '2022-04-13T14:51:19.186756+00:00'
-                # }
-                # hop.io.Metadata(
-                #     topic='sys.heartbeat',
-                #     partition=6,
-                #     offset=2106694,
-                #     timestamp=1649861479186,
-                #     key=None,
-                #     headers=None,
-                #     _raw=<cimpl.Message object at 0x7f1a22d8cec0>)
+# heartbeat =  {
+#     'timestamp': 1649861479186756,
+#     'count': 22798,
+#     'beat': 'LISTEN',
+#     'utc_time_iso': '2022-04-13T14:51:19.186756+00:00'
+# }
+# hop.io.Metadata(
+#     topic='sys.heartbeat',
+#     partition=6,
+#     offset=2106694,
+#     timestamp=1649861479186,
+#     key=None,
+#     headers=None,
+#     _raw=<cimpl.Message object at 0x7f1a22d8cec0>)
 
 
     def _update_db_with_gcn_circular(self, gcn_circular, metadata):
+        """Add GNC Circular to Message db table (unless it already exists)
+
+        hop.models.GCNCircular field mapping to hermes.models.Message:
+        metadata.topic --> topic
+        subject        --> title
+        from           --> author
+        .asdict()      --> data
+        body           --> message_text
+
+        The topic and data fields will be used to query the database for the Message
+        prior to creation in update_or_create()
+
+        """
         logger.info(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
-        id, created = Message.objects.update_or_create()
+
+        message, created = Message.objects.update_or_create(
+            # fields to be compared to find existing Message (if any)
+            data=gcn_circular.asdict(),
+            topic=metadata.topic,
+            # fields to be used to update existing or create new Message
+            defaults={
+                'title': gcn_circular.header['subject'],
+                'author': gcn_circular.header['from'],
+                'message_text': gcn_circular.body,
+            }
+        )
+
+        if created:
+            logger.info(f'created new Message with id: {message.id}')
+        else:
+            logger.info(f'found existing Message with id: {message.id}')
+            # TODO: assert GCN Circular Number fields matches
+
+
+# hop.models.GCNCircular(
+#     header = {
+#         'title': 'GCN CIRCULAR',
+#         'number': '31806',
+#         'subject': 'GRB 220330A: Fermi GBM Final Real-time Localization',
+#         'date': '22/03/30 12:38:33 GMT',
+#         'from': 'Fermi GBM Team at MSFC/Fermi-GBM  <do_not_reply@GIOC.nsstc.nasa.gov>'
+#         },
+#     body="""The Fermi GBM team reports the detection of a likely SHORT GRB\n\n
+#     At 12:28:09 UT on 30 Mar 2022, the Fermi Gamma-ray Burst Monitor (GBM) triggered
+#     and located GRB 220330A (trigger 670336094.273364 / 220330520).\n\n
+#     The on-ground calculated location, using the Fermi GBM trigger data,
+#     is RA = 324.1, Dec = 63.1 (J2000 degrees, equivalent to J2000 21h 36m, 63d 06'),
+#     with a statistical uncertainty of 3.8 degrees.\n\nThe angle from the Fermi LAT 
+#     boresight is 28.0 degrees.\n\n
+#     The skymap can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_skymap_all_bn220330520.png\n\nThe HEALPix FITS file, including the estimated localization systematic, can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_healpix_all_bn220330520.fit\n\nThe GBM light curve can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_lc_medres34_bn220330520.gif\n\n
+#     """
+# )
