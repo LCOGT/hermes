@@ -17,4 +17,5 @@ ingress:
   hosts:
     - host: hermes-dev.lco.gtn
       paths:
-        - "/"
+        - "/messages"
+        - "/api"
