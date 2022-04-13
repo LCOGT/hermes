@@ -14,8 +14,13 @@ class Command(BaseCommand):
     help = 'Start a hop-client consuming messages from hop'
 
     def add_arguments(self, parser):
-        pass
-        #parser.add_argument('poll_ids', nargs='+', type=int)
+        # parser is an argparse.ArguementParser
+        parser.add_argument('-u', '--username', required=False, help='Username for hop-client from scimma-admin')
+        parser.add_argument('-p', '--password', required=False, help='Password for hop-client from scimma-admin')
+        parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
+                            help='Log four sys.heartbeat gcn_circulars and exit')
+        parser.add_argument('-e', '--earliest', required=False, default=False, action='store_true',
+                            help='Read from the start of the Kafka stream with hop.io.StartPosition.EARLIEST')
 
         #parser.add_argument('username', required=False, help='Username from scimma-admin')
 
@@ -39,6 +44,21 @@ class Command(BaseCommand):
                 #     'beat': 'listen',
                 #     'utc_time_iso': '2022-04-12T18:04:34.706769+00:00'
                 # }
+        logger.info(f'args: {args}')
+        logger.info(f'options: {options}')
+
+        # interpret command line options
+        hop_auth = self._get_hop_authentication(options)
+        if options['test']:
+            logger.info('testing...')
+            self._test_sys_heartbeat(hop_auth)
+            exit()
+
+        start_position = StartPosition.LATEST
+        if options['earliest']:
+            start_position = StartPosition.EARLIEST
+        logger.info(f'hop.io.StartPosition set to {start_position}')
+
 
                 alert_limit -= 1
                 if alert_limit< 0:
