@@ -5,7 +5,7 @@
   <ul>
     {% for message in message_list %}
       <li>
-        <a href="{% url 'message-info' message.pk %}">{{ message.title }}</a> ({{message.author}}) [{{ message.timestamp }}]
+        <a href="{% url 'message-info' message.pk %}">{{ message.title }}</a> ({{message.author}}) [{{ message.created }}]
       </li>
     {% endfor %}
   </ul>
