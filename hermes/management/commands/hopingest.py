@@ -1,11 +1,6 @@
-from email import message
-from fileinput import hook_encoded
-import gc
-import json
 from  datetime import datetime, timezone
 import logging
 import os
-from turtle import st
 
 from django.core.management.base import BaseCommand, CommandError
 #from django.conf import settings
