@@ -1,13 +1,17 @@
-from rest_framework import viewsets
-from django.views.generic import ListView, DetailView, FormView
+import json
+import logging
+
+from django.views.generic import ListView, DetailView, FormView, RedirectView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
-import json
+
+from rest_framework import viewsets
 
 from hermes.models import Message
 from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
 
+logger = logging.getLogger(__name__)
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
@@ -45,3 +49,29 @@ class MessageFormView(FormView):
         message.save()
 
         return redirect(self.get_success_url())
+
+
+class HopSubmitView(RedirectView):
+    # redirect to the this URL after submitting the message
+    url = '/messages'
+
+    def get(self, request, *args, **kwargs):
+        # what's going on here?
+        #logger.info(f'args: {args}')
+        #logger.info(f'kwargs: {kwargs}')
+        #logger.info(f'dir(request): {dir(request)}')
+        #logger.info(f'request.GET: {dir(request.GET)}')
+        #logger.info(f'type(request.body): {type(request.body)}')
+        #logger.info(f'request.body: {request.body}')
+
+        # extract the message JSON from the HTTPRequest
+        try:
+            message = json.loads(request.body.decode("utf-8"))
+            logger.info(f'message: {message}')
+        except json.JSONDecodeError as err:
+            logger.error(f'JSONDecodeError: {err}')
+
+        # TODO: submit the message to scimma hopskotch via hop-client
+
+        # and now let the RedirectView handle the redirect
+        return super().get(request, args, kwargs)
