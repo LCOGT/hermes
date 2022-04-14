@@ -12,6 +12,7 @@ from hermes.serializers import MessageSerializer
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    pagination_class = None
 
 
 class MessageListView(ListView):
