@@ -4,7 +4,7 @@ version = "0.1.1"
 description = "Messaging for Multi-messenger Astronomy"
 authors = [
     "Curtis McCully <cmccully@lco.glboal>",
-    "Joseph Chatelain <jchatelain@lco.global>"
+    "Joseph Chatelain <jchatelain@lco.global>",
     "Lindy Lindstrom <llindstrom@lco.global>",
     ]
 
