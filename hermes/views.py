@@ -52,6 +52,8 @@ class MessageFormView(FormView):
 
 
 class HopSubmitView(RedirectView):
+    """Intercept the re-direct and submit the message to the hop-client.
+    """
     # redirect to the this URL after submitting the message
     url = '/messages'
 
@@ -69,9 +71,16 @@ class HopSubmitView(RedirectView):
             message = json.loads(request.body.decode("utf-8"))
             logger.info(f'message: {message}')
         except json.JSONDecodeError as err:
-            logger.error(f'JSONDecodeError: {err}')
+            logger.error(f'JSONDecodeError: {err} for request body: {request.body}')
 
         # TODO: submit the message to scimma hopskotch via hop-client
 
         # and now let the RedirectView handle the redirect
         return super().get(request, args, kwargs)
+
+
+    # these post and patch overrides mirror the RedirectView base class behavior
+    def post(self, request, *args, **kwargs):
+        return self.get(request, args, kwargs)
+    def patch(self, request, *args, **kwargs):
+        return self.get(request, args, kwargs)
