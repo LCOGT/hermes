@@ -37,14 +37,14 @@ spec:
         - path: {{ . }}
           pathType: Prefix
           backend:
-        {{- if semverCompare ">=1.22-0" $.Capabilities.KubeVersion.GitVersion -}}
+        {{- if semverCompare ">=1.22-0" $.Capabilities.KubeVersion.GitVersion }}
             service:
               name: {{ $fullName }}
               port:
                 number: {{ $svcPort }}
-        {{- else}}
-              serviceName: {{ $fullName }}
-              servicePort: {{ $svcPort }}
+        {{ else }}
+            serviceName: {{ $fullName }}
+            servicePort: {{ $svcPort }}
         {{- end }}
         {{- end }}
   {{- end }}
