@@ -19,3 +19,4 @@ ingress:
       paths:
         - "/messages"
         - "/api"
+        - "/submit"
