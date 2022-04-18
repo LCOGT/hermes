@@ -1,9 +1,13 @@
 import json
 import logging
+import os
 
 from django.views.generic import ListView, DetailView, FormView, RedirectView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
+
+from hop import Stream
+from hop.auth import Auth
 
 from rest_framework import viewsets
 
@@ -74,6 +78,22 @@ class HopSubmitView(RedirectView):
             logger.error(f'JSONDecodeError: {err} for request body: {request.body}')
 
         # TODO: submit the message to scimma hopskotch via hop-client
+        # handle authenticaion: HOP_USERNAME and HOP_PASSWORD should enter
+        #   the environment as k8s secrets
+        username = os.getenv('HOP_USERNAME', None)
+        password = os.getenv('HOP_PASSWORD', None)
+        if username is None or password is None:
+            error_message = 'Supply Hop credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
+            logger.error(error_message)
+        hop_auth = Auth(username, password)
+
+        #topic = 'hermes.test'
+        topic = 'tomtoolkit.test'
+        stream = Stream(auth=hop_auth)
+        # open for write ('w')
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
+            metadata = {'topic': topic}
+            s.write(message, metadata)
 
         # and now let the RedirectView handle the redirect
         return super().get(request, args, kwargs)
