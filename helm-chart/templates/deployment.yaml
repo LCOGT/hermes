@@ -118,12 +118,39 @@ spec:
             - name: tmp
               mountPath: /tmp
               readOnly: false
+        - name: {{ .Chart.Name }}-ingester
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - hopingest
+            - --topic
+            - hermes.test
+          env:
+            {{ include "hermes.extraEnv" . | nindent 12 }}
+            {{ include "hermes.backendEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: hermes-secrets
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp-ingester
+              mountPath: /tmp
+              readOnly: false
 
       volumes:
         - name: app-configuration
           configMap:
             name: {{ include "hermes.fullname" . }}
         - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: tmp-ingester
           emptyDir:
             medium: Memory
             sizeLimit: 16Mi
