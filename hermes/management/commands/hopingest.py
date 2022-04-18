@@ -20,12 +20,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         # parser is an argparse.ArguementParser
+        parser.add_argument('-e', '--earliest', required=False, default=False, action='store_true',
+                            help='Read from the start of the Kafka stream with hop.io.StartPosition.EARLIEST')
+        parser.add_argument('-T', '--topic', required=False, default='sys.heartbeat',
+                            help='Topic to ingest. Defaults to sys.heartbeat')
         parser.add_argument('-u', '--username', required=False, help='Username for hop-client from scimma-admin')
         parser.add_argument('-p', '--password', required=False, help='Password for hop-client from scimma-admin')
         parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
-                            help='Log four sys.heartbeat gcn_circulars and exit')
-        parser.add_argument('-e', '--earliest', required=False, default=False, action='store_true',
-                            help='Read from the start of the Kafka stream with hop.io.StartPosition.EARLIEST')
+                            help='Log four sys.heartbeat and exit')
 
     def _get_hop_authentication(self, options):
         """Get username and password and configure Hop client authentication
@@ -68,13 +70,33 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
+        topic = options['topic']
+        logger.info(f'topic set to  {topic}')
+
+        # map from topic to alert parser/db-updater for that topic
+        alert_handler = {
+            'gcn.circular': self._update_db_with_gcn_circular,
+            'tomtoolkit.test': self._update_db_with_hermes_alert,
+            'hermes.test': self._update_db_with_hermes_alert,
+            'sys.heartbeat': self._heartbeat_handler
+        }
+
         # instanciate the Stream in a way that sets the io.StartPosition
         stream = Stream(auth=hop_auth, start_at=start_position)
-        with stream.open('kafka://kafka.scimma.org/gcn.circular', 'r') as src:
-            for gcn_circular, metadata in src.read(metadata=True):
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'r') as src:
+            for alert, metadata in src.read(metadata=True):
                 # type(gcn_circular) is <hop.models.GNCCircular>
                 # type(metadata) is <hop.io.Metadata>
-                self._update_db_with_gcn_circular(gcn_circular, metadata)
+                alert_handler[topic](alert, metadata)
+
+
+
+    def _heartbeat_handler(self, heartbeat,  metadata):
+        t = datetime.fromtimestamp(heartbeat["timestamp"]/1e6, tz=timezone.utc)
+        heartbeat['utc_time_iso'] = t.isoformat()
+
+        logging.info(f'heartbeat: {heartbeat}')
+        logging.info(f'metadata: {metadata}')
 
 
     def _test_sys_heartbeat(self, auth):
@@ -82,12 +104,12 @@ class Command(BaseCommand):
         stream = Stream(auth=auth)
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'r') as src:
             limit = 3
-            for hearbeat, metadata in src.read(metadata=True):
+            for heartbeat, metadata in src.read(metadata=True):
                 # decode the timestamp and insert into the gcn_circular dictionary
-                t = datetime.fromtimestamp(hearbeat["timestamp"]/1e6, tz=timezone.utc)
-                hearbeat['utc_time_iso'] = t.isoformat()
+                t = datetime.fromtimestamp(heartbeat["timestamp"]/1e6, tz=timezone.utc)
+                heartbeat['utc_time_iso'] = t.isoformat()
 
-                logging.info(f'{limit}: heartbeat: {hearbeat}')
+                logging.info(f'{limit}: heartbeat: {heartbeat}')
                 logging.info(f'{limit}: metadata: {metadata}')
 
                 limit -= 1
@@ -163,3 +185,25 @@ class Command(BaseCommand):
 #     The skymap can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_skymap_all_bn220330520.png\n\nThe HEALPix FITS file, including the estimated localization systematic, can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_healpix_all_bn220330520.fit\n\nThe GBM light curve can be found here:\nhttps://heasarc.gsfc.nasa.gov/FTP/fermi/data/gbm/triggers/2022/bn220330520/quicklook/glg_lc_medres34_bn220330520.gif\n\n
 #     """
 # )
+
+    def _update_db_with_hermes_alert(self, hermes_alert,  metadata):
+        logger.info(f'updating db with hermes alert {hermes_alert}')
+        logger.info(f'metadata: {metadata}')
+        try:
+            message, created = Message.objects.update_or_create(
+                # all these fields must match for update...
+                topic=hermes_alert['topic'],
+                title=hermes_alert['title'],
+                author=hermes_alert['author'],
+                data=hermes_alert['data'],
+                message_text=hermes_alert['message_text'],
+            )
+        except KeyError as err:
+            logger.error(f'hermes unknow key found in Hermes alert: {hermes_alert}. {err}')
+            return 
+
+        if created:
+            logger.info(f'created new Message with id: {message.id}')
+        else:
+            logger.info(f'found existing Message with id: {message.id}')
+            # TODO: assert GCN Circular Number fields matches
