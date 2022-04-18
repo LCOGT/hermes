@@ -87,8 +87,7 @@ class HopSubmitView(RedirectView):
             logger.error(error_message)
         hop_auth = Auth(username, password)
 
-        #topic = 'hermes.test'
-        topic = 'tomtoolkit.test'
+        topic = 'hermes.test'
         stream = Stream(auth=hop_auth)
         # open for write ('w')
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
