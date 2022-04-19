@@ -2,6 +2,7 @@ import json
 import logging
 import os
 
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, DetailView, FormView, RedirectView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
@@ -100,7 +101,10 @@ class HopSubmitView(RedirectView):
 
 
     # these post and patch overrides mirror the RedirectView base class behavior
+    @csrf_exempt
     def post(self, request, *args, **kwargs):
         return self.get(request, args, kwargs)
+
+    @csrf_exempt
     def patch(self, request, *args, **kwargs):
         return self.get(request, args, kwargs)
