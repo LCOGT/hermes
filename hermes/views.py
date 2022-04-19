@@ -63,12 +63,13 @@ class HopSubmitView(RedirectView):
 
     def get(self, request, *args, **kwargs):
         # what's going on here?
-        #logger.info(f'args: {args}')
-        #logger.info(f'kwargs: {kwargs}')
-        #logger.info(f'dir(request): {dir(request)}')
-        #logger.info(f'request.GET: {dir(request.GET)}')
-        #logger.info(f'type(request.body): {type(request.body)}')
-        #logger.info(f'request.body: {request.body}')
+        logger.info(f'args: {args}')
+        logger.info(f'kwargs: {kwargs}')
+        logger.info(f'dir(request): {dir(request)}')
+        logger.info(f'request: {request}')
+        logger.info(f'request.GET: {dir(request.GET)}')
+        logger.info(f'type(request.body): {type(request.body)}')
+        logger.info(f'request.body: {request.body}')
 
         # extract the message JSON from the HTTPRequest
         try:
