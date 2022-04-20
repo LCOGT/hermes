@@ -129,6 +129,7 @@ spec:
             - hopingest
             - --topic
             - hermes.test
+            - gcn.circular
           env:
             {{ include "hermes.extraEnv" . | nindent 12 }}
             {{ include "hermes.backendEnv" . | nindent 12 }}
