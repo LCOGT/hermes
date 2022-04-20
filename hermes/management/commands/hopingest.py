@@ -22,8 +22,8 @@ class Command(BaseCommand):
         # parser is an argparse.ArguementParser
         parser.add_argument('-e', '--earliest', required=False, default=False, action='store_true',
                             help='Read from the start of the Kafka stream with hop.io.StartPosition.EARLIEST')
-        parser.add_argument('-T', '--topic', required=False, default='sys.heartbeat',
-                            help='Topic to ingest. Defaults to sys.heartbeat')
+        parser.add_argument('-T', '--topic', required=False, action='append', nargs='*',
+                            help='Repeatable. Topic to ingest. Defaults to sys.heartbeat')
         parser.add_argument('-u', '--username', required=False, help='Username for hop-client from scimma-admin')
         parser.add_argument('-p', '--password', required=False, help='Password for hop-client from scimma-admin')
         parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
@@ -70,8 +70,13 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
-        topic = options['topic']
-        logger.info(f'topic set to  {topic}')
+        topics = options['topic']
+        if topics is None:
+            topics = [['sys.heartbeat']] # default defined here
+        logger.info(f'topic set to  {topics}')
+
+        stream_url = f'kafka://kafka.scimma.org/{",".join(topics[0])}'
+        logger.info(f'stream_url:  {stream_url}')
 
         # map from topic to alert parser/db-updater for that topic
         alert_handler = {
@@ -83,12 +88,13 @@ class Command(BaseCommand):
 
         # instanciate the Stream in a way that sets the io.StartPosition
         stream = Stream(auth=hop_auth, start_at=start_position)
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'r') as src:
+        stream_url = f'kafka://kafka.scimma.org/{",".join(topics[0])}'
+        logger.info(f'stream_url:  {stream_url}')
+        with stream.open(stream_url, 'r') as src:
             for alert, metadata in src.read(metadata=True):
                 # type(gcn_circular) is <hop.models.GNCCircular>
                 # type(metadata) is <hop.io.Metadata>
-                alert_handler[topic](alert, metadata)
-
+                alert_handler[metadata.topic](alert, metadata)
 
 
     def _heartbeat_handler(self, heartbeat,  metadata):
