@@ -3,9 +3,17 @@ import logging
 import os
 
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import ListView, DetailView, FormView, RedirectView
+from django.views.generic import ListView, DetailView, FormView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
+from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework.response import Response
+
+from astropy.coordinates import SkyCoord
+from astropy import units
+
+from marshmallow import Schema, fields, ValidationError, validates_schema
 
 from hop import Stream
 from hop.auth import Auth
@@ -17,6 +25,53 @@ from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
 
 logger = logging.getLogger(__name__)
+
+
+class CandidateDataSchema(Schema):
+    candidate_id = fields.String(required=True)
+    ra = fields.String(required=True)
+    dec = fields.String(required=True)
+    discovery_date = fields.String(required=True)
+    telescope = fields.String()
+    instrument = fields.String()
+    band = fields.String(required=True)
+    brightness = fields.Float()
+    brightnessError = fields.Float()
+    brightnessUnit = fields.String()
+
+    @validates_schema(skip_on_field_errors=True)
+    def validate_coordinates(self, data):
+        for row in data:
+            try:
+                ra, dec = float(row['ra']), float(row['dec'])
+                SkyCoord(ra, dec, unit=(units.deg, units.deg))
+            except:
+                try:
+                    SkyCoord(row['ra'], row['dec'], unit=(units.hourangle, units.deg))
+                except:
+                    raise ValidationError('Coordinates do not all have valid RA and Dec')
+
+    @validates_schema(skip_on_field_errors=True)
+    def validate_brightness_unit(self, data):
+        brightness_units = ['AB mag', 'Vega mag']
+        for row in data:
+            if row['brightness_unit'] not in brightness_units:
+                raise ValidationError(f'Unrecognized brightness unit. Accepted brightness units are {brightness_units}')
+
+
+class CandidateMessageSubSchema(Schema):
+    authors = fields.String()
+    main_data = fields.Nested(CandidateDataSchema)
+
+
+class CandidateMessageSchema(Schema):
+    title = fields.String(required=True)
+    topic = fields.String(required=True)
+    event_id = fields.String()
+    message_text = fields.String(required=True)
+    author = fields.String(required=True)
+    data = fields.Nested(CandidateMessageSubSchema)
+
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
@@ -56,19 +111,44 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-class HopSubmitView(RedirectView):
-    """Intercept the re-direct and submit the message to the hop-client.
-    """
-    # redirect to the this URL after submitting the message
-    url = '/messages'
+def submit_to_hop(message):
+    # TODO: submit the message to scimma hopskotch via hop-client
+    # handle authentication: HOP_USERNAME and HOP_PASSWORD should enter
+    # the environment as k8s secrets
+    username = os.getenv('HOP_USERNAME', None)
+    password = os.getenv('HOP_PASSWORD', None)
+    if username is None or password is None:
+        error_message = 'Supply Hop credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
+        logger.error(error_message)
+        return Response({'message': 'Hop credentials are not set correctly on the server'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    hop_auth = Auth(username, password)
 
-    def get(self, request, *args, **kwargs):
+    try:
+        topic = 'hermes.test'
+        stream = Stream(auth=hop_auth)
+        # open for write ('w')
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
+            metadata = {'topic': topic}
+            s.write(message, metadata)
+    except Exception as e:
+        return Response({'message': f'Error posting message to kafka: {e}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response({"message": {"Message was submitted successfully"}}, status=status.HTTP_200_OK)
+
+
+class HopSubmitView(APIView):
+    """
+    Submit a message to the hop client
+    """
+    @csrf_exempt
+    def post(self, request, *args, **kwargs):
         # what's going on here?
         logger.info(f'args: {args}')
         logger.info(f'kwargs: {kwargs}')
         logger.info(f'dir(request): {dir(request)}')
         logger.info(f'request: {request}')
-        logger.info(f'request.GET: {dir(request.GET)}')
+        logger.info(f'request.POST: {dir(request.POST)}')
         logger.info(f'type(request.body): {type(request.body)}')
         logger.info(f'request.body: {request.body}')
 
@@ -77,34 +157,58 @@ class HopSubmitView(RedirectView):
             message = json.loads(request.body.decode("utf-8"))
             logger.info(f'message: {message}')
         except json.JSONDecodeError as err:
-            logger.error(f'JSONDecodeError: {err} for request body: {request.body}')
-
-        # TODO: submit the message to scimma hopskotch via hop-client
-        # handle authenticaion: HOP_USERNAME and HOP_PASSWORD should enter
-        #   the environment as k8s secrets
-        username = os.getenv('HOP_USERNAME', None)
-        password = os.getenv('HOP_PASSWORD', None)
-        if username is None or password is None:
-            error_message = 'Supply Hop credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
+            error_message = f'JSONDecodeError: {err} for request body: {request.body}'
             logger.error(error_message)
-        hop_auth = Auth(username, password)
+            return Response({'message': error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-        topic = 'hermes.test'
-        stream = Stream(auth=hop_auth)
-        # open for write ('w')
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
-            metadata = {'topic': topic}
-            s.write(message, metadata)
+        return submit_to_hop(message)
 
-        # and now let the RedirectView handle the redirect
-        return super().get(request, args, kwargs)
+    def get(self, request, *args, **kwargs):
+        return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
 
 
-    # these post and patch overrides mirror the RedirectView base class behavior
-    @csrf_exempt
+class HopSubmitCandidatesView(APIView):
+    def get(self, request, *args, **kwargs):
+        message = """This endpoint is used to send a message with a list of potential candidates corresponding to a 
+        non-localized event.
+        
+        Requests should be structured as below:
+        
+        {title: <Title of the message>,
+         topic: <kafka topic to post message to>, 
+         author: <submitter of the message>,
+         message_text: <Text of the message to send>,
+         event_id: <ID of the non-localized event for these candidates>,
+         data: {authors: <Text full list of authors on a message>,
+                main_data: {[{candidate_id: <ID of the candidate>,
+                              ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
+                              dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
+                              discovery_date: <Date/time of the candidate discovery>,
+                              telescope: <Discovery telescope>,
+                              instrument: <Discovery instrument>,
+                              band: <Wavelength band of the discovery observation>,
+                              brightness: <Brightness of the candidate at discovery>,
+                              brightness_error: <Brightness error of the candidate at discovery>,
+                              brightness_unit: <Brightness units for the discovery, 
+                                  current supported values: [AB mag, Vega mag]>
+                           }, ...]}
+        }
+        """
+        return Response({"message": message}, status.HTTP_200_OK)
+
     def post(self, request, *args, **kwargs):
-        return self.get(request, args, kwargs)
+        try:
+            json.loads(request.body.decode("utf-8"))
+        except Exception as err:
+            error_message = f'JSONDecodeError: {err} for request body: {request.body}'
+            logger.error(error_message)
+            return Response({'message': error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-    @csrf_exempt
-    def patch(self, request, *args, **kwargs):
-        return self.get(request, args, kwargs)
+        candidate_schema = CandidateMessageSchema()
+        candidates, errors = candidate_schema.load(request.json)
+
+        logger.debug(f"Request data: {request.json}")
+        if errors:
+            return Response(errors, status.HTTP_400_BAD_REQUEST)
+
+        return submit_to_hop(vars(candidates))
