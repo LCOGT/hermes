@@ -149,8 +149,15 @@ class HopSubmitView(APIView):
         logger.info(f'dir(request): {dir(request)}')
         logger.info(f'request: {request}')
         logger.info(f'request.POST: {dir(request.POST)}')
-        logger.info(f'type(request.body): {type(request.body)}')
-        logger.info(f'request.body: {request.body}')
+        # request.data does not read the data stream again. So,
+        # that is more appropriate than request.body which does
+        # (read the stream again).
+        # NO:
+        #logger.info(f'type(request.body): {type(request.body)}')
+        #logger.info(f'request.body: {request.body}')
+        # YES:
+        logger.info(f'type(request.data): {type(request.data)}')
+        logger.info(f'request.data: {request.data}')
 
         # extract the message JSON from the HTTPRequest
         try:
