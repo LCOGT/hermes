@@ -1,0 +1,23 @@
+# Helm chart values for Production Deployment
+
+djangoDebug: false
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx-ingress-public
+  hosts:
+    - host: hermes.lco.global
+      paths:
+        - "/messages"
+        - "/api"

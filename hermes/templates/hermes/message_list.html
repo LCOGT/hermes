@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h1>Messages</h1>
+  {% if message_list %}
+  <ul>
+    {% for message in message_list %}
+      <li>
+        <a href="{% url 'message-info' message.pk %}">{{ message.title }}</a> ({{message.author}}) [{{ message.created }}]
+      </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p>There are no messages.</p>
+  {% endif %}
+{% endblock %}

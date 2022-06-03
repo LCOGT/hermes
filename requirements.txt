@@ -1,2 +1,10 @@
 Django>=4
-
+djangorestframework
+psycopg2-binary
+django-bootstrap4
+whitenoise
+lcogt-logging
+hop-client
+django-cors-headers
+marshmallow
+astropy

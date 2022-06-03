@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hermes.fullname" . }}
+  labels:
+{{ include "hermes.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "hermes.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "hermes.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      initContainers:
+        # wait for database to become ready
+        - name: check-db-ready
+          image: "postgres:11.2-alpine"
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - >
+              until pg_isready \
+                  --username={{ .Values.postgresql.postgresqlUsername | quote }} \
+                  --dbname={{ .Values.postgresql.postgresqlDatabase | quote }} \
+                  --host={{ include "hermes.dbhost" . | quote }} \
+                  --port={{ .Values.postgresql.service.port | quote }};
+                do echo waiting for database;
+                sleep 2;
+                done;
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 16Mi
+        {{- if .Values.applyDatabaseMigrations }}
+        - name: apply-db-migrations
+          image: "{{ .Values.image.repository }}:{{ .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - migrate
+            - --no-input
+          env:
+            {{- include "hermes.backendEnv" . | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+              readOnly: false
+        {{- end }}
+    
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ template "hermes.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - gunicorn
+            - --bind=0.0.0.0:8080
+            - --worker-class=gevent
+            - --workers={{ .Values.gunicornWorkers | default 2 }}
+            - --timeout={{ .Values.gunicornTimeout | default 300 }}
+            - --access-logfile=-
+            - --error-logfile=-
+            - hermes_base.wsgi
+          env:
+            {{ include "hermes.extraEnv" . | nindent 12 }}
+            {{ include "hermes.backendEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: hermes-secrets
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: app-configuration
+              mountPath: /hermes/static
+              readOnly: false
+            - name: tmp
+              mountPath: /tmp
+              readOnly: false
+        - name: {{ .Chart.Name }}-ingester
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - hopingest
+            - --topic
+            - hermes.test
+            - gcn.circular
+          env:
+            {{ include "hermes.extraEnv" . | nindent 12 }}
+            {{ include "hermes.backendEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: hermes-secrets
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp-ingester
+              mountPath: /tmp
+              readOnly: false
+
+      volumes:
+        - name: app-configuration
+          configMap:
+            name: {{ include "hermes.fullname" . }}
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: tmp-ingester
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: specutils
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: astropy
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

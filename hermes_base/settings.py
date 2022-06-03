@@ -10,7 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
+from cmath import log
+import os
+import logging.config
 from pathlib import Path
+
+from lcogt_logging import LCOGTFormatter
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,14 +43,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
+    'bootstrap4',
+    'rest_framework',
     'hermes',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    #'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -73,12 +84,18 @@ WSGI_APPLICATION = 'hermes_base.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.0/ref/settings/#databases
+#
+# For development, override the DATABASES dictionary in your local_settings.py
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+   'default': {
+       'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+       'NAME': os.getenv('DB_NAME', 'hermes'),
+       'USER': os.getenv('DB_USER', 'postgres'),
+       'PASSWORD': os.getenv('DB_PASS', ''),
+       'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+       'PORT': os.getenv('DB_PORT', '5432'),
+   },
 }
 
 
@@ -116,9 +133,53 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+# STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+REST_FRAMEWORK = {
+    'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 10,
+}
+
+CORS_ORIGIN_ALLOW_ALL = True
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+#
+# Logging
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'default': {
+            '()': LCOGTFormatter
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default'
+        },
+    },
+    'loggers': {
+        '': {
+            'handlers': ['console'],
+            'level': 'INFO'
+        },
+    }
+}
+logging.config.dictConfig(LOGGING)
+
+
+try:
+    logging.info('Looking for local_settings.')
+    from local_settings import *  # noqa
+except ImportError:
+    logging.info('No local_settings found.')
+    pass
