@@ -156,7 +156,7 @@ OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', 'you must set OIDC_RP
 
 # Signing Algorithm for CILogon
 OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_RP_JWKS_ENDPOINT = 'https://cilogon.org/oath2/certs'
+OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 
 # more OIDC config
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
