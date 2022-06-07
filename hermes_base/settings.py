@@ -138,6 +138,42 @@ STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+
+# OpenID Connect (OIDC) Provider (OP) Configuration
+# https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html
+
+# Client ID and SECRET are how HERMES represents itself to CILogon.org (the OP).
+# Client ID and SECRET values obtained from CILogon.org via SCiMMA/Chris Weaver.
+# Callbacks registered for HERMES are:
+#   http://127.0.0.1/auth/callback
+#   http://127.0.0.1:8000/auth/callback
+#   http://hermes-dev.lco.gtn/auth/callback
+#   http://hermes.lco.global/auth/callback
+OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', 'you must set OIDC_RP_CLIENT_ID')
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', 'you must set OIDC_RP_CLIENT_SECRET')
+
+# Signing Algorithm for CILogon
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_RP_JWKS_ENDPOINT = 'https://cilogon.org/oath2/certs'
+
+# more OIDC config
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
+OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
+OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+
+AUTHENTICATION_BACKENDS = (
+    'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+)
+
+LOGIN_URL ='/hermes/login'  # TODO: how is this used?
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/hermes/logout'
+LOGIN_REDIRECT_URL_FAILURE = '/hermes/login_failure'
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/
+
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
