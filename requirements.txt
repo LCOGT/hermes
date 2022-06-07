@@ -6,5 +6,6 @@ whitenoise
 lcogt-logging
 hop-client
 django-cors-headers
+mozilla-django-oidc
 marshmallow
 astropy

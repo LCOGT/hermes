@@ -24,6 +24,7 @@ router.register(r'messages', views.MessageViewSet)
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
+    path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
 ]

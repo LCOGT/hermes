@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'bootstrap4',
     'rest_framework',
+    'mozilla_django_oidc',
     'hermes',
 ]
 
