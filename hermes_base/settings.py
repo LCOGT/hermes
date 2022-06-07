@@ -58,6 +58,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     #'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -166,8 +167,8 @@ AUTHENTICATION_BACKENDS = (
 )
 
 LOGIN_URL ='/hermes/login'  # TODO: how is this used?
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/hermes/logout'
+LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login
+LOGOUT_REDIRECT_URL = '/hermes/logout'  # URL path to redirect to after logout
 LOGIN_REDIRECT_URL_FAILURE = '/hermes/login_failure'
 
 
@@ -208,6 +209,10 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': 'INFO'
+        },
+        'mozilla_django_oidc': {
+            'handlers': ['console'],
+            'level': 'DEBUG'
         },
     }
 }
