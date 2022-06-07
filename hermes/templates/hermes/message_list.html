@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 {% block content %}
-  <h1>Messages</h1>
+  {% if user.is_authenticated %}
+    <h3>Current user: {{ user.email }}</h3>
+    <form action="{% url 'oidc_logout' %}" method="post">
+      {% csrf_token %}
+      <input type="submit" value="logout">
+    </form>
+  {% else %}
+    <a href="{% url 'oidc_authentication_init' %}"><h4>Login</h4></a>
+  {% endif %}
+  <hr>
+    <h1>Messages</h1>
   {% if message_list %}
   <ul>
     {% for message in message_list %}
