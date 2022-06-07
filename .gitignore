@@ -9,6 +9,7 @@ __pycache__/
 # Helm and k8s
 helm-chart/charts/
 *secrets*.yaml
+*secrets*.sh
 
 # Distribution / packaging
 .Python
