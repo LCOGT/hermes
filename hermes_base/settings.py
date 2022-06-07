@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
     'mozilla_django_oidc',
