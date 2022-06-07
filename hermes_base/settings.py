@@ -167,9 +167,11 @@ AUTHENTICATION_BACKENDS = (
     'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 )
 
-LOGIN_URL ='/hermes/login'  # TODO: how is this used?
+#LOGIN_URL ='/hermes/login'  # TODO: how is this used?
+
+# TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
 LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = '/hermes/logout'  # URL path to redirect to after logout
+LOGOUT_REDIRECT_URL = '/'  # URL path to redirect to after logout
 LOGIN_REDIRECT_URL_FAILURE = '/hermes/login_failure'
 
 
