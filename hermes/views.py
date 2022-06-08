@@ -2,6 +2,9 @@ import json
 import logging
 import os
 
+# this is for OIDC experimentation
+from django.contrib.auth.models import User
+
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, DetailView, FormView
 from django.urls import reverse_lazy
@@ -80,7 +83,9 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 
 class MessageListView(ListView):
-    model = Message
+    # change the model form Message to User for OIDC experimentation
+    model = User
+    template_name = 'hermes/message_list.html'
 
 
 class MessageDetailView(DetailView):
