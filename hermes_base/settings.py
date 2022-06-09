@@ -170,10 +170,18 @@ AUTHENTICATION_BACKENDS = [
     # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 ]
 
-# TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
+
+# Hopskotch specific configuration
+KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
+
+# https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
+LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
 LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login
 LOGOUT_REDIRECT_URL = '/'  # URL path to redirect to after logout
-LOGIN_REDIRECT_URL_FAILURE = '/hermes/login_failure'
+LOGIN_REDIRECT_URL_FAILURE = '/'
+# TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
+# TODO: handle login_failure !!
 
 
 # Django REST Framework
