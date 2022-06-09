@@ -163,11 +163,12 @@ OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
 OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
 OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
 
-AUTHENTICATION_BACKENDS = (
-    'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
-)
 
-#LOGIN_URL ='/hermes/login'  # TODO: how is this used?
+# https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
+AUTHENTICATION_BACKENDS = [
+    'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
+    # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+]
 
 # TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
 LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login

@@ -22,6 +22,7 @@
             <th>Email</th>
             <th>is_staff</th>
             <th>is_authenticated</th>
+            <th>Logged In</th>
           </tr>
         </thead>
         <tbody>
@@ -31,6 +32,13 @@
           <td>{{ this_user.email }}</td>
           <td>{{ this_user.is_staff }}</td>
           <td>{{ this_user.is_authenticated }}</td>
+          <td>
+            {% if this_user.last_login is None %}
+            False
+            {% else %}
+            True
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
