@@ -163,17 +163,7 @@ class HopSubmitView(APIView):
         # YES:
         logger.info(f'type(request.data): {type(request.data)}')
         logger.info(f'request.data: {request.data}')
-
-        # extract the message JSON from the HTTPRequest
-        try:
-            message = json.loads(request.body.decode("utf-8"))
-            logger.info(f'message: {message}')
-        except json.JSONDecodeError as err:
-            error_message = f'JSONDecodeError: {err} for request body: {request.body}'
-            logger.error(error_message)
-            return Response({'message': error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-        return submit_to_hop(message)
+        return submit_to_hop(request.data)
 
     def get(self, request, *args, **kwargs):
         return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
@@ -209,13 +199,6 @@ class HopSubmitCandidatesView(APIView):
         return Response({"message": message}, status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        try:
-            json.loads(request.body.decode("utf-8"))
-        except Exception as err:
-            error_message = f'JSONDecodeError: {err} for request body: {request.body}'
-            logger.error(error_message)
-            return Response({'message': error_message}, status=status.HTTP_400_BAD_REQUEST)
-
         candidate_schema = CandidateMessageSchema()
         candidates, errors = candidate_schema.load(request.json)
 
