@@ -23,10 +23,10 @@
           <td>{{ this_user.is_staff }}</td>
           <td>{{ this_user.is_authenticated }}</td>
           <td>
-            {% if this_user.last_login is None %}
-            False
+            {% if this_user != user  %}
+              No
             {% else %}
-            True
+              Yes
             {% endif %}
           </td>
         </tr>
