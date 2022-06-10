@@ -24,7 +24,25 @@
       <a class="nav-link" href="{% url 'message-form' %}">New Message</a>
       <a class="nav-link" href="{% url 'api-root' %}">API</a>
 
-      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav ml-auto">
+        {% if user.is_authenticated %}
+            <li class="nav-item">
+              <div>
+                <span class="text-light">Current user: {{ user.email }} ({{ user.username }})</span>
+                <form class="form-inline my-2 my-lg-0" id="logout" action="{% url 'oidc_logout' %}" method="post">
+                    {% csrf_token %}
+                    <input class="btn btn-primary" type="submit" value="Logout">
+                </form>
+              </div>
+            </li>
+        {% else %} {# Not authenticated #}
+            <li class="nav-item">
+                <a class="btn btn-primary" href="{% url 'oidc_authentication_init' %}">Log On</a>
+            </li>
+        {% endif %}
+        </ul>
       </div>
     </nav>
 

@@ -1,16 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
-  {% if user.is_authenticated %}
-    <h3>Current user: {{ user.email }}</h3>
-    <form action="{% url 'oidc_logout' %}" method="post">
-      {% csrf_token %}
-      <input type="submit" value="logout">
-    </form>
-  {% else %}
-    <a href="{% url 'oidc_authentication_init' %}"><h4>Login</h4></a>
-  {% endif %}
-
-  <hr>
+  <!-- see base.html for login/logout stuff -- it was removed to the navbar -->
   <h1>Known Users</h1>
   {% if user_list %}
   <ul>
