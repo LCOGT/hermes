@@ -28,3 +28,8 @@ urlpatterns = [
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
 ]
+
+# mozilla_django_oidc.urls provides:
+#  oidc_authentication_callback
+#  oidc_authentication_init
+#  oidc_logout
