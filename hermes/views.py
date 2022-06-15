@@ -119,8 +119,7 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(message):
-    # TODO: submit the message to scimma hopskotch via hop-client
+def get_hermes_hop_authorization():
     # handle authentication: HOP_USERNAME and HOP_PASSWORD should enter
     # the environment as k8s secrets
     username = os.getenv('HOP_USERNAME', None)
@@ -131,6 +130,12 @@ def submit_to_hop(message):
         return Response({'message': 'Hop credentials are not set correctly on the server'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     hop_auth = Auth(username, password)
+
+    return hop_auth
+
+
+def submit_to_hop(message):
+    hop_auth = get_hermes_hop_authorization()
 
     try:
         topic = 'hermes.test'
@@ -214,8 +219,137 @@ class HopSubmitCandidatesView(APIView):
 class HopAuthTestView(RedirectView):
     pattern_name = 'index'
 
+    def _get_rest_token(self, scimma_admin_api_url, scram_username, scram_password):
+        # TODO: this whole method should be refactored; it doesn't have to be an instance method
+
+        # this is the scimma-admin crdential created locally (127.0.0.1:8000)
+        # that corresponds to the user defined in scimma-admin/user_data_test-admin
+        # test-admin-4150ad45
+        # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
+
+        # Peform the first round of the SCRAM handshake:
+        client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
+        client_first = client.get_client_first()
+        # print("SCRAM client first request:", client_first)
+        scram_resp1 = requests.post(scimma_admin_api_url + '/scram/first',
+                                    json={"client_first": client_first},
+                                    headers={"Content-Type":"application/json"})
+        # print("SCRAM server first response:", scram_resp1.json())
+        
+        # Peform the second round of the SCRAM handshake:
+        client.set_server_first(scram_resp1.json()["server_first"])
+        client_final = client.get_client_final()
+        logger.debug(f'SCRAM client final request: {client_final}')
+
+        scram_resp2 = requests.post(scimma_admin_api_url + '/scram/final',
+                                    json={"client_final": client_final},
+                                    headers={"Content-Type":"application/json"})
+        logger.debug(f'SCRAM server final response: {scram_resp2.json()}')
+
+        client.set_server_final(scram_resp2.json()["server_final"])
+
+        # Get the token we should have been issued:
+        rest_token = scram_resp2.json()["token"]
+        logger.info(f'Token issued: {rest_token}')
+        rest_token = f'Token{rest_token}'  # Django wants this prefix
+        return rest_token
+
+
     def get(self, request, *args, **kwargs):
+
+        # logger.info(f'HopAuthTestView request: {request}')
+        # logger.info(f'HopAuthTestView request dir: {dir(request)}')
+        # logger.info(f'HopAuthTestView request User: {request.user}')
+        # logger.info(f'HopAuthTestView request User dir: {dir(request.user)}')
+        # logger.info(f'HopAuthTestView request.session: {request.session}')
+        # logger.info(f'HopAuthTestView request.session dir: {dir(request.session)}')
+
+        # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
+        # 2. Do a SCRAM exchange (/scram/first + /scram/final to get a REST API Token (hermes_api_token)
+        # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
+        # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
+        # 
+
+        # reminder about PORTS
+        # 8000: local scimma-admin
+        # 8001: local hermes
+        # 8002: local netcat (nc) (spoofed CILogon)
+        # 5433: dockerized scimma-admin-postgres
+        # 5432: dockerized hermes-postgres
+
+        # 0. preliminaries
+        scimma_admin_base_url = 'http://127.0.0.1:8000/hopauth'  # TODO: configure this in settings.py/local_settings.py
+        scimma_admin_api_version = 0  # TODO get from scimma_admin_base_url+'/api/version
+        scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
+
+        # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
+        hop_auth = get_hermes_hop_authorization()
+
+        logger.info(f'HopAuthTestView hop_auth: {hop_auth}')
+        logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
+        logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
+
+        # TODO: make sure this test data is all consistent
+        # for testing purposes reset username and password to match
+        # the credentials created locally for the test-admin user
+        # (test-admin@example.com supplied by scimma-admin and netcat: (nc -l 8002 < user_data_test-admin)
+        # test-admin-4150ad45
+        # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
+        test_hop_username = 'test-admin-4150ad45'
+        test_hop_password = 'KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O'
+
+        logger.info('HopAuthTestView Using SCRAM creds for user_data_test-admin:')
+        logger.info(f'HopAuthTestView hop_aut.username: {test_hop_username}')
+        logger.info(f'HopAuthTestView hop_aut.password: {test_hop_password}')
+
+        # 2. Do a SCRAM exchange (/scram/first + /scram/final to get a REST API Token (hermes_api_token)
+        #hermes_api_token = self._get_rest_token(scimma_admin_api_url, hop_auth.username, hop_auth.password)
+        hermes_api_token = self._get_rest_token(scimma_admin_api_url, test_hop_username, test_hop_password)
+        logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
+
+        # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
+
+        # TODO: do it
+
+        user_api_token = '*** not set yet !!!'
+        logger.info(f'HopAuthTestView user_api_token: {user_api_token}')
 
         early_exit = True  # I just want to see the logging above
         if early_exit:
             return super().get(request)
+
+        # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
+        # 
+
+        # the request.user.username for CILogon-created (OIDC Provider-created) User insetances
+        # is the vo_person_id from CILogon that scimma-admin is looking for.
+        # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
+        hopskotch_auth_request_data = {
+            #'vo_person_id': request.user.username,
+            'vo_person_id': 'SCiMMA2000002',  ## test value from user_data_test-admin
+        }
+
+
+
+        # go to scimma-admin and get a REST API token
+        scimma_admin_base_url = 'http://127.0.0.1:8001/hopauth'
+        scimma_admin_api_version = 0  # TODO get from scimma_admin_base_url+'/api/version
+        scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
+
+        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py
+        scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
+
+        url = scimma_admin_api_url + scimma_admin_token_for_user_api_suffix
+
+        logger.info(f'HopAuthTestView url: {url}')
+        logger.info(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
+
+        hopskotch_auth_response = requests.post(url, hopskotch_auth_request_data)
+
+        logger.info(f'HopAuthTestView hopskotch_auth_response: {hopskotch_auth_response}')
+        if hopskotch_auth_response.status_code == 200:
+            logger.info(f'HopAuthTestView hopskotch_auth_response.data: {hopskotch_auth_response.data}')
+        else:
+            logger.error(f'HopAuthTestView hopskotch_auth_response.status_code: {hopskotch_auth_response.status_code}')
+            
+        return super().get(request)
