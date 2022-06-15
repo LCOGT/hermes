@@ -41,6 +41,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         """
         """
         logger.info(f'HopskotchOIDCAuthenticationBackend.verify_claims')
+        # Value for 'is_member_of' key is  list(COManage groups)
         if "is_member_of" not in claims:
             log_event_id = secrets.token_hex(8)
             msg = f"Your account is missing LDAP claims. Are you sure you used the account you use for SCIMMA? Error ID: {log_event_id}"
@@ -67,6 +68,11 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         raise PermissionDenied(msg)
 
     def create_user(self, claims):
+        """Create a Django User with
+             * username given by OIDC Provider claims['vo_person_id']
+             * email given by claims['email'] or claims['email_list][0]
+             * is_staff is True for SCiMMA DevOps members
+        """
         logger.info(f'HopskotchOIDCAuthenticationBackend.create_user')
         if "email" in claims:
             email = claims.get("email")
