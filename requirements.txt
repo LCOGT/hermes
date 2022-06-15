@@ -9,4 +9,6 @@ django-cors-headers
 mozilla-django-oidc
 marshmallow
 astropy
-django-extensions # for debugging
+django-extensions # for shell_plus debugging
+requests
+scramp
