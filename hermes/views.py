@@ -6,7 +6,7 @@ import os
 from django.contrib.auth.models import User
 
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import ListView, DetailView, FormView
+from django.views.generic import ListView, DetailView, FormView, RedirectView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from rest_framework.views import APIView
@@ -20,6 +20,9 @@ from marshmallow import Schema, fields, ValidationError, validates_schema
 
 from hop import Stream
 from hop.auth import Auth
+
+import requests
+import scramp
 
 from rest_framework import viewsets
 
@@ -207,3 +210,12 @@ class HopSubmitCandidatesView(APIView):
             return Response(errors, status.HTTP_400_BAD_REQUEST)
 
         return submit_to_hop(vars(candidates))
+
+class HopAuthTestView(RedirectView):
+    pattern_name = 'index'
+
+    def get(self, request, *args, **kwargs):
+
+        early_exit = True  # I just want to see the logging above
+        if early_exit:
+            return super().get(request)
