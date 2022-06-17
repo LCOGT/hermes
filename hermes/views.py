@@ -250,8 +250,8 @@ class HopAuthTestView(RedirectView):
 
         # Get the token we should have been issued:
         rest_token = scram_resp2.json()["token"]
-        logger.info(f'Token issued: {rest_token}')
-        rest_token = f'Token{rest_token}'  # Django wants this prefix
+        logger.info(f'_get_rest_token: Token issued: {rest_token}')
+        rest_token = f'Token {rest_token}'  # Django wants this prefix
         return rest_token
 
 
