@@ -380,6 +380,38 @@ class HopAuthTestView(RedirectView):
            test_query(user_api_token, "/groups/1/permissions_given")
            test_query(user_api_token, "/groups/1/permissions_received")
 
+
+        # TODO: this (4.B) should have happened earlier in this process and the
+        #   hermes_api_token and it's SCRAM creads should be distinct from
+        #   the users SCRAM creds that we use to get hop.auth.Auth and
+        #   hop.Stream instances and publish to Hopskotch
+        # 4.B Create SCRAM credentials (username/password for User)
+        # endpoint is CREATE method of hopauth/api/v0/users/<PK>/credentials
+
+        # TODO: find this user in the /users list
+        # this is the user with the vo_person_id that came back from CILogon
+        # which should be part of this requests user instance (user.username?)
+        user_pk = 1  # TODO: this is just for now
+
+        scimma_admin_user_credentials_api_suffix = f'/users/{user_pk}/credentials'
+        user_credentials_url = scimma_admin_api_url + scimma_admin_user_credentials_api_suffix
+        logger.info(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
+
+        user_credentials_response = requests.post(user_credentials_url,
+                                                  data=json.dumps({'description': 'Created by HERMES'}),
+                                                  headers={'Authorization': user_api_token,
+                                                           'Content-Type': 'application/json'})
+        logger.info(f'HopAuthTestView user_credentials_response.json(): {user_credentials_response.json()}')
+        # we can never again get this SCRAM credential, so save it somewhere
+        hop_username = user_credentials_response.json()['username']
+        hop_password = user_credentials_response.json()['password']
+
+        # TODO: Here is where we would call
+        # hop_auth = Auth(username, password)
+        # and
+        # stream = Stream(auth=hop_auth)
+        # and write to the Kafka stream
+
             
         return super().get(request)
 
