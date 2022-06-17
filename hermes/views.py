@@ -350,20 +350,42 @@ class HopAuthTestView(RedirectView):
             logger.error((f'HopAuthTestView hopskotch_auth_response.status_code: '
                           f'{responses[hopskotch_auth_response.status_code]} [{hopskotch_auth_response.status_code}]'))
 
-        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py
+        # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
+        #
+        # 4.A Try to get the test-admin user's groups and topics
         scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
+        token_for_user_url = scimma_admin_api_url + scimma_admin_token_for_user_api_suffix
+        logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
-        url = scimma_admin_api_url + scimma_admin_token_for_user_api_suffix
-
-        logger.info(f'HopAuthTestView url: {url}')
-        logger.info(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
-
-        hopskotch_auth_response = requests.post(url, hopskotch_auth_request_data)
-
-        logger.info(f'HopAuthTestView hopskotch_auth_response: {hopskotch_auth_response}')
-        if hopskotch_auth_response.status_code == 200:
-            logger.info(f'HopAuthTestView hopskotch_auth_response.data: {hopskotch_auth_response.data}')
-        else:
-            logger.error(f'HopAuthTestView hopskotch_auth_response.status_code: {hopskotch_auth_response.status_code}')
+        test_query(user_api_token, '/users')
+        test_query(user_api_token, '/groups')
+        test_query(user_api_token, '/scram_credentials')
+        test_query(user_api_token, "/users/1")
+        test_query(user_api_token, "/users/1/memberships")
+        test_query(user_api_token, "/users/1/credentials")
+        test_query(user_api_token, "/users/1/credentials/1")
+        test_query(user_api_token, "/users/1/credentials/1/permissions")
+        test_query(user_api_token, "/topics")
+        test_query(user_api_token, "/topics/1")
+        test_query(user_api_token, "/topics/1/permissions")
+        test_query(user_api_token, "/groups")
+        test_query(user_api_token, "/groups/1")
+        test_query(user_api_token, "/groups/1/members")
+        test_query(user_api_token, "/groups/1/topics")
+        test_query(user_api_token, "/groups/1/topics/1")
+        test_query(user_api_token, "/groups/1/topics/1/permissions")
+        test_query(user_api_token, "/groups/1/permissions_given")
+        test_query(user_api_token, "/groups/1/permissions_received")
             
         return super().get(request)
+
+def test_query(user_api_token, query_path):
+    resp = requests.get(f'http://127.0.0.1:8000/hopauth/api/v0{query_path}',
+                        headers={'Authorization': user_api_token,
+                                 'Content-Type': 'application/json'})
+    if len(resp.text)>0:
+        #logger.info(f'GET {query_path} [{resp.status_code}]: {resp.json()}')
+        logger.info(f'GET {query_path} [{resp.status_code}]: {resp.text}')
+    else:
+        logger.info(f'GET {query_path} [{resp.status_code}]')
+
