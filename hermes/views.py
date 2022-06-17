@@ -412,6 +412,30 @@ class HopAuthTestView(RedirectView):
         # stream = Stream(auth=hop_auth)
         # and write to the Kafka stream
 
+        clean_up_SCRAM_cred = True
+        if clean_up_SCRAM_cred:
+            # find the <PK> of the SCRAM credential just issued
+            user_credentials_response = requests.get(user_credentials_url,
+                                                     headers={'Authorization': user_api_token,
+                                                              'Content-Type': 'application/json'})
+            # from the response, extract the list of user credential dictionaries
+            user_creds = user_credentials_response.json()
+            # this is the idiom for searchng a list of dictionaries for certain key-value (username)
+            user_cred = next((item for item in user_creds if item["username"] == hop_username), None)
+            if user_cred is not None:
+                scram_pk = user_cred['pk']
+                scimma_admin_user_credentials_detail_api_suffix = f'/users/{user_pk}/credentials/{scram_pk}'
+                user_credentials_detail_url = scimma_admin_api_url + scimma_admin_user_credentials_detail_api_suffix
+                logger.info(f'HopAuthTestView SCRAM cred: {user_cred}')
+                logger.info(f'HopAuthTestView user_credentials_detail_url: {user_credentials_detail_url}')
+                user_credentials_delete_response = requests.delete(user_credentials_detail_url,
+                                                     headers={'Authorization': user_api_token,
+                                                              'Content-Type': 'application/json'})
+                logger.info(
+                    (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
+                     f'[{user_credentials_delete_response.status_code}]'))
+            else:
+                logger.error(f'HopAuthTestView can not clean up SCRAM credential: {hop_username} not found in {user_creds}')
             
         return super().get(request)
 
