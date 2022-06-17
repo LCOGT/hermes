@@ -324,6 +324,7 @@ class HopAuthTestView(RedirectView):
             #'vo_person_id': request.user.username,
             'vo_person_id': 'SCiMMA2000002',  ## test value from user_data_test-admin
         }
+        logger.info(f'HopAuthTestView request.user.username: {request.user.username} -> SCiMMA2000002 from user_data_test-admin')
         logger.debug(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
 
         # 3.C Make the request and extract the user api token from the response
