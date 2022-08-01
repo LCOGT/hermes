@@ -1,7 +1,6 @@
 from http.client import responses
 import json
 import logging
-import os
 
 # this is for OIDC experimentation
 from django.contrib.auth.models import User
@@ -23,7 +22,6 @@ from hop import Stream
 from hop.auth import Auth
 
 import requests
-import scramp
 
 from rest_framework import viewsets
 
@@ -207,44 +205,6 @@ class HopSubmitCandidatesView(APIView):
 class HopAuthTestView(RedirectView):
     pattern_name = 'index'
 
-    def _get_rest_token(self, scimma_admin_api_url, scram_username, scram_password):
-        # TODO: this whole method should be refactored; it doesn't have to be an instance method
-
-        # this is the scimma-admin crdential created locally (127.0.0.1:8000)
-        # that corresponds to the user defined in scimma-admin/user_data_test-admin
-        # test-admin-4150ad45
-        # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
-
-        # Peform the first round of the SCRAM handshake:
-        client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
-        client_first = client.get_client_first()
-
-        logger.info(f'SCRAM client first request: {client_first}')
-
-        scram_resp1 = requests.post(scimma_admin_api_url + '/scram/first',
-                                    json={"client_first": client_first},
-                                    headers={"Content-Type":"application/json"})
-        logger.info(f'SCRAM server first response: {scram_resp1.json()}')
-        
-        # Peform the second round of the SCRAM handshake:
-        client.set_server_first(scram_resp1.json()["server_first"])
-        client_final = client.get_client_final()
-        logger.info(f'SCRAM client final request: {client_final}')
-
-        scram_resp2 = requests.post(scimma_admin_api_url + '/scram/final',
-                                    json={"client_final": client_final},
-                                    headers={"Content-Type":"application/json"})
-        logger.info(f'SCRAM server final response: {scram_resp2.json()}')
-
-        client.set_server_final(scram_resp2.json()["server_final"])
-
-        # Get the token we should have been issued:
-        rest_token = scram_resp2.json()["token"]
-        logger.info(f'_get_rest_token: Token issued: {rest_token}')
-        rest_token = f'Token {rest_token}'  # Django wants this (Token<space>) prefix
-        return rest_token
-
-
     def get(self, request, *args, **kwargs):
 
         # logger.info(f'HopAuthTestView request: {request}')
@@ -277,38 +237,22 @@ class HopAuthTestView(RedirectView):
 
         # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
         #    for the HERMES service acount
-        hop_auth = hopskotch.get_hermes_hop_authorization()
-
-        logger.info(f'HopAuthTestView hop_auth: {hop_auth}')
-        logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
-        logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
-
-        # TODO: make sure this test data is all consistent
-        # for testing purposes reset username and password to match
-        # the credentials created locally for the test-admin user
-        # (test-admin@example.com supplied by scimma-admin and netcat: (nc -l 8002 < user_data_test-admin)
-        # test-admin-4150ad45
-        # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
-        #test_hop_username = 'test-admin-4150ad45'
-        #test_hop_password = 'KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O'
-        # update: now using HERMES Service account (HOP_USERNAME, HOP_PASSWORD)
-        # b/c api is deployed to dev (and prod) and we don't need a locally created test-admin
+        hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
         logger.info('HopAuthTestView Using SCRAM creds for HERMES Service Account:')
         logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
         logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
 
-        # 2. Do a SCRAM exchange (/scram/first + /scram/final to get a REST API Token (hermes_api_token)
-        hermes_api_token = self._get_rest_token(hop_auth_api_url, hop_auth.username, hop_auth.password)
-        #hermes_api_token = self._get_rest_token(hop_auth_api_url, test_hop_username, test_hop_password)
+        # 2. Do a SCRAM exchange (/scram/first + /scram/final) to get a REST API Token (hermes_api_token)
+        hermes_api_token = hopskotch.get_hermes_api_token(hop_auth_api_url, hop_auth.username, hop_auth.password)
+
         logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
 
         # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
 
         # 3.A. Set up the URL
-        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py
-        scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
-        token_for_user_url = hop_auth_api_url + scimma_admin_token_for_user_api_suffix
+        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
+        token_for_user_url = hop_auth_api_url + '/oidc/token_for_user'
         logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
         # 3.B. Set up the request data
@@ -317,7 +261,6 @@ class HopAuthTestView(RedirectView):
         # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
         hopskotch_auth_request_data = {
             'vo_person_id': request.user.username,
-            #'vo_person_id': 'SCiMMA2000002',  ## test value from user_data_test-admin
         }
         #logger.info(f'HopAuthTestView request.user.username: {request.user.username} -> SCiMMA2000002 from user_data_test-admin')
         logger.debug(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
@@ -354,9 +297,9 @@ class HopAuthTestView(RedirectView):
         logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
         # there queries just test that the /oidc/token_for_user user_api_token works
-        if True:
-           test_query(user_api_token, '/users')
-           test_query(user_api_token, '/groups')
+        test_query(user_api_token, '/users')
+        test_query(user_api_token, '/groups')
+        if False:
            test_query(user_api_token, '/scram_credentials')
            test_query(user_api_token, "/users/1")
            test_query(user_api_token, "/users/1/memberships")

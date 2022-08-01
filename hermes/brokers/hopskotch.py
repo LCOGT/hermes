@@ -13,10 +13,14 @@ import requests
 
 from django.conf import settings
 
+from hop.auth import Auth
+
 from rest_framework import status
 from rest_framework.response import Response
 
-from hop.auth import Auth
+import scramp
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,3 +55,41 @@ def get_hermes_hop_authorization() -> Auth:
 
     hop_auth: Auth = Auth(username, password)
     return hop_auth
+
+def get_hermes_api_token(hop_auth_api_url, scram_username, scram_password) -> str:
+    """return the Hop Auth API token for the HERMES service account
+    """
+    # TODO: this whole method should be refactored; it doesn't have to be an instance method
+
+    # this is the scimma-admin crdential created locally (127.0.0.1:8000)
+    # that corresponds to the user defined in scimma-admin/user_data_test-admin
+    # test-admin-4150ad45
+    # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
+
+    # Peform the first round of the SCRAM handshake:
+    client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
+    client_first = client.get_client_first()
+    #logger.info(f'SCRAM client first request: {client_first}')
+
+    scram_resp1 = requests.post(hop_auth_api_url + '/scram/first',
+                                json={"client_first": client_first},
+                                headers={"Content-Type":"application/json"})
+    logger.info(f'SCRAM server first response: {scram_resp1.json()}')
+
+    # Peform the second round of the SCRAM handshake:
+    client.set_server_first(scram_resp1.json()["server_first"])
+    client_final = client.get_client_final()
+    logger.info(f'SCRAM client final request: {client_final}')
+
+    scram_resp2 = requests.post(hop_auth_api_url + '/scram/final',
+                                json={"client_final": client_final},
+                                headers={"Content-Type":"application/json"})
+    logger.info(f'SCRAM server final response: {scram_resp2.json()}')
+
+    client.set_server_final(scram_resp2.json()["server_final"])
+
+    # Get the token we should have been issued:
+    rest_token = scram_resp2.json()["token"]
+    logger.info(f'_get_rest_token: Token issued: {rest_token}')
+    rest_token = f'Token {rest_token}'  # Django wants this (Token<space>) prefix
+    return rest_token
