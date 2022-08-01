@@ -143,16 +143,20 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # OpenID Connect (OIDC) Provider (OP) Configuration
 # https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html
-
-# Client ID and SECRET are how HERMES represents itself to CILogon.org (the OP).
-# Client ID and SECRET values obtained from CILogon.org via SCiMMA/Chris Weaver.
-# Callbacks registered for HERMES are:
+#
+# CILogin callbacks registered for HERMES (via SCiMMA/Chris Weaver) are:
 #   http://127.0.0.1/auth/callback
 #   http://127.0.0.1:8000/auth/callback
+#   http://127.0.0.1:8001/auth/callback
 #   http://hermes-dev.lco.gtn/auth/callback
 #   http://hermes.lco.global/auth/callback
-OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', 'you must set OIDC_RP_CLIENT_ID')
-OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', 'you must set OIDC_RP_CLIENT_SECRET')
+#
+# Client ID (OIDC_RP_CLIENT_ID) and SECRET (OIDC_RP_CLIENT_SECRET)
+# are how HERMES represents itself as the "relying party" (RP) to
+# CILogon.org (the OP). They should enter the environment as k8s secrets.
+# Client ID and SECRET values were obtained from CILogon.org via SCiMMA/Chris Weaver.
+OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
 
 # Signing Algorithm for CILogon
 OIDC_RP_SIGN_ALGO = 'RS256'
