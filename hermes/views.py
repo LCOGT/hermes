@@ -27,6 +27,7 @@ import scramp
 
 from rest_framework import viewsets
 
+from hermes.brokers import hopskotch
 from hermes.models import Message
 from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
@@ -120,23 +121,8 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def get_hermes_hop_authorization():
-    # handle authentication: HOP_USERNAME and HOP_PASSWORD should enter
-    # the environment as k8s secrets
-    username = os.getenv('HOP_USERNAME', None)
-    password = os.getenv('HOP_PASSWORD', None)
-    if username is None or password is None:
-        error_message = 'Supply Hop credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
-        logger.error(error_message)
-        return Response({'message': 'Hop credentials are not set correctly on the server'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    hop_auth = Auth(username, password)
-
-    return hop_auth
-
-
 def submit_to_hop(message):
-    hop_auth = get_hermes_hop_authorization()
+    hop_auth = hopskotch.get_hermes_hop_authorization()
 
     try:
         topic = 'hermes.test'

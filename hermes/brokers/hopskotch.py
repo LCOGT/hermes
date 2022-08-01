@@ -18,4 +18,19 @@ def get_hop_auth_api_url() -> str:
     return hop_auth_api_url
 
 
+def get_hermes_hop_authorization() -> Auth:
+    """return the hop.auth.Auth instance for the HERMES service account
 
+    The HOP_USERNAME and HOP_PASSWORD environment variables are used and
+    should enter the environmnet as k8s secrets.
+    """
+    username = os.getenv('HOP_USERNAME', None)
+    password = os.getenv('HOP_PASSWORD', None)
+    if username is None or password is None:
+        error_message = 'Supply HERMES service account credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
+        logger.error(error_message)
+        return Response({'message': 'HERMES service account credentials for HopAuth are not set correctly on the server'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    hop_auth: Auth = Auth(username, password)
+    return hop_auth
