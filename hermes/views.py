@@ -32,6 +32,7 @@ from hermes.models import Message
 from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -217,28 +218,30 @@ class HopAuthTestView(RedirectView):
         # Peform the first round of the SCRAM handshake:
         client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
         client_first = client.get_client_first()
-        # print("SCRAM client first request:", client_first)
+
+        logger.info(f'SCRAM client first request: {client_first}')
+
         scram_resp1 = requests.post(scimma_admin_api_url + '/scram/first',
                                     json={"client_first": client_first},
                                     headers={"Content-Type":"application/json"})
-        # print("SCRAM server first response:", scram_resp1.json())
+        logger.info(f'SCRAM server first response: {scram_resp1.json()}')
         
         # Peform the second round of the SCRAM handshake:
         client.set_server_first(scram_resp1.json()["server_first"])
         client_final = client.get_client_final()
-        logger.debug(f'SCRAM client final request: {client_final}')
+        logger.info(f'SCRAM client final request: {client_final}')
 
         scram_resp2 = requests.post(scimma_admin_api_url + '/scram/final',
                                     json={"client_final": client_final},
                                     headers={"Content-Type":"application/json"})
-        logger.debug(f'SCRAM server final response: {scram_resp2.json()}')
+        logger.info(f'SCRAM server final response: {scram_resp2.json()}')
 
         client.set_server_final(scram_resp2.json()["server_final"])
 
         # Get the token we should have been issued:
         rest_token = scram_resp2.json()["token"]
         logger.info(f'_get_rest_token: Token issued: {rest_token}')
-        rest_token = f'Token {rest_token}'  # Django wants this prefix
+        rest_token = f'Token {rest_token}'  # Django wants this (Token<space>) prefix
         return rest_token
 
 
@@ -273,7 +276,8 @@ class HopAuthTestView(RedirectView):
         logger.info(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
 
         # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
-        hop_auth = get_hermes_hop_authorization()
+        #    for the HERMES service acount
+        hop_auth = hopskotch.get_hermes_hop_authorization()
 
         logger.info(f'HopAuthTestView hop_auth: {hop_auth}')
         logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
@@ -285,16 +289,18 @@ class HopAuthTestView(RedirectView):
         # (test-admin@example.com supplied by scimma-admin and netcat: (nc -l 8002 < user_data_test-admin)
         # test-admin-4150ad45
         # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
-        test_hop_username = 'test-admin-4150ad45'
-        test_hop_password = 'KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O'
+        #test_hop_username = 'test-admin-4150ad45'
+        #test_hop_password = 'KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O'
+        # update: now using HERMES Service account (HOP_USERNAME, HOP_PASSWORD)
+        # b/c api is deployed to dev (and prod) and we don't need a locally created test-admin
 
-        logger.info('HopAuthTestView Using SCRAM creds for user_data_test-admin:')
-        logger.info(f'HopAuthTestView hop_aut.username: {test_hop_username}')
-        logger.info(f'HopAuthTestView hop_aut.password: {test_hop_password}')
+        logger.info('HopAuthTestView Using SCRAM creds for HERMES Service Account:')
+        logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
+        logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
 
         # 2. Do a SCRAM exchange (/scram/first + /scram/final to get a REST API Token (hermes_api_token)
-        #hermes_api_token = self._get_rest_token(scimma_admin_api_url, hop_auth.username, hop_auth.password)
-        hermes_api_token = self._get_rest_token(scimma_admin_api_url, test_hop_username, test_hop_password)
+        hermes_api_token = self._get_rest_token(hop_auth_api_url, hop_auth.username, hop_auth.password)
+        #hermes_api_token = self._get_rest_token(hop_auth_api_url, test_hop_username, test_hop_password)
         logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
 
         # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
@@ -302,7 +308,7 @@ class HopAuthTestView(RedirectView):
         # 3.A. Set up the URL
         # see scimma-admin/scimma_admin/hopskotch_auth/urls.py
         scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
-        token_for_user_url = scimma_admin_api_url + scimma_admin_token_for_user_api_suffix
+        token_for_user_url = hop_auth_api_url + scimma_admin_token_for_user_api_suffix
         logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
         # 3.B. Set up the request data
@@ -310,10 +316,10 @@ class HopAuthTestView(RedirectView):
         # is the vo_person_id from CILogon that scimma-admin is looking for.
         # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
         hopskotch_auth_request_data = {
-            #'vo_person_id': request.user.username,
-            'vo_person_id': 'SCiMMA2000002',  ## test value from user_data_test-admin
+            'vo_person_id': request.user.username,
+            #'vo_person_id': 'SCiMMA2000002',  ## test value from user_data_test-admin
         }
-        logger.info(f'HopAuthTestView request.user.username: {request.user.username} -> SCiMMA2000002 from user_data_test-admin')
+        #logger.info(f'HopAuthTestView request.user.username: {request.user.username} -> SCiMMA2000002 from user_data_test-admin')
         logger.debug(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
 
         # 3.C Make the request and extract the user api token from the response
@@ -344,11 +350,11 @@ class HopAuthTestView(RedirectView):
         #
         # 4.A Try to get the test-admin user's groups and topics
         scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
-        token_for_user_url = scimma_admin_api_url + scimma_admin_token_for_user_api_suffix
+        token_for_user_url = hop_auth_api_url + scimma_admin_token_for_user_api_suffix
         logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
         # there queries just test that the /oidc/token_for_user user_api_token works
-        if False:
+        if True:
            test_query(user_api_token, '/users')
            test_query(user_api_token, '/groups')
            test_query(user_api_token, '/scram_credentials')
@@ -383,7 +389,7 @@ class HopAuthTestView(RedirectView):
         user_pk = 1  # TODO: this is just for now
 
         scimma_admin_user_credentials_api_suffix = f'/users/{user_pk}/credentials'
-        user_credentials_url = scimma_admin_api_url + scimma_admin_user_credentials_api_suffix
+        user_credentials_url = hop_auth_api_url + scimma_admin_user_credentials_api_suffix
         logger.info(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
 
         user_credentials_response = requests.post(user_credentials_url,
@@ -414,7 +420,7 @@ class HopAuthTestView(RedirectView):
             if user_cred is not None:
                 scram_pk = user_cred['pk']
                 scimma_admin_user_credentials_detail_api_suffix = f'/users/{user_pk}/credentials/{scram_pk}'
-                user_credentials_detail_url = scimma_admin_api_url + scimma_admin_user_credentials_detail_api_suffix
+                user_credentials_detail_url = hop_auth_api_url + scimma_admin_user_credentials_detail_api_suffix
                 logger.info(f'HopAuthTestView SCRAM cred: {user_cred}')
                 logger.info(f'HopAuthTestView user_credentials_detail_url: {user_credentials_detail_url}')
                 user_credentials_delete_response = requests.delete(user_credentials_detail_url,
@@ -429,7 +435,7 @@ class HopAuthTestView(RedirectView):
         return super().get(request)
 
 def test_query(user_api_token, query_path):
-    resp = requests.get(f'http://127.0.0.1:8000/hopauth/api/v0{query_path}',
+    resp = requests.get(f'{hopskotch.get_hop_auth_api_url()}{query_path}',
                         headers={'Authorization': user_api_token,
                                  'Content-Type': 'application/json'})
     if len(resp.text)>0:
