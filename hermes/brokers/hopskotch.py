@@ -1,12 +1,29 @@
 """hermes/brokers/hopskotch.py
 
 Interaction with the HOPSKOTCH Kafka stream and it's associated APIs happen here.
+
+After the SCIMMA_ADMIN_BASE_URL is defined in settings.py, this module encodes specifics
+of the scimma_admin (hopauth) API that goes beyond that configuration. That is, this module
+is intended depend on HOPSKOTCH/hopauth/scimma_admin specifics. For example, how the versioning
+works, etc
 """
+import logging
 import os
+import requests
+
+from django.conf import settings
+
+from rest_framework import status
+from rest_framework.response import Response
+
+from hop.auth import Auth
+
+logger = logging.getLogger(__name__)
 
 #  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
-HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME')
-HOP_PASSWORD = os.getenv('HOP_PASSWORD', 'set the HOP_PASSWORD')
+HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
+HOP_PASSWORD = os.getenv('HOP_PASSWORD', 'set the HOP_PASSWORD for the HERMES service account')
+
 def get_hop_auth_api_url() -> str:
     # get the base url from the configuration in settings.py
     hop_auth_base_url = settings.HOP_AUTH_BASE_URL
