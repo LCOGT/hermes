@@ -171,7 +171,10 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-# Hopskotch specific configuration
+# SCiMMA_admin and Hopskotch specific configuration
+#HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
+#HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
+HOP_AUTH_BASE_URL = 'https://my.hop.scimma.org/hopauth'  # for production scimmma_admin (hopauth)
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 

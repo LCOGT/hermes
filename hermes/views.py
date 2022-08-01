@@ -279,9 +279,12 @@ class HopAuthTestView(RedirectView):
         # 5432: dockerized hermes-postgres
 
         # 0. preliminaries
-        scimma_admin_base_url = 'http://127.0.0.1:8000/hopauth'  # TODO: configure this in settings.py/local_settings.py
-        scimma_admin_api_version = 0  # TODO get from scimma_admin_base_url+'/api/version
-        scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
+        # scimma_admin_base_url = 'http://127.0.0.1:8000/hopauth'  # TODO: configure this in settings.py/local_settings.py
+        # scimma_admin_api_version = 0  # TODO get from scimma_admin_base_url+'/api/version
+        # scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
+
+        hop_auth_api_url = hopskotch.get_hop_auth_api_url()
+        logger.info(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
 
         # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
         hop_auth = get_hermes_hop_authorization()
