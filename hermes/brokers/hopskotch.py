@@ -29,6 +29,8 @@ HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES ser
 HOP_PASSWORD = os.getenv('HOP_PASSWORD', 'set the HOP_PASSWORD for the HERMES service account')
 
 def get_hop_auth_api_url() -> str:
+    """Use the HOP_AUTH_BASE_URL from settings.py and construct the API url from that.
+    """
     # get the base url from the configuration in settings.py
     hop_auth_base_url = settings.HOP_AUTH_BASE_URL
 
@@ -65,27 +67,27 @@ def get_hermes_api_token(scram_username, scram_password) -> str:
     # Peform the first round of the SCRAM handshake:
     client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
     client_first = client.get_client_first()
-    #logger.info(f'SCRAM client first request: {client_first}')
+    logger.debug(f'SCRAM client first request: {client_first}')
 
     scram_resp1 = requests.post(hop_auth_api_url + '/scram/first',
                                 json={"client_first": client_first},
                                 headers={"Content-Type":"application/json"})
-    logger.info(f'SCRAM server first response: {scram_resp1.json()}')
+    logger.debug(f'SCRAM server first response: {scram_resp1.json()}')
 
     # Peform the second round of the SCRAM handshake:
     client.set_server_first(scram_resp1.json()["server_first"])
     client_final = client.get_client_final()
-    logger.info(f'SCRAM client final request: {client_final}')
+    logger.debug(f'SCRAM client final request: {client_final}')
 
     scram_resp2 = requests.post(hop_auth_api_url + '/scram/final',
                                 json={"client_final": client_final},
                                 headers={"Content-Type":"application/json"})
-    logger.info(f'SCRAM server final response: {scram_resp2.json()}')
+    logger.debug(f'SCRAM server final response: {scram_resp2.json()}')
 
     client.set_server_final(scram_resp2.json()["server_final"])
 
     # Get the token we should have been issued:
     rest_token = scram_resp2.json()["token"]
-    logger.info(f'_get_rest_token: Token issued: {rest_token}')
+    logger.info(f'get_hermes_api_token: Token issued: {rest_token}')
     rest_token = f'Token {rest_token}'  # Django wants this (Token<space>) prefix
     return rest_token
