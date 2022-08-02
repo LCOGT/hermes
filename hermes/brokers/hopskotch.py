@@ -7,6 +7,8 @@ of the scimma_admin (hopauth) API that goes beyond that configuration. That is, 
 is intended depend on HOPSKOTCH/hopauth/scimma_admin specifics. For example, how the versioning
 works, etc
 """
+from http.client import responses
+import json
 import logging
 import os
 import requests
@@ -91,3 +93,43 @@ def get_hermes_api_token(scram_username, scram_password) -> str:
     logger.info(f'get_hermes_api_token: Token issued: {rest_token}')
     rest_token = f'Token {rest_token}'  # Django wants this (Token<space>) prefix
     return rest_token
+
+def get_user_api_token(vo_person_id, hermes_api_token):
+    """ Use the hermes_api_token (the API token for the HERMES service account),
+    to get the API token for the user with the given vo_person_id.
+    """
+    # Set up the URL
+    # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
+    token_for_user_url = get_hop_auth_api_url() + '/oidc/token_for_user'
+
+    # Set up the request data
+    # the vo_person_id comes from the request.user.username for CILogon-created
+    # (OIDC Provider-created) User instances. It is the vo_person_id from CILogon
+    # that Hop Auth (scimma-admin) is looking for.
+    # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
+    hopskotch_auth_request_data = {
+        'vo_person_id': vo_person_id,
+    }
+
+    # Make the request and extract the user api token from the response
+    response = requests.post(token_for_user_url,
+                             data=json.dumps(hopskotch_auth_request_data),
+                             headers={'Authorization': hermes_api_token,
+                                      'Content-Type': 'application/json'})
+
+    if response.status_code == 200:
+        # get the user API token out of the response
+        token_info = response.json()
+        user_api_token = token_info['token']
+        user_api_token = f'Token {user_api_token}'  # Django wants a 'Token ' prefix
+        user_api_token_expiration_date_as_str = token_info['token_expires'] # TODO: convert to datetime.datetime
+
+        logger.info(f'get_user_api_token user_api_token: {user_api_token}')
+        logger.info(f'get_user_api_token user_api_token Expires: {user_api_token_expiration_date_as_str}')
+    else:
+        logger.error((f'HopAuthTestView hopskotch_auth_response.status_code: '
+                      f'{responses[response.status_code]} [{response.status_code}]'))
+        user_api_token = None # this is a problem
+
+    return user_api_token
+

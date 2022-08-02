@@ -249,45 +249,8 @@ class HopAuthTestView(RedirectView):
         logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
 
         # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
-
-        # 3.A. Set up the URL
-        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
-        token_for_user_url = hop_auth_api_url + '/oidc/token_for_user'
-        logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
-
-        # 3.B. Set up the request data
-        # the request.user.username for CILogon-created (OIDC Provider-created) User insetances
-        # is the vo_person_id from CILogon that scimma-admin is looking for.
-        # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
-        hopskotch_auth_request_data = {
-            'vo_person_id': request.user.username,
-        }
-        #logger.info(f'HopAuthTestView request.user.username: {request.user.username} -> SCiMMA2000002 from user_data_test-admin')
-        logger.debug(f'HopAuthTestView request_data: {hopskotch_auth_request_data}')
-
-        # 3.C Make the request and extract the user api token from the response
-        hopskotch_auth_response = requests.post(token_for_user_url,
-                                                data=json.dumps(hopskotch_auth_request_data),
-                                                headers={'Authorization': hermes_api_token,
-                                                         'Content-Type': 'application/json'})
-
-        logger.debug(f'HopAuthTestView hopskotch_auth_response: {hopskotch_auth_response}')
-        logger.debug(f'HopAuthTestView hopskotch_auth_response.status_code: {hopskotch_auth_response.status_code}')
-        logger.debug(f'HopAuthTestView hopskotch_auth_response.content: {hopskotch_auth_response.content}')  # <class 'bytes'>
-        logger.debug(f'HopAuthTestView hopskotch_auth_response.text: {hopskotch_auth_response.text}')  # <class 'str'>
-
-        if hopskotch_auth_response.status_code == 200:
-            logger.info(f'HopAuthTestView hopskotch_auth_response.status_code: {hopskotch_auth_response.status_code}')
-            logger.info(f'HopAuthTestView hopskotch_auth_response.json(): {hopskotch_auth_response.json()}')  # <class 'dict'>
-            # get the user API token out of the response
-            token_info = hopskotch_auth_response.json()
-            user_api_token = token_info['token']
-            user_api_token_expiration_date_as_str = token_info['token_expires'] # TODO: convert to datetime.datetime
-            user_api_token = f'Token {user_api_token}'  # Django wants a 'Token ' prefix
-            logger.info(f'HopAuthTestView user_api_token: {user_api_token}')
-        else:
-            logger.error((f'HopAuthTestView hopskotch_auth_response.status_code: '
-                          f'{responses[hopskotch_auth_response.status_code]} [{hopskotch_auth_response.status_code}]'))
+        user_api_token = hopskotch.get_user_api_token(vo_person_id=request.user.username,
+                                                      hermes_api_token=hermes_api_token)
 
         # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
         #
