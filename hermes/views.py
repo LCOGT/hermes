@@ -244,7 +244,7 @@ class HopAuthTestView(RedirectView):
         logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
 
         # 2. Do a SCRAM exchange (/scram/first + /scram/final) to get a REST API Token (hermes_api_token)
-        hermes_api_token = hopskotch.get_hermes_api_token(hop_auth_api_url, hop_auth.username, hop_auth.password)
+        hermes_api_token = hopskotch.get_hermes_api_token(hop_auth.username, hop_auth.password)
 
         logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
 

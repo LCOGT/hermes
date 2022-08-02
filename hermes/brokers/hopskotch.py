@@ -56,15 +56,11 @@ def get_hermes_hop_authorization() -> Auth:
     hop_auth: Auth = Auth(username, password)
     return hop_auth
 
-def get_hermes_api_token(hop_auth_api_url, scram_username, scram_password) -> str:
+
+def get_hermes_api_token(scram_username, scram_password) -> str:
     """return the Hop Auth API token for the HERMES service account
     """
-    # TODO: this whole method should be refactored; it doesn't have to be an instance method
-
-    # this is the scimma-admin crdential created locally (127.0.0.1:8000)
-    # that corresponds to the user defined in scimma-admin/user_data_test-admin
-    # test-admin-4150ad45
-    # KZiGHUl3vSpaNxRAZxKxGci3RprTZ72O
+    hop_auth_api_url = get_hop_auth_api_url()
 
     # Peform the first round of the SCRAM handshake:
     client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
