@@ -254,8 +254,11 @@ class HopAuthTestView(RedirectView):
 
         # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
 
-        # these queries just test that the /oidc/token_for_user user_api_token works
-        if False:
+        # these queries just test that the /oidc/token_for_user user_api_token work
+        #test_query(user_api_token, '/users')
+        #test_query(user_api_token, '/scram_credentials')
+        do_all_tests = False
+        if do_all_tests:
             test_query(user_api_token, '/users')
             test_query(user_api_token, '/groups')
             test_query(user_api_token, '/scram_credentials')
@@ -276,55 +279,60 @@ class HopAuthTestView(RedirectView):
             test_query(user_api_token, "/groups/1/permissions_given")
             test_query(user_api_token, "/groups/1/permissions_received")
 
-        # TODO: find this user in the /users list
-        # this is the user with the vo_person_id that came back from CILogon
-        # which should be part of this requests user instance (user.username?)
-        user_pk = 1  # TODO: this is just for now
+        hop_user_auth: Auth = hopskotch.get_user_hop_authorization(request.user.username)
+        logger.info(f'HopAuthTestView hop_user_authorization: username: {hop_user_auth.username} password: {hop_user_auth.password}')
 
-        scimma_admin_user_credentials_api_suffix = f'/users/{user_pk}/credentials'
-        user_credentials_url = hop_auth_api_url + scimma_admin_user_credentials_api_suffix
-        logger.info(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
 
-        user_credentials_response = requests.post(user_credentials_url,
-                                                  data=json.dumps({'description': 'Created by HERMES'}),
-                                                  headers={'Authorization': user_api_token,
-                                                           'Content-Type': 'application/json'})
-        logger.info(f'HopAuthTestView user_credentials_response.json(): {user_credentials_response.json()}')
-        # we can never again get this SCRAM credential, so save it somewhere
-        hop_username = user_credentials_response.json()['username']
-        hop_password = user_credentials_response.json()['password']
+##        # TODO: find this user in the /users list
+##        # this is the user with the vo_person_id that came back from CILogon
+##        # which should be part of this requests user instance (user.username?)
+##        user_pk = 1  # TODO: this is just for now
+##
+##        scimma_admin_user_credentials_api_suffix = f'/users/{user_pk}/credentials'
+##        user_credentials_url = hop_auth_api_url + scimma_admin_user_credentials_api_suffix
+##        logger.info(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
+##
+##        user_credentials_response = requests.post(user_credentials_url,
+##                                                  data=json.dumps({'description': 'Created by HERMES'}),
+##                                                  headers={'Authorization': user_api_token,
+##                                                           'Content-Type': 'application/json'})
+##        logger.info(f'HopAuthTestView user_credentials_response.json(): {user_credentials_response.json()}')
+##        # we can never again get this SCRAM credential, so save it somewhere
+##        hop_username = user_credentials_response.json()['username']
+##        hop_password = user_credentials_response.json()['password']
+##
+##        # TODO: Here is where we would call
+##        # hop_auth = Auth(username, password)
+##        # and
+##        # stream = Stream(auth=hop_auth)
+##        # and write to the Kafka stream
+##
 
-        # TODO: Here is where we would call
-        # hop_auth = Auth(username, password)
-        # and
-        # stream = Stream(auth=hop_auth)
-        # and write to the Kafka stream
+##        clean_up_SCRAM_cred = True
+##        if clean_up_SCRAM_cred:
+##            # find the <PK> of the SCRAM credential just issued
+##            user_credentials_response = requests.get(user_credentials_url,
+##                                                     headers={'Authorization': user_api_token,
+##                                                              'Content-Type': 'application/json'})
+##            # from the response, extract the list of user credential dictionaries
+##            user_creds = user_credentials_response.json()
+##            # this is the idiom for searchng a list of dictionaries for certain key-value (username)
+##            user_cred = next((item for item in user_creds if item["username"] == hop_username), None)
+##            if user_cred is not None:
+##                scram_pk = user_cred['pk']
+##                scimma_admin_user_credentials_detail_api_suffix = f'/users/{user_pk}/credentials/{scram_pk}'
+##                user_credentials_detail_url = hop_auth_api_url + scimma_admin_user_credentials_detail_api_suffix
+##                logger.info(f'HopAuthTestView SCRAM cred: {user_cred}')
+##                logger.info(f'HopAuthTestView user_credentials_detail_url: {user_credentials_detail_url}')
+##                user_credentials_delete_response = requests.delete(user_credentials_detail_url,
+##                                                     headers={'Authorization': user_api_token,
+##                                                              'Content-Type': 'application/json'})
+##                logger.info(
+##                    (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
+##                     f'[{user_credentials_delete_response.status_code}]'))
+##            else:
+##                logger.error(f'HopAuthTestView can not clean up SCRAM credential: {hop_username} not found in {user_creds}')
 
-        clean_up_SCRAM_cred = True
-        if clean_up_SCRAM_cred:
-            # find the <PK> of the SCRAM credential just issued
-            user_credentials_response = requests.get(user_credentials_url,
-                                                     headers={'Authorization': user_api_token,
-                                                              'Content-Type': 'application/json'})
-            # from the response, extract the list of user credential dictionaries
-            user_creds = user_credentials_response.json()
-            # this is the idiom for searchng a list of dictionaries for certain key-value (username)
-            user_cred = next((item for item in user_creds if item["username"] == hop_username), None)
-            if user_cred is not None:
-                scram_pk = user_cred['pk']
-                scimma_admin_user_credentials_detail_api_suffix = f'/users/{user_pk}/credentials/{scram_pk}'
-                user_credentials_detail_url = hop_auth_api_url + scimma_admin_user_credentials_detail_api_suffix
-                logger.info(f'HopAuthTestView SCRAM cred: {user_cred}')
-                logger.info(f'HopAuthTestView user_credentials_detail_url: {user_credentials_detail_url}')
-                user_credentials_delete_response = requests.delete(user_credentials_detail_url,
-                                                     headers={'Authorization': user_api_token,
-                                                              'Content-Type': 'application/json'})
-                logger.info(
-                    (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
-                     f'[{user_credentials_delete_response.status_code}]'))
-            else:
-                logger.error(f'HopAuthTestView can not clean up SCRAM credential: {hop_username} not found in {user_creds}')
-            
         return super().get(request)
 
 def test_query(user_api_token, query_path):
