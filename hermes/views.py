@@ -253,41 +253,28 @@ class HopAuthTestView(RedirectView):
                                                       hermes_api_token=hermes_api_token)
 
         # 4. Use the user_api_token (step #3) to get topics, publish to/subscribe to topics
-        #
-        # 4.A Try to get the test-admin user's groups and topics
-        scimma_admin_token_for_user_api_suffix = '/oidc/token_for_user'
-        token_for_user_url = hop_auth_api_url + scimma_admin_token_for_user_api_suffix
-        logger.info(f'HopAuthTestView token_for_user URL: {token_for_user_url}')
 
-        # there queries just test that the /oidc/token_for_user user_api_token works
-        test_query(user_api_token, '/users')
-        test_query(user_api_token, '/groups')
+        # these queries just test that the /oidc/token_for_user user_api_token works
         if False:
-           test_query(user_api_token, '/scram_credentials')
-           test_query(user_api_token, "/users/1")
-           test_query(user_api_token, "/users/1/memberships")
-           test_query(user_api_token, "/users/1/credentials")
-           test_query(user_api_token, "/users/1/credentials/1")
-           test_query(user_api_token, "/users/1/credentials/1/permissions")
-           test_query(user_api_token, "/topics")
-           test_query(user_api_token, "/topics/1")
-           test_query(user_api_token, "/topics/1/permissions")
-           test_query(user_api_token, "/groups")
-           test_query(user_api_token, "/groups/1")
-           test_query(user_api_token, "/groups/1/members")
-           test_query(user_api_token, "/groups/1/topics")
-           test_query(user_api_token, "/groups/1/topics/1")
-           test_query(user_api_token, "/groups/1/topics/1/permissions")
-           test_query(user_api_token, "/groups/1/permissions_given")
-           test_query(user_api_token, "/groups/1/permissions_received")
-
-
-        # TODO: this (4.B) should have happened earlier in this process and the
-        #   hermes_api_token and it's SCRAM creads should be distinct from
-        #   the users SCRAM creds that we use to get hop.auth.Auth and
-        #   hop.Stream instances and publish to Hopskotch
-        # 4.B Create SCRAM credentials (username/password for User)
-        # endpoint is CREATE method of hopauth/api/v0/users/<PK>/credentials
+            test_query(user_api_token, '/users')
+            test_query(user_api_token, '/groups')
+            test_query(user_api_token, '/scram_credentials')
+            test_query(user_api_token, "/users/1")
+            test_query(user_api_token, "/users/1/memberships")
+            test_query(user_api_token, "/users/1/credentials")
+            test_query(user_api_token, "/users/1/credentials/1")
+            test_query(user_api_token, "/users/1/credentials/1/permissions")
+            test_query(user_api_token, "/topics")
+            test_query(user_api_token, "/topics/1")
+            test_query(user_api_token, "/topics/1/permissions")
+            test_query(user_api_token, "/groups")
+            test_query(user_api_token, "/groups/1")
+            test_query(user_api_token, "/groups/1/members")
+            test_query(user_api_token, "/groups/1/topics")
+            test_query(user_api_token, "/groups/1/topics/1")
+            test_query(user_api_token, "/groups/1/topics/1/permissions")
+            test_query(user_api_token, "/groups/1/permissions_given")
+            test_query(user_api_token, "/groups/1/permissions_received")
 
         # TODO: find this user in the /users list
         # this is the user with the vo_person_id that came back from CILogon
