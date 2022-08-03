@@ -105,40 +105,41 @@ def get_hermes_api_token(scram_username, scram_password) -> str:
     return hermes_api_token
 
 
+def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
+    """return the primary key of this user from the Hop Auth API
+
+    vo_person_id's are assigned by COLogon and are of the form SCiMM1000000.
+    The api/v0/users API endpoint returns a list of user dictionaries with
+    keys of (pk, username, email), where the username is to vo_person_id
+    """
+    # request the list of users from the Hop Auth API
+    users_url = get_hop_auth_api_url() + '/users'
+    response = requests.get(users_url,
+                            headers={'Authorization': user_api_token,
+                                     'Content-Type': 'application/json'})
+    # from the response, extract the list of user dictionaries
+    hop_users = response.json()
+    # find the user dict whose username matches our vo_person_id
+    # this is the idiom for searchng a list of dictionaries for certain key-value (username)
+    hop_user = next((item for item in hop_users if item['username'] == vo_person_id), None)
+    if hop_user is not None:
+        hop_user_pk = hop_user['pk']
+        logger.debug(f'get_user_hop_authorization._get_hop_user_pk: PK for {vo_person_id} is {hop_user_pk}')
+    else:
+        logger.error(f'get_user_hop_authorization._get_hop_user_pk: Can not find user {vo_person_id} in Hop Auth users.')
+        hop_user_pk = None
+
+    return hop_user_pk
+
+
 def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
     """return the hop.auth.Auth instance for the user with the given vo_person_id
     """
     if user_api_token is None:
         user_api_token = get_user_api_token(vo_person_id)
 
-    def _get_hop_user_pk() -> int:
-        """return the primary key of this user from the Hop Auth API
-
-        vo_person_id's are assigned by COLogon and are of the form SCiMM1000000.
-        The api/v0/users API endpoint returns a list of user dictionaries with
-        keys of (pk, username, email), where the username is to vo_person_id
-        """
-        # request the list of users from the Hop Auth API
-        users_url = get_hop_auth_api_url() + '/users'
-        response = requests.get(users_url,
-                                headers={'Authorization': user_api_token,
-                                         'Content-Type': 'application/json'})
-        # from the response, extract the list of user dictionaries
-        hop_users = response.json()
-        # find the user dict whose username matches our vo_person_id
-        # this is the idiom for searchng a list of dictionaries for certain key-value (username)
-        hop_user = next((item for item in hop_users if item['username'] == vo_person_id), None)
-        if hop_user is not None:
-            hop_user_pk = hop_user['pk']
-            logger.debug(f'get_user_hop_authorization._get_hop_user_pk: PK for {vo_person_id} is {hop_user_pk}')
-        else:
-            logger.error(f'get_user_hop_authorization._get_hop_user_pk: Can not find user {vo_person_id} in Hop Auth users.')
-            hop_user_pk = None
-
-        return hop_user_pk
-
     # Construct URL to create Hop Auth SCRAM credentials for this user
-    hop_user_pk = _get_hop_user_pk()  # need the pk for the URL
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
     user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
     logger.debug(f'get_user_hop_authorization user_credentials URL: {user_credentials_url}')
 
