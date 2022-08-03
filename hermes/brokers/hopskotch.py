@@ -30,22 +30,23 @@ logger = logging.getLogger(__name__)
 HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
 HOP_PASSWORD = os.getenv('HOP_PASSWORD', 'set the HOP_PASSWORD for the HERMES service account')
 
-def get_hop_auth_api_url() -> str:
+def get_hop_auth_api_url(api_version=None) -> str:
     """Use the HOP_AUTH_BASE_URL from settings.py and construct the API url from that.
     """
-    # TODO: consider saving and re-using the version to save the network time
-
     # get the base url from the configuration in settings.py
     hop_auth_base_url = settings.HOP_AUTH_BASE_URL
 
-    try:
-        # get the current API version from the API
-        version_url = hop_auth_base_url + '/api/version'
-        response = requests.get(version_url, headers={'Content-Type': 'application/json'})
-        # get the API version from response
-        hop_auth_api_version = response.json()['current']
-    except:
-        hop_auth_api_version = 0
+    if api_version is None:
+        try:
+            # get the current API version from the API
+            version_url = hop_auth_base_url + '/api/version'
+            response = requests.get(version_url, headers={'Content-Type': 'application/json'})
+            # get the API version from response
+            hop_auth_api_version = response.json()['current']
+        except:
+            hop_auth_api_version = 0
+    else:
+        hop_auth_api_version = api_version
 
     hop_auth_api_url = hop_auth_base_url + f'/api/v{hop_auth_api_version}'
     logger.debug(f'get_hop_auth_api_url: hop_auth_api_url: {hop_auth_api_url}')
