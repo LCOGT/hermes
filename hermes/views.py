@@ -32,6 +32,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
+#logger.setLevel(logging.DEBUG)
 
 
 class CandidateDataSchema(Schema):

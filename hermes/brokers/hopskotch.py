@@ -23,8 +23,8 @@ from rest_framework.response import Response
 import scramp
 
 
-
 logger = logging.getLogger(__name__)
+#logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
 HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
