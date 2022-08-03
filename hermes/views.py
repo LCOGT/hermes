@@ -277,7 +277,13 @@ class HopAuthTestView(RedirectView):
             test_query(user_api_token, "/groups/1/permissions_received")
 
         hop_user_auth: Auth = hopskotch.get_user_hop_authorization(request.user.username)
-        logger.info(f'HopAuthTestView hop_user_authorization: username: {hop_user_auth.username} password: {hop_user_auth.password}')
+        logger.info(f'HopAuthTestView Created new hop_user_authorization: username: {hop_user_auth.username} password: {hop_user_auth.password}')
+
+        clean_up_SCRAM_cred = True
+        if clean_up_SCRAM_cred:
+            logger.info(f'HopAuthTestView Deleting  hop_user_authorization: username: {hop_user_auth.username}')
+            hopskotch.delete_user_hop_authorization(request.user.username,hop_user_auth)
+            logger.info(f'HopAuthTestView Finished deleting  hop_user_authorization: username: {hop_user_auth.username}')
 
 
 ##        # TODO: find this user in the /users list

@@ -161,7 +161,7 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
     return user_hop_authorization
 
 
-def delete_user_hop_authorization(user_hop_auth: Auth):
+def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_token=None):
     """Remove the given SCRAM credentials from Hop Auth
 
     The intention is for HERMES to create user SCRAM credentials in Hop Auth
@@ -170,8 +170,39 @@ def delete_user_hop_authorization(user_hop_auth: Auth):
     the user logs out of HERMES, use this function to delete the SCRAM credentials
     from Hop Auth. (All this should be transparent to the user).
     """
-    pass
+    if user_api_token is None:
+        user_api_token = get_user_api_token(vo_person_id)
 
+    # TODO: get user_pk
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
+
+    user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    logger.debug(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
+
+    # find the <PK> of the SCRAM credential just issued
+    user_credentials_response = requests.get(user_credentials_url,
+                                             headers={'Authorization': user_api_token,
+                                                      'Content-Type': 'application/json'})
+    # from the response, extract the list of user credential dictionaries
+    user_creds = user_credentials_response.json()
+    # this is the idiom for searchng a list of dictionaries for certain key-value (username)
+    user_cred = next((item for item in user_creds if item["username"] == user_hop_auth.username), None)
+    if user_cred is not None:
+        scram_pk = user_cred['pk']
+        user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{scram_pk}'
+        user_credentials_detail_url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
+        logger.debug(f'HopAuthTestView SCRAM cred: {user_cred}')
+        logger.debug(f'HopAuthTestView user_credentials_detail_url: {user_credentials_detail_url}')
+
+        # delete the user SCRAM credential in Hop Auth
+        user_credentials_delete_response = requests.delete(user_credentials_detail_url,
+                                                           headers={'Authorization': user_api_token,
+                                                                    'Content-Type': 'application/json'})
+        logger.debug(
+            (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
+             f'[{user_credentials_delete_response.status_code}]'))
+    else:
+        logger.error(f'HopAuthTestView can not clean up SCRAM credential: {user_hop_auth.username} not found in {user_creds}')
 
 
 def get_user_api_token(vo_person_id, hermes_api_token=None):
