@@ -32,7 +32,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 
 class CandidateDataSchema(Schema):
@@ -234,20 +234,16 @@ class HopAuthTestView(RedirectView):
         # scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
 
         hop_auth_api_url = hopskotch.get_hop_auth_api_url()
-        logger.info(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
+        logger.debug(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
 
         # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
         #    for the HERMES service acount
         hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
-
-        logger.info('HopAuthTestView Using SCRAM creds for HERMES Service Account:')
-        logger.info(f'HopAuthTestView hop_auth.username: {hop_auth.username}')
-        logger.info(f'HopAuthTestView hop_auth.password: {hop_auth.password}')
+        logger.debug(f'HopAuthTestView Using SCRAM creds for HERMES Service Account: {hop_auth.username}')
 
         # 2. Do a SCRAM exchange (/scram/first + /scram/final) to get a REST API Token (hermes_api_token)
         hermes_api_token = hopskotch.get_hermes_api_token(hop_auth.username, hop_auth.password)
-
-        logger.info(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
+        logger.debug(f'HopAuthTestView hermes_api_token: {hermes_api_token}')
 
         # 3. Use the REST API Token (hermes_api_token) to call /oidc/token_for_user for the logged on User (user_api_token)
         user_api_token = hopskotch.get_user_api_token(vo_person_id=request.user.username,
