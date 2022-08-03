@@ -159,6 +159,19 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
     return user_hop_authorization
 
 
+def delete_user_hop_authorization(user_hop_auth: Auth):
+    """Remove the given SCRAM credentials from Hop Auth
+
+    The intention is for HERMES to create user SCRAM credentials in Hop Auth
+    when the user logs in (to HERMES). HERMES will save the hop.auth.Auth instance
+    in the Django Session and use it for Alert submission to Hopskotch. Then, when
+    the user logs out of HERMES, use this function to delete the SCRAM credentials
+    from Hop Auth. (All this should be transparent to the user).
+    """
+    pass
+
+
+
 def get_user_api_token(vo_person_id, hermes_api_token=None):
     """return a Hop Auth API token for the given user.
     
