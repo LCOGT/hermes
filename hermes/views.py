@@ -279,6 +279,8 @@ class HopAuthTestView(RedirectView):
         hop_user_auth: Auth = hopskotch.get_user_hop_authorization(request.user.username)
         logger.info(f'HopAuthTestView Created new hop_user_authorization: username: {hop_user_auth.username} password: {hop_user_auth.password}')
 
+        hop_user_auths = hopskotch.get_user_hop_authorizations(request.user.username)
+
         clean_up_SCRAM_cred = True
         if clean_up_SCRAM_cred:
             logger.info(f'HopAuthTestView Deleting  hop_user_authorization: username: {hop_user_auth.username}')

@@ -161,6 +161,38 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
     return user_hop_authorization
 
 
+def get_user_hop_authorizations(vo_person_id, user_api_token=None):
+    """return a list of credential dictionsaries for the user with vo_person_id
+
+    The dictionaries look like this:
+        {
+            'pk': 147,
+            'owner': 73,  # this is the PK of the Hop Auth User
+            'username': 'llindstrom-2b434c1a',
+            'created_at': '2022-03-23T12:42:06.900590-07:00',
+            'suspended': False,
+            'description': ''
+        }
+    and we return a list of them.
+    """
+    if user_api_token is None:
+        user_api_token = get_user_api_token(vo_person_id)
+
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
+
+    # limit the API query to the specific users (whose pk we just found)
+    user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    logger.debug(f'HopAuthTestView user_credentials URL: {user_credentials_url}')
+
+    user_credentials_response = requests.get(user_credentials_url,
+                                             headers={'Authorization': user_api_token,
+                                                      'Content-Type': 'application/json'})
+    # from the response, extract the list of user credential dictionaries
+    user_hop_authorizations = user_credentials_response.json()
+    logger.debug(f'HopAuthTestView get_user_hop_authorizations : {user_hop_authorizations}')
+    return user_hop_authorizations
+
+
 def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_token=None):
     """Remove the given SCRAM credentials from Hop Auth
 
@@ -173,7 +205,6 @@ def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_to
     if user_api_token is None:
         user_api_token = get_user_api_token(vo_person_id)
 
-    # TODO: get user_pk
     hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
 
     user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
