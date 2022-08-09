@@ -4,6 +4,8 @@ import logging
 
 # this is for OIDC experimentation
 from django.contrib.auth.models import User
+from django.contrib.sessions.models import Session
+from django.contrib.sessions.backends.db import SessionStore
 
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, DetailView, FormView, RedirectView
@@ -32,7 +34,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 
 class CandidateDataSchema(Schema):
@@ -233,8 +235,23 @@ class HopAuthTestView(RedirectView):
         # scimma_admin_api_version = 0  # TODO get from scimma_admin_base_url+'/api/version
         # scimma_admin_api_url = scimma_admin_base_url + f'/api/v{scimma_admin_api_version}'
 
-        hop_auth_api_url = hopskotch.get_hop_auth_api_url()
-        logger.debug(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
+        #
+        # Explore the Django Session instance that is part of the request
+        #
+
+##         sessions = Session.objects.all()
+##         logger.info(f'HopAuthTestView There are {sessions.count()} sessions:')
+##         for session in sessions:
+##             logger.info(f'HopAuthTestView session {session}')
+## 
+##         logger.info(f'HopAuthTestView request.session.session_key: {request.session.session_key}')
+##         logger.info(f'HopAuthTestView request.session: {request.session}')
+##         for session_key in request.session.keys():
+##             logger.info(f'HopAuthTestView request.session[{session_key}]: {request.session[session_key]}')
+## 
+##         hop_auth_api_url = hopskotch.get_hop_auth_api_url()
+##         logger.debug(f'HopAuthTestView hop_auth_api_url: {hop_auth_api_url}')
+## 
 
         # 1. get the HERMES SCRAM credential (i.e. HOP_USERNAME, HOP_PASSWORD)
         #    for the HERMES service acount

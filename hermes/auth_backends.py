@@ -6,6 +6,7 @@ import logging
 from mozilla_django_oidc import auth
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class NotInKafkaUsers(PermissionDenied):
     """COManage maintains a kafkaUsers group that a User must
@@ -89,6 +90,29 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
         return new_user
 
+    def authenticate(self, request, **kwargs):
+        """Override this method to insert Hop Auth data into the session to be used
+        in the Views that submit alerts to Hopskotch.
+
+        Notes:
+         * the request.session is a SessionStore instance
+        """
+        vo_person_id = super().authenticate(request, **kwargs)
+
+        # TODO: confirm that logout clears the session dict
+        for session_key in request.session.keys():
+            logger.debug(f'authenticate BEFORE request.session[{session_key}]: {request.session[session_key]}')
+
+        # lets try to save something to the session
+        request.session['test'] = 'from Authenticate'
+
+        logger.debug(f'authenticate: request.session.session_key: {request.session.session_key}')
+        logger.debug(f'authenticate: type(request.session): {type(request.session)}')
+        logger.debug(f'authenticate: request.session: {request.session}')
+        for session_key in request.session.keys():
+            logger.debug(f'authenticate AFTER request.session[{session_key}]: {request.session[session_key]}')
+
+        return vo_person_id
 
 def is_member_of(claims, group):
     return group in claims.get('is_member_of', [])
