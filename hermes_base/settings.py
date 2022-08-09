@@ -166,7 +166,8 @@ OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
 OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
 OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
-
+# this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
+OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
 
 # https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
 AUTHENTICATION_BACKENDS = [

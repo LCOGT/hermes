@@ -114,5 +114,26 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
         return vo_person_id
 
+
+def hopskotch_logout(request):
+    """Do the actions required when the user logs out of HERMES (and thus hopskotch)
+
+    1. call hopskotch.deauthorize_user()
+
+    NOTES:
+      * must return the logout URL
+      * called as a hook (via settings.OIDC_OP_LOGOUT_URL_METHOD) from
+        mozilla_django_oidc.OIDCLogoutView.post() (from /logout endpoint)
+    """
+    logger.debug(f'hopskotch_logout for request.user.username: {request.user.username}')
+
+    # TODO: this should be the hop.auth.Auth.username (not the test session data)
+    logger.debug(f'hopskotch_logout for request.sesssion["test"]: {request.session["test"]}')
+    #for session_key in request.session.keys():
+    #    logger.debug(f'hopskotch_logout request.session[{session_key}]: {request.session[session_key]}')
+
+    return '/'  ## TODO: should be settings.LOGOUT_REDIRECT_URL
+
+
 def is_member_of(claims, group):
     return group in claims.get('is_member_of', [])
