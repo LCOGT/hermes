@@ -1,9 +1,12 @@
+import logging
+
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation, PermissionDenied
 
-import logging
-
+import jsons
 from mozilla_django_oidc import auth
+
+from hermes.brokers import hopskotch
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -97,7 +100,11 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         Notes:
          * the request.session is a SessionStore instance
         """
-        vo_person_id = super().authenticate(request, **kwargs)
+        user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
+
+        hop_auth = hopskotch.authorize_user(user.username)
+        # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
+        request.session['hop_user_auth_json'] = jsons.dump(hop_auth)
 
         # TODO: confirm that logout clears the session dict
         for session_key in request.session.keys():
@@ -112,7 +119,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         for session_key in request.session.keys():
             logger.debug(f'authenticate AFTER request.session[{session_key}]: {request.session[session_key]}')
 
-        return vo_person_id
+        return user # mimic super()
 
 
 def hopskotch_logout(request):
