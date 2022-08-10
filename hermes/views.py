@@ -270,7 +270,8 @@ class HopAuthTestView(RedirectView):
 
         # these queries just test that the /oidc/token_for_user user_api_token work
         #test_query(user_api_token, '/users')
-        #test_query(user_api_token, '/scram_credentials')
+        #test_query(user_api_token, '/scram_credentials') # 73 is llindstrom
+        test_query(user_api_token, '/users/73/credentials')
         do_all_tests = False
         if do_all_tests:
             test_query(user_api_token, '/users')
