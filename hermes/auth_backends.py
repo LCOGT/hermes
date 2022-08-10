@@ -3,6 +3,7 @@ import logging
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation, PermissionDenied
 
+from hop.auth import Auth
 import jsons
 from mozilla_django_oidc import auth
 
@@ -123,7 +124,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
 
 def hopskotch_logout(request):
-    """Do the actions required when the user logs out of HERMES (and thus hopskotch)
+    """Do the actions required when the user logs out of HERMES (and thus hopskotch).
+    (This is the OIDC_OP_LOGOUT_URL_METHOD).
 
     1. call hopskotch.deauthorize_user()
 
@@ -133,13 +135,11 @@ def hopskotch_logout(request):
         mozilla_django_oidc.OIDCLogoutView.post() (from /logout endpoint)
     """
     logger.debug(f'hopskotch_logout for request.user.username: {request.user.username}')
+    # hop_user_auth_json added to Session dict in AuthenticationBackend.authenticate
+    hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+    hopskotch.deauthorize_user(request.user.username, hop_user_auth)
 
-    # TODO: this should be the hop.auth.Auth.username (not the test session data)
-    logger.debug(f'hopskotch_logout for request.sesssion["test"]: {request.session["test"]}')
-    #for session_key in request.session.keys():
-    #    logger.debug(f'hopskotch_logout request.session[{session_key}]: {request.session[session_key]}')
-
-    return '/'  ## TODO: should be settings.LOGOUT_REDIRECT_URL
+    return settings.LOGOUT_REDIRECT_URL
 
 
 def is_member_of(claims, group):

@@ -6,6 +6,13 @@ After the SCIMMA_ADMIN_BASE_URL is defined in settings.py, this module encodes s
 of the scimma_admin (hopauth) API that goes beyond that configuration. That is, this module
 is intended depend on HOPSKOTCH/hopauth/scimma_admin specifics. For example, how the versioning
 works, etc
+
+The top level functions are:
+  * authorize_user()
+  * deauthorize_user()
+
+Lower level and utility functions:
+  * TODO: make function glossary
 """
 from http.client import responses
 import json
@@ -124,6 +131,16 @@ def authorize_user(user: str) -> Auth:
     # add hermes.test topic permissions to SCRAM credential
 
     return user_hop_auth
+
+
+def deauthorize_user(username, user_hop_auth):
+    """Remove from Hop Auth the SCRAM credentials (user_hop_auth) that were created
+    for this session.
+
+    This should be called from the OIDC_OP_LOGOUT_URL_METHOD, upon HERMES logout.
+    """
+    logger.debug(f'deauthorize_user user: {username} auth: {user_hop_auth.username}')
+    delete_user_hop_authorization(username, user_hop_auth)
 
 
 def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
