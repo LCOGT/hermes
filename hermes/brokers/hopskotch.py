@@ -24,7 +24,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
 HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
@@ -105,6 +105,27 @@ def get_hermes_api_token(scram_username, scram_password) -> str:
     return hermes_api_token
 
 
+def authorize_user(user: str) -> Auth:
+    """Set up user for all Hopskotch interactions.
+    (Should be called upon logon (probably via OIDC authenticate)
+
+    * adds user to hermes group
+    * creates user SCRAM credential (hop.auth.Auth instance)
+    * add hermes.test topic permissions to SCRAM credential
+    * returns hop.auth.Auth to authenticate() for inclusion in Session dictionary
+    """
+    logger.info(f'authorize_user user: {user}')
+
+    # add user to hermes group
+
+    # create user SCRAM credential (hop.auth.Auth instance)
+    user_hop_auth = get_user_hop_authorization(user)
+
+    # add hermes.test topic permissions to SCRAM credential
+
+    return user_hop_auth
+
+
 def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
     """return the primary key of this user from the Hop Auth API
 
@@ -162,7 +183,7 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
 
 
 def get_user_hop_authorizations(vo_person_id, user_api_token=None):
-    """return a list of credential dictionsaries for the user with vo_person_id
+    """return a list of credential dictionaries for the user with vo_person_id
 
     The dictionaries look like this:
         {
@@ -236,7 +257,7 @@ def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_to
         logger.error(f'HopAuthTestView can not clean up SCRAM credential: {user_hop_auth.username} not found in {user_creds}')
 
 
-def get_user_api_token(vo_person_id, hermes_api_token=None):
+def get_user_api_token(vo_person_id: str, hermes_api_token=None):
     """return a Hop Auth API token for the given user.
     
     You need an API token to get the user API token and that's what the

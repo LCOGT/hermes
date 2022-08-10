@@ -12,3 +12,4 @@ astropy
 django-extensions # for shell_plus debugging
 requests
 scramp
+jsons # for Auth serialization
