@@ -66,6 +66,7 @@ def get_hermes_hop_authorization() -> Auth:
     The HOP_USERNAME and HOP_PASSWORD environment variables are used and
     should enter the environmnet as k8s secrets.
     """
+    # TODO: I think this can use the module level variables (set above)
     username = os.getenv('HOP_USERNAME', None)
     password = os.getenv('HOP_PASSWORD', None)
     if username is None or password is None:
@@ -122,13 +123,40 @@ def authorize_user(user: str) -> Auth:
     * returns hop.auth.Auth to authenticate() for inclusion in Session dictionary
     """
     logger.info(f'authorize_user user: {user}')
+    user_api_token = get_user_api_token(user)
 
-    # add user to hermes group
+    # TODO: add user to hermes group
+    # if user is already in hermes group, don't add
+    user_groups = get_user_groups(user, user_api_token=user_api_token)
+    group_name = 'hermes'
+    if not group_name in user_groups:
+        # only Hop Auth adminscan do this, so use the hermes_api_token
+        hermes_api_token = get_hermes_api_token(HOP_USERNAME, HOP_PASSWORD)
+        user_pk = _get_hop_user_pk(user, user_api_token=user_api_token)
+
+        # add the user
+        group_add_url = get_hop_auth_api_url() +  f'/users/{user_pk}/memberships'
+        logger.info(f'authorize_user group_add_url: {group_add_url}')
+        group_add_request_data = {
+            'user':  user,
+            'group': group_name,
+        }
+        group_add_response = requests.post(group_add_url,
+                                           json=group_add_request_data,
+                                           headers={'Authorization': hermes_api_token,
+                                                    'Content-Type': 'application/json'})
+        # TODO: touch base with Chris about the 405 - Method not allowed reponse
+        logger.info(f'authorize_user group_add_response: {group_add_response}')
+    else:
+        logger.info(f'authorize_user User {user} already a member of group {group_name}')
+
 
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth = get_user_hop_authorization(user)
 
-    # add hermes.test topic permissions to SCRAM credential
+    # TODO: add hermes.test topic permissions to the new SCRAM credential
+
+
 
     return user_hop_auth
 
@@ -324,3 +352,39 @@ def get_user_api_token(vo_person_id: str, hermes_api_token=None):
 
     return user_api_token
 
+
+def get_user_groups(vo_person_id, user_api_token=None):
+    """return a list of Hop Auth Groups that the user (vo_person_id) is a member of
+    """
+    if user_api_token is None:
+        user_api_token = get_user_api_token(vo_person_id)
+
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
+
+    # limit the API query to the specific users (whose pk we just found)
+    user_groups_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
+    logger.debug(f'HopAuthTestView user_credentials URL: {user_groups_url}')
+
+    user_groups_response = requests.get(user_groups_url,
+                                        headers={'Authorization': user_api_token,
+                                                 'Content-Type': 'application/json'})
+    # from the response, extract the list of user groups
+    # {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
+    user_groups = user_groups_response.json()
+    logger.info(f'get_user_groups : {user_groups}')
+
+    # examine the groups
+
+    group_names = []
+    for group_pk in [ group['group'] for group in user_groups]:
+        group_url = get_hop_auth_api_url() + f'/groups/{group_pk}'
+        group_response = requests.get(group_url,
+                                      headers={'Authorization': user_api_token,
+                                               'Content-Type': 'application/json'})
+        # for example:
+        # {'pk': 25, 'name': 'tomtoolkit', 'description': 'TOM Toolkit Integration testing'}
+        # {'pk': 26, 'name': 'hermes', 'description': 'Hermes - Messaging for Multi-messenger astronomy'}
+        logger.info(f'get_user_groups group_response: {group_response.json()}')
+        group_names.append(group_response.json()['name'])
+
+    return group_names
