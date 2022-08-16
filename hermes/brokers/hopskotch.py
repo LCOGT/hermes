@@ -197,6 +197,86 @@ def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
 
     return hop_user_pk
 
+def _get_hop_group_pk(group_name, user_api_token) -> int:
+    """return the primary key of the given group from the Hop Auth API
+    """
+    # request the list of groups from the Hop Auth API
+    groups_url = get_hop_auth_api_url() + '/groups'
+    response = requests.get(groups_url,
+                            headers={'Authorization': user_api_token,
+                                     'Content-Type': 'application/json'})
+    # example group dictionary: {'pk': 1, 'name': 'gcn', 'description': ''}
+    # from the response, extract the list of group dictionaries
+    hop_groups = response.json()
+
+    # find the group dict whose name matches our group_name
+    # this is the idiom for searchng a list of dictionaries for certain key-value (group_name)
+    hop_group = next((item for item in hop_groups if item['name'] == group_name), None)
+    if hop_group is not None:
+        hop_group_pk = hop_group['pk']
+        logger.debug(f'_get_hop_group_pk: PK for group {group_name} is {hop_group_pk}')
+    else:
+        hop_group_pk = None
+        logger.error(f'_get_hop_group_pk: Can not find group {group_name} in Hop Auth groups.')
+
+    return hop_group_pk
+
+def _get_hop_topic_pk(topic_name, user_api_token) -> int:
+    """return the primary key of the given topic from the Hop Auth API
+    """
+    # request the list of topicss from the Hop Auth API
+    topics_url = get_hop_auth_api_url() + '/topics'
+    response = requests.get(topics_url,
+                            headers={'Authorization': user_api_token,
+                                     'Content-Type': 'application/json'})
+    # example topic dictionary:
+    # {'pk': 84, 'owning_group': 10, 'name': 'lvalert-dev.external_snews',
+    #  'publicly_readable': False, 'description': ''}
+    # from the response, extract the list of topic dictionaries
+    hop_topics = response.json()
+
+    # find the topic dict whose name matches our topic_name
+    # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
+    hop_topic = next((item for item in hop_topics if item['name'] == topic_name), None)
+    if hop_topic is not None:
+        hop_topic_pk = hop_topic['pk']
+        logger.debug(f'_get_hop_topic_pk: PK for topic {topic_name} is {hop_topic_pk}')
+    else:
+        hop_topic_pk = None
+        logger.error(f'_get_hop_topic_pk: Can not find topic {topic_name} in Hop Auth topics.')
+
+    return hop_topic_pk
+
+
+def _get_hop_credential_pk(user, user_hop_auth, user_pk=None, user_api_token=None):
+    """Return the PK of the given Hop Auth (user_hop_auth) instance for the user.
+
+    user is vo_person_id
+    """
+    if user_api_token is None:
+        user_api_token = get_user_api_token(user)
+    if user_pk is None:
+        user_pk = _get_hop_user_pk(user)
+
+    # get the list of credentials for the user
+    hop_credentials = get_user_hop_authorizations(user, user_api_token)
+    # TODO: rename get_user_hop_authorizations to get_user_hop_credentials
+
+    # extract the one that matches the Auth user.username
+    # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
+    hop_cred = next((item for item in hop_credentials if item['username'] == user_hop_auth.username), None)
+    logger.debug(f'_get_hop_credential_pk: hop_cred {hop_cred}')
+
+    if hop_cred is not None:
+        hop_cred_pk = hop_cred['pk']
+        logger.debug(f'_get_hop_credential_pk: PK for credential {user_hop_auth.username} is {hop_cred_pk}')
+    else:
+        hop_cred_pk = None
+        logger.error(f'_get_hop_credential_pk: Can not find credential {user_hop_auth.username} in Hop Auth credentials.')
+
+    return hop_cred_pk
+
+
 
 def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
     """return the hop.auth.Auth instance for the user with the given vo_person_id
