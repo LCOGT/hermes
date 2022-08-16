@@ -124,39 +124,61 @@ def authorize_user(user: str) -> Auth:
     """
     logger.info(f'authorize_user user: {user}')
     user_api_token = get_user_api_token(user)
+    user_pk = _get_hop_user_pk(user, user_api_token=user_api_token)
 
-    # TODO: add user to hermes group
+    # Only Hop Auth admins can add users to groups and permissions to credentials.
+    # So, get the hermes_api_token for Authorization to do those things below.
+    hermes_api_token = get_hermes_api_token(HOP_USERNAME, HOP_PASSWORD)
+
+    # TODO: this should probably be factored out into it's own function
+    # Add the user to the hermes group
+    group_name = 'hermes'
+    group_pk = _get_hop_group_pk(group_name, user_api_token=user_api_token)
+
     # if user is already in hermes group, don't add
     user_groups = get_user_groups(user, user_api_token=user_api_token)
-    group_name = 'hermes'
-    if not group_name in user_groups:
-        # only Hop Auth adminscan do this, so use the hermes_api_token
-        hermes_api_token = get_hermes_api_token(HOP_USERNAME, HOP_PASSWORD)
-        user_pk = _get_hop_user_pk(user, user_api_token=user_api_token)
 
+    if not group_name in user_groups:
         # add the user
-        group_add_url = get_hop_auth_api_url() +  f'/users/{user_pk}/memberships'
-        logger.info(f'authorize_user group_add_url: {group_add_url}')
+        group_add_url = get_hop_auth_api_url() +  f'/groups/{group_pk}/members'
+        logger.debug(f'authorize_user group_add_url: {group_add_url}')
         group_add_request_data = {
-            'user':  user,
-            'group': group_name,
+            'user':  user_pk,
+            'group': group_pk,
+            'status': 1,  # Member=1, Owner=2
         }
         group_add_response = requests.post(group_add_url,
                                            json=group_add_request_data,
                                            headers={'Authorization': hermes_api_token,
                                                     'Content-Type': 'application/json'})
-        # TODO: touch base with Chris about the 405 - Method not allowed reponse
-        logger.info(f'authorize_user group_add_response: {group_add_response}')
+        logger.debug(f'authorize_user group_add_response: {group_add_response}, {dir(group_add_response)}')
+        logger.debug(f'authorize_user group_add_response.reason: {group_add_response.reason}')
+        logger.debug(f'authorize_user group_add_response.text: {group_add_response.text}')
     else:
         logger.info(f'authorize_user User {user} already a member of group {group_name}')
 
-
     # create user SCRAM credential (hop.auth.Auth instance)
-    user_hop_auth = get_user_hop_authorization(user)
+    user_hop_auth: Auth = get_user_hop_authorization(user)
+    credential_pk = _get_hop_credential_pk(user, user_hop_auth, user_pk=user_pk, user_api_token=user_api_token)
 
+    topic_name = 'hermes.test'
+    topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
     # TODO: add hermes.test topic permissions to the new SCRAM credential
-
-
+    #credential_permission_url = get_hop_auth_api_url() +  f'/groups/{group_pk}/topics/{topic_pk}/permissions'
+    credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
+    logger.debug(f'authorize_user credential_permission_url: {credential_permission_url}')
+    credential_permission_request_data = {
+        'principal':  credential_pk,  # TODO: it seems like this has to be the credential PK
+        'topic': topic_pk,
+        'operation': 1,  # All=1, Read=2, Write=3, etc, etc
+    }
+    credential_permission_response = requests.post(credential_permission_url,
+                                                   json=credential_permission_request_data,
+                                                   headers={'Authorization': hermes_api_token,
+                                                            'Content-Type': 'application/json'})
+    logger.debug(f'authorize_user credential_permission_response:        {credential_permission_response}')
+    logger.debug(f'authorize_user credential_permission_response.reason: {credential_permission_response.reason}')
+    logger.debug(f'authorize_user credential_permission_response.text:   {credential_permission_response.text}')
 
     return user_hop_auth
 
