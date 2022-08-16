@@ -123,8 +123,19 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(message):
-    hop_auth = hopskotch.get_hermes_hop_authorization()
+def submit_to_hop(request, message):
+    """Open the Hopskotch kafka stream for write and publish an Alert
+
+    The request holds the Session dict which has the 'hop_user_auth_json` key
+    whose value can be deserialized into a hop.auth.Auth instance to open the
+    stream with. (The hop.auth.Auth instance was added to the Session dict upon
+    logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
+    """
+    # the hop.auth.Auth requires jsons for non-trivial serialization/deserialization
+    hop_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+
+    # TODO: provide some indication of the User/vo_person_id submitting the message
+    logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
 
     try:
         topic = 'hermes.test'
