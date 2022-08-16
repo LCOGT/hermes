@@ -147,6 +147,7 @@ def authorize_user(user: str) -> Auth:
             'group': group_pk,
             'status': 1,  # Member=1, Owner=2
         }
+        # this requires admin priviledge so use HERMES service account API token
         group_add_response = requests.post(group_add_url,
                                            json=group_add_request_data,
                                            headers={'Authorization': hermes_api_token,
@@ -159,19 +160,21 @@ def authorize_user(user: str) -> Auth:
 
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth: Auth = get_user_hop_authorization(user)
+    logger.info(f'authorize_user SCRAM credential created for {user}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(user, user_hop_auth, user_pk=user_pk, user_api_token=user_api_token)
 
+    # TODO: this could also be refactored out into a function
     topic_name = 'hermes.test'
     topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
-    # TODO: add hermes.test topic permissions to the new SCRAM credential
-    #credential_permission_url = get_hop_auth_api_url() +  f'/groups/{group_pk}/topics/{topic_pk}/permissions'
+    # add hermes.test topic permissions to the new SCRAM credential
     credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
     logger.debug(f'authorize_user credential_permission_url: {credential_permission_url}')
     credential_permission_request_data = {
-        'principal':  credential_pk,  # TODO: it seems like this has to be the credential PK
+        'principal':  credential_pk,
         'topic': topic_pk,
         'operation': 1,  # All=1, Read=2, Write=3, etc, etc
     }
+    # this requires admin priviledge so use HERMES service account API token
     credential_permission_response = requests.post(credential_permission_url,
                                                    json=credential_permission_request_data,
                                                    headers={'Authorization': hermes_api_token,
