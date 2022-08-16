@@ -212,10 +212,10 @@ def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
     hop_user = next((item for item in hop_users if item['username'] == vo_person_id), None)
     if hop_user is not None:
         hop_user_pk = hop_user['pk']
-        logger.debug(f'get_user_hop_authorization._get_hop_user_pk: PK for {vo_person_id} is {hop_user_pk}')
+        logger.debug(f'_get_hop_user_pk: PK for {vo_person_id} is {hop_user_pk}')
     else:
-        logger.error(f'get_user_hop_authorization._get_hop_user_pk: Can not find user {vo_person_id} in Hop Auth users.')
         hop_user_pk = None
+        logger.error(f'_get_hop_user_pk: Can not find user {vo_person_id} in Hop Auth users.')
 
     return hop_user_pk
 
@@ -328,7 +328,7 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
 
     return user_hop_authorization
 
-
+# TODO: rename get_user_hop_authorizations to get_user_hop_credentials
 def get_user_hop_authorizations(vo_person_id, user_api_token=None):
     """return a list of credential dictionaries for the user with vo_person_id
 
@@ -360,7 +360,7 @@ def get_user_hop_authorizations(vo_person_id, user_api_token=None):
     logger.debug(f'HopAuthTestView get_user_hop_authorizations : {user_hop_authorizations}')
     return user_hop_authorizations
 
-
+# TODO: rename delete_user_hop_authorizations to delete_user_hop_credentials
 def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_token=None):
     """Remove the given SCRAM credentials from Hop Auth
 
@@ -490,3 +490,4 @@ def get_user_groups(vo_person_id, user_api_token=None):
         group_names.append(group_response.json()['name'])
 
     return group_names
+
