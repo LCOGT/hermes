@@ -6,5 +6,10 @@ whitenoise
 lcogt-logging
 hop-client
 django-cors-headers
+mozilla-django-oidc
 marshmallow
 astropy
+django-extensions # for shell_plus debugging
+requests
+scramp
+jsons # for Auth serialization

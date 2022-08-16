@@ -44,8 +44,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
+    'mozilla_django_oidc',
     'hermes',
 ]
 
@@ -57,6 +59,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     #'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -137,6 +140,61 @@ STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+
+# OpenID Connect (OIDC) Provider (OP) Configuration
+# https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html
+#
+# CILogin callbacks registered for HERMES (via SCiMMA/Chris Weaver) are:
+#   http://127.0.0.1/auth/callback
+#   http://127.0.0.1:8000/auth/callback
+#   http://127.0.0.1:8001/auth/callback
+#   http://hermes-dev.lco.gtn/auth/callback
+#   http://hermes.lco.global/auth/callback
+#
+# Client ID (OIDC_RP_CLIENT_ID) and SECRET (OIDC_RP_CLIENT_SECRET)
+# are how HERMES represents itself as the "relying party" (RP) to
+# CILogon.org (the OP). They should enter the environment as k8s secrets.
+# Client ID and SECRET values were obtained from CILogon.org via SCiMMA/Chris Weaver.
+OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
+
+# Signing Algorithm for CILogon
+OIDC_RP_SIGN_ALGO = 'RS256'
+OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
+
+# more OIDC config
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
+OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
+OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+# this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
+OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
+
+# https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
+AUTHENTICATION_BACKENDS = [
+    'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
+    # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+]
+
+
+# SCiMMA_admin and Hopskotch specific configuration
+#HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
+#HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
+HOP_AUTH_BASE_URL = 'https://my.hop.scimma.org/hopauth'  # for production scimmma_admin (hopauth)
+KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
+
+# https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
+LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
+LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login
+LOGOUT_REDIRECT_URL = '/'  # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = '/'
+# TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
+# TODO: handle login_failure !!
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/
+
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
@@ -171,6 +229,10 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': 'INFO'
+        },
+        'mozilla_django_oidc': {
+            'handlers': ['console'],
+            'level': 'DEBUG'
         },
     }
 }

@@ -7,5 +7,6 @@ urlpatterns = [
     path('messages/<int:pk>', views.MessageDetailView.as_view(), name='message-info'),
     path('messages/new/', views.MessageFormView.as_view(), name='message-form'),
     path('submit/', views.HopSubmitView.as_view(), name='hop-submit'),
-    path('submit-candidates/', views.HopSubmitCandidatesView.as_view(), name='hop-candidates-submit')
+    path('submit-candidates/', views.HopSubmitCandidatesView.as_view(), name='hop-candidates-submit'),
+    path('hop-auth-test', views.HopAuthTestView.as_view(), name='hop-auth-test'),
 ]

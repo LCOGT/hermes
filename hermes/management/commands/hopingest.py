@@ -205,7 +205,7 @@ class Command(BaseCommand):
                 message_text=hermes_alert['message_text'],
             )
         except KeyError as err:
-            logger.error(f'hermes unknow key found in Hermes alert: {hermes_alert}. {err}')
+            logger.error(f'hermes unknown key found in Hermes alert: {hermes_alert}. {err}')
             return 
 
         if created:
