@@ -31,7 +31,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
 HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
@@ -117,12 +117,12 @@ def authorize_user(user: str) -> Auth:
     """Set up user for all Hopskotch interactions.
     (Should be called upon logon (probably via OIDC authenticate)
 
-    * adds user to hermes group
+    * adds user (vo_person_id) to hermes group
     * creates user SCRAM credential (hop.auth.Auth instance)
     * add hermes.test topic permissions to SCRAM credential
     * returns hop.auth.Auth to authenticate() for inclusion in Session dictionary
     """
-    logger.info(f'authorize_user user: {user}')
+    logger.info(f'authorize_user Authorizing for Hopskotch, user: {user}')
     user_api_token = get_user_api_token(user)
     user_pk = _get_hop_user_pk(user, user_api_token=user_api_token)
 
@@ -189,7 +189,7 @@ def deauthorize_user(username, user_hop_auth):
 
     This should be called from the OIDC_OP_LOGOUT_URL_METHOD, upon HERMES logout.
     """
-    logger.debug(f'deauthorize_user user: {username} auth: {user_hop_auth.username}')
+    logger.info(f'deauthorize_user Deauthorizing for Hopskotch, user: {username} auth: {user_hop_auth.username}')
     delete_user_hop_authorization(username, user_hop_auth)
 
 
@@ -465,7 +465,7 @@ def get_user_groups(vo_person_id, user_api_token=None):
 
     # limit the API query to the specific users (whose pk we just found)
     user_groups_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
-    logger.debug(f'HopAuthTestView user_credentials URL: {user_groups_url}')
+    logger.debug(f'get_user_groups user_credentials URL: {user_groups_url}')
 
     user_groups_response = requests.get(user_groups_url,
                                         headers={'Authorization': user_api_token,
@@ -473,10 +473,9 @@ def get_user_groups(vo_person_id, user_api_token=None):
     # from the response, extract the list of user groups
     # {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
     user_groups = user_groups_response.json()
-    logger.info(f'get_user_groups : {user_groups}')
+    logger.debug(f'get_user_groups user_groups: {user_groups}')
 
-    # examine the groups
-
+    # extract the name of the group from the group dictionaries; collect and return the list
     group_names = []
     for group_pk in [ group['group'] for group in user_groups]:
         group_url = get_hop_auth_api_url() + f'/groups/{group_pk}'
@@ -486,7 +485,7 @@ def get_user_groups(vo_person_id, user_api_token=None):
         # for example:
         # {'pk': 25, 'name': 'tomtoolkit', 'description': 'TOM Toolkit Integration testing'}
         # {'pk': 26, 'name': 'hermes', 'description': 'Hermes - Messaging for Multi-messenger astronomy'}
-        logger.info(f'get_user_groups group_response: {group_response.json()}')
+        logger.debug(f'get_user_groups group_response: {group_response.json()}')
         group_names.append(group_response.json()['name'])
 
     return group_names

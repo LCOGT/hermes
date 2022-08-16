@@ -10,7 +10,7 @@ from mozilla_django_oidc import auth
 from hermes.brokers import hopskotch
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class NotInKafkaUsers(PermissionDenied):
     """COManage maintains a kafkaUsers group that a User must
@@ -89,7 +89,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             email=email,
             is_staff=is_member_of(claims, 'CO:COU:SCiMMA DevOps:members:active'),
         )
-        logger.info(f'HopskotchOIDCAuthenticationBackend.create_user: new_user: {new_user} with claims: {claims}')
+        logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: new_user: {new_user} with claims: {claims}')
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: UserModel: {self.UserModel}')
 
         return new_user
@@ -107,18 +107,13 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
         request.session['hop_user_auth_json'] = jsons.dump(hop_auth)
 
-        # TODO: confirm that logout clears the session dict
-        for session_key in request.session.keys():
-            logger.debug(f'authenticate BEFORE request.session[{session_key}]: {request.session[session_key]}')
-
-        # lets try to save something to the session
-        request.session['test'] = 'from Authenticate'
-
-        logger.debug(f'authenticate: request.session.session_key: {request.session.session_key}')
-        logger.debug(f'authenticate: type(request.session): {type(request.session)}')
-        logger.debug(f'authenticate: request.session: {request.session}')
-        for session_key in request.session.keys():
-            logger.debug(f'authenticate AFTER request.session[{session_key}]: {request.session[session_key]}')
+        #for session_key in request.session.keys():
+        #    logger.debug(f'authenticate BEFORE request.session[{session_key}]: {request.session[session_key]}')
+        #logger.debug(f'authenticate: request.session.session_key: {request.session.session_key}')
+        #logger.debug(f'authenticate: type(request.session): {type(request.session)}')
+        #logger.debug(f'authenticate: request.session: {request.session}')
+        #for session_key in request.session.keys():
+        #    logger.debug(f'authenticate AFTER request.session[{session_key}]: {request.session[session_key]}')
 
         return user # mimic super()
 
