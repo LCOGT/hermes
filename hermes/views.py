@@ -162,7 +162,7 @@ class HopSubmitView(APIView):
     """
     Submit a message to the hop client
     """
-    @csrf_exempt
+    #@csrf_exempt
     def post(self, request, *args, **kwargs):
         # what's going on here?
         logger.info(f'args: {args}')
