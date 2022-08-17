@@ -41,7 +41,7 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
-    path('^get-token/$', get_csrf_token) # for the frontend
+    path('get-token/', get_csrf_token) # for the frontend
 ]
 
 # mozilla_django_oidc.urls provides:
