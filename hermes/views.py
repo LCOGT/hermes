@@ -165,11 +165,11 @@ class HopSubmitView(APIView):
     #@csrf_exempt
     def post(self, request, *args, **kwargs):
         # what's going on here?
-        logger.info(f'args: {args}')
-        logger.info(f'kwargs: {kwargs}')
-        logger.info(f'dir(request): {dir(request)}')
-        logger.info(f'request: {request}')
-        logger.info(f'request.POST: {dir(request.POST)}')
+        logger.debug(f'args: {args}')
+        logger.debug(f'kwargs: {kwargs}')
+        logger.debug(f'dir(request): {dir(request)}')
+        logger.debug(f'request: {request}')
+        logger.debug(f'request.POST: {dir(request.POST)}')
         # request.data does not read the data stream again. So,
         # that is more appropriate than request.body which does
         # (read the stream again).
@@ -177,7 +177,7 @@ class HopSubmitView(APIView):
         #logger.info(f'type(request.body): {type(request.body)}')
         #logger.info(f'request.body: {request.body}')
         # YES:
-        logger.info(f'type(request.data): {type(request.data)}')
+        logger.debug(f'type(request.data): {type(request.data)}')
         logger.info(f'request.data: {request.data}')
         return submit_to_hop(request, request.data)
 
