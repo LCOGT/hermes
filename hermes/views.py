@@ -136,6 +136,10 @@ def submit_to_hop(request, message):
         hop_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
     except KeyError as err:
         logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
+        # TODO: REMOVE THE FOLLOEING CODE AFTER TESTING!!
+        # use the Hermes service account temporarily while testing...
+        logger.warning(f'Submitting with Hermes service account authorization (testing only)')
+        hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
 
     # TODO: provide some indication of the User/vo_person_id submitting the message
