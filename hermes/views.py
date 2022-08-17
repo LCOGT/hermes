@@ -131,8 +131,12 @@ def submit_to_hop(request, message):
     stream with. (The hop.auth.Auth instance was added to the Session dict upon
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
-    # the hop.auth.Auth requires jsons for non-trivial serialization/deserialization
-    hop_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+    try:
+        # the hop.auth.Auth requires jsons for non-trivial serialization/deserialization
+        hop_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+    except KeyError as err:
+        logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
+
 
     # TODO: provide some indication of the User/vo_person_id submitting the message
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
