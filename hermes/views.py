@@ -171,7 +171,7 @@ class HopSubmitView(APIView):
         # YES:
         logger.info(f'type(request.data): {type(request.data)}')
         logger.info(f'request.data: {request.data}')
-        return submit_to_hop(request.data)
+        return submit_to_hop(request, request.data)
 
     def get(self, request, *args, **kwargs):
         return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
@@ -214,7 +214,7 @@ class HopSubmitCandidatesView(APIView):
         if errors:
             return Response(errors, status.HTTP_400_BAD_REQUEST)
 
-        return submit_to_hop(vars(candidates))
+        return submit_to_hop(request, vars(candidates))
 
 class HopAuthTestView(RedirectView):
     pattern_name = 'index'
