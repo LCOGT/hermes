@@ -23,6 +23,18 @@ from hermes import views
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
 
+# This is a really a view, but I'm including it here
+def get_csrf_token(request):
+    """return a CSRF token from the middleware
+
+    The frontend can call this method upon start-up, store the token
+    in a cookie, and include it in subsequent calls like this:
+       headers: {'X-CSRFToken': this_token}
+    """
+    token = csrf.get_token(request)
+    return JsonResponse({'token': token})
+
+
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
@@ -36,14 +48,3 @@ urlpatterns = [
 #  oidc_authentication_callback
 #  oidc_authentication_init
 #  oidc_logout
-
-# This is a really a view, but I'm including it here
-def get_csrf_token(request):
-    """return a CSRF token from the middleware
-
-    The frontend can call this method upon start-up, store the token
-    in a cookie, and include it in subsequent calls like this:
-       headers: {'X-CSRFToken': this_token}
-    """
-    token = csrf.get_token(request)
-    return JsonResponse({'token': token})
