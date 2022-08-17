@@ -14,6 +14,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
+from django.http import JsonResponse
+from django.middleware import csrf
 from django.urls import include, path
 from rest_framework import routers
 from hermes import views
@@ -27,9 +29,21 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('^get-token/$', get_csrf_token) # for the frontend
 ]
 
 # mozilla_django_oidc.urls provides:
 #  oidc_authentication_callback
 #  oidc_authentication_init
 #  oidc_logout
+
+# This is a really a view, but I'm including it here
+def get_csrf_token(request):
+    """return a CSRF token from the middleware
+
+    The frontend can call this method upon start-up, store the token
+    in a cookie, and include it in subsequent calls like this:
+       headers: {'X-CSRFToken': this_token}
+    """
+    token = csrf.get_token(request)
+    return JsonResponse({'token': token})
