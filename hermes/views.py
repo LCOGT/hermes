@@ -2,8 +2,11 @@ from http.client import responses
 import json
 import logging
 
-# this is for OIDC experimentation
+
 from django.contrib.auth.models import User
+from django.conf import settings
+
+# this is for OIDC experimentation
 from django.contrib.sessions.models import Session
 from django.contrib.sessions.backends.db import SessionStore
 
@@ -225,7 +228,7 @@ class HopSubmitCandidatesView(APIView):
 
 
 class LoginRedirectView(RedirectView):
-    patter_name = 'login-redirect'
+    pattern_name = 'login-redirect'
 
     def get(self, request, *args, **kwargs):
 
@@ -233,8 +236,9 @@ class LoginRedirectView(RedirectView):
         logger.debug(f'LoginRedirectView.get -- request.user.username: {request.user.username}')
         logger.debug(f'LoginRedirectView.get -- request.user.email: {request.user.email}')
 
-        # TODO: make a settings.FRONT_END_REDIRECT_URL
-        self.url = f'http://127.0.0.1:8000/#/?user={request.user.email}'
+        hermes_front_end_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
+        logger.debug(f'LoginRedirectView.get -- setting self.url: {hermes_front_end_redirect_url}')
+        self.url = hermes_front_end_redirect_url
 
         return super().get(request, *args, **kwargs)
 
