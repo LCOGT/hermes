@@ -215,7 +215,7 @@ REST_FRAMEWORK = {
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'access-control-allow-origin',
+    # add custom headers here
 ]
 
 
@@ -254,7 +254,8 @@ LOGGING = {
 }
 logging.config.dictConfig(LOGGING)
 
-logging.info(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
+logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
+
 try:
     logging.info('Looking for local_settings.')
     from local_settings import *  # noqa
