@@ -9,4 +9,5 @@ urlpatterns = [
     path('submit/', views.HopSubmitView.as_view(), name='hop-submit'),
     path('submit-candidates/', views.HopSubmitCandidatesView.as_view(), name='hop-candidates-submit'),
     path('hop-auth-test', views.HopAuthTestView.as_view(), name='hop-auth-test'),
+    path('login-redirect/', views.LoginRedirectView.as_view(), name='login-redirect'),
 ]

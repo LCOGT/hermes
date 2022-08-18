@@ -224,6 +224,22 @@ class HopSubmitCandidatesView(APIView):
 
         return submit_to_hop(request, vars(candidates))
 
+
+class LoginRedirectView(RedirectView):
+    patter_name = 'login-redirect'
+
+    def get(self, request, *args, **kwargs):
+
+        logger.debug(f'LoginRedirectView.get -- request.user: {request.user}')
+        logger.debug(f'LoginRedirectView.get -- request.user.username: {request.user.username}')
+        logger.debug(f'LoginRedirectView.get -- request.user.email: {request.user.email}')
+
+        # TODO: make a settings.FRONT_END_REDIRECT_URL
+        self.url = f'http://127.0.0.1:8000/#/?user={request.user.email}'
+
+        return super().get(request, *args, **kwargs)
+
+
 class HopAuthTestView(RedirectView):
     pattern_name = 'index'
 
