@@ -15,6 +15,8 @@ import os
 import logging.config
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
+
 from lcogt_logging import LCOGTFormatter
 
 
@@ -52,12 +54,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -183,12 +185,14 @@ HOP_AUTH_BASE_URL = 'https://my.hop.scimma.org/hopauth'  # for production scimmm
 KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 
+# TODO: read these REDIRECTS from environment and set env via helm-chart
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
 LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
-LOGIN_REDIRECT_URL = '/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = '/'  # URL path to redirect to after logout
-LOGIN_REDIRECT_URL_FAILURE = '/'
-# TODO: define real LOGIN_ LOGOUT_REDIRECT_URLs
+LOGIN_REDIRECT_URL = 'https://hermes.lco.global/'  # URL path to redirect to after login
+LOGOUT_REDIRECT_URL = 'https://hermes.lco.gobal/'  # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = 'https://hermes.lco.gobal/'
+# but see local_settings.py for any overrides
+
 # TODO: handle login_failure !!
 
 
@@ -201,7 +205,17 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 10,
 }
 
+
+#
+# CORS configuration
+# https://pypi.org/project/django-cors-headers/
+#
+
 CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'access-control-allow-origin',
+]
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
@@ -238,7 +252,7 @@ LOGGING = {
 }
 logging.config.dictConfig(LOGGING)
 
-
+logging.info(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
 try:
     logging.info('Looking for local_settings.')
     from local_settings import *  # noqa
