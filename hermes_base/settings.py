@@ -182,20 +182,17 @@ AUTHENTICATION_BACKENDS = [
 #HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
 #HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
 HOP_AUTH_BASE_URL = 'https://my.hop.scimma.org/hopauth'  # for production scimmma_admin (hopauth)
-KAFKA_USER_AUTH_GROUP = os.environ.get("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
-HERMES_FRONT_END_BASE_URL = 'https://hermes.lco.global/'
+# TODO: set up helm chart for dev and prod environments; this default works for local development
+HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8080/')
 
-# TODO: read these REDIRECTS from environment and set env via helm-chart
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
 LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
 LOGIN_REDIRECT_URL = '/login-redirect/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = 'https://hermes.lco.gobal/'  # URL path to redirect to after logout
-LOGIN_REDIRECT_URL_FAILURE = 'https://hermes.lco.gobal/'
+LOGOUT_REDIRECT_URL = HERMES_FRONT_END_BASE_URL  # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
 # TODO: handle login_failure !!
-
-# NB: see local_settings.py for any overrides
-
 
 
 # Django REST Framework
@@ -254,7 +251,7 @@ LOGGING = {
 }
 logging.config.dictConfig(LOGGING)
 
-logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
+#logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
 
 try:
     logging.info('Looking for local_settings.')

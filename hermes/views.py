@@ -237,7 +237,7 @@ class LoginRedirectView(RedirectView):
         logger.debug(f'LoginRedirectView.get -- request.user.email: {request.user.email}')
 
         hermes_front_end_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
-        logger.debug(f'LoginRedirectView.get -- setting self.url: {hermes_front_end_redirect_url}')
+        logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {hermes_front_end_redirect_url}')
         self.url = hermes_front_end_redirect_url
 
         return super().get(request, *args, **kwargs)
