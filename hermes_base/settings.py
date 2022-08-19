@@ -171,6 +171,10 @@ OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
 # this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
 OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
 
+# this tells mozilla-django-oidc that the front end can logout with a GET
+# which allows the front end to use location.href to /auth/logout to logout.
+ALLOW_LOGOUT_GET_METHOD = True
+
 # https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
 AUTHENTICATION_BACKENDS = [
     'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
@@ -190,7 +194,7 @@ HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
 LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
 LOGIN_REDIRECT_URL = '/login-redirect/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = HERMES_FRONT_END_BASE_URL  # URL path to redirect to after logout
+LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
 LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
 # TODO: handle login_failure !!
 

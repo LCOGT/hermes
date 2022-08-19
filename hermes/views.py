@@ -236,9 +236,20 @@ class LoginRedirectView(RedirectView):
         logger.debug(f'LoginRedirectView.get -- request.user.username: {request.user.username}')
         logger.debug(f'LoginRedirectView.get -- request.user.email: {request.user.email}')
 
-        hermes_front_end_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
-        logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {hermes_front_end_redirect_url}')
-        self.url = hermes_front_end_redirect_url
+        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
+        logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {login_redirect_url}')
+        self.url = login_redirect_url
+
+        return super().get(request, *args, **kwargs)
+
+class LogoutRedirectView(RedirectView):
+    pattern_name = 'logout-redirect'
+
+    def get(self, request, *args, **kwargs):
+
+        logout_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}'
+        logger.info(f'LogoutRedirectView.get -- setting self.url and redirecting to {logout_redirect_url}')
+        self.url = logout_redirect_url
 
         return super().get(request, *args, **kwargs)
 
