@@ -6,11 +6,7 @@ import logging
 from django.contrib.auth.models import User
 from django.conf import settings
 
-# this is for OIDC experimentation
-from django.contrib.sessions.models import Session
-from django.contrib.sessions.backends.db import SessionStore
-
-from django.views.decorators.csrf import csrf_exempt
+#from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import ListView, DetailView, FormView, RedirectView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
@@ -168,7 +164,7 @@ class HopSubmitView(APIView):
     # TODO: don't remove default authentication_classes in production!!!
     authentication_classes = []
 
-    @csrf_exempt
+    #@csrf_exempt
     def post(self, request, *args, **kwargs):
         # what's going on here?
         logger.debug(f'args: {args}')
