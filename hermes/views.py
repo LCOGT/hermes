@@ -164,6 +164,10 @@ class HopSubmitView(APIView):
     """
     Submit a message to the hop client
     """
+    # This should remove the default authentication_classes from this APIView. see SO:30871033
+    # TODO: don't remove default authentication_classes in production!!!
+    authentication_classes = []
+
     @csrf_exempt
     def post(self, request, *args, **kwargs):
         # what's going on here?
