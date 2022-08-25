@@ -7,7 +7,10 @@ from django.contrib.auth.models import User
 from django.conf import settings
 
 #from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import ListView, DetailView, FormView, RedirectView
+from django.http import JsonResponse
+from django.middleware import csrf
+
+from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from rest_framework.views import APIView
@@ -252,6 +255,21 @@ class LogoutRedirectView(RedirectView):
         self.url = logout_redirect_url
 
         return super().get(request, *args, **kwargs)
+
+
+class GetCSRFTokenView(View):
+    pattern_name = 'get_csrf_token'
+
+    def get(self, request, *args, **kwargs):
+
+        token = csrf.get_token(request)
+        response = JsonResponse(data={'token': token})
+
+        logger.info(f'GetCSRFTokenView reponse: {response}')
+        logger.info(f'GetCSRFTokenView reponse.data: {response.data}')
+        logger.info(f'GetCSRFTokenView reponse.headers: {response.headers}')
+
+        return response
 
 
 class HopAuthTestView(RedirectView):

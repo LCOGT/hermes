@@ -37,14 +37,17 @@ def get_csrf_token(request):
     in a cookie, and include it in subsequent calls like this:
        headers: {'X-CSRFToken': this_token}
     """
+    logger.info(f'get_csrf_token')
     token = csrf.get_token(request)
     response = JsonResponse({'token': token})
 
-    logger.debug(f'get_csrf_token response.headers: {response.headers}')
+    logger.info(f'get_csrf_token response.headers: {response.headers}')
     response.headers['Access-Control-Allow-Origin'] = '*'
-    logger.debug(f'get_csrf_token response.headers: {response.headers}')
+    logger.info(f'get_csrf_token response.headers: {response.headers}')
 
     return response
+
+
 
 
 urlpatterns = [
@@ -53,7 +56,8 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
-    path('get-csrf-token/', get_csrf_token) # for the frontend
+    #path('get-csrf-token/', get_csrf_token) # for the frontend
+    path('get-csrf-token/', views.GetCSRFTokenView.as_view(), name='get_csrf_token') # for the frontend
 ]
 
 # mozilla_django_oidc.urls provides:
