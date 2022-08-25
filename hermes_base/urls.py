@@ -41,9 +41,9 @@ def get_csrf_token(request):
     response = JsonResponse({'token': token})
 
     logger.debug(f'get_csrf_token response.headers: {response.headers}')
-    response.headers['Access-Control-Allow-Origin': '*']
+    response.headers['Access-Control-Allow-Origin'] = '*'
     logger.debug(f'get_csrf_token response.headers: {response.headers}')
-    
+
     return response
 
 
