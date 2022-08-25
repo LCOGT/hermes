@@ -13,12 +13,18 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.http import JsonResponse
 from django.middleware import csrf
 from django.urls import include, path
 from rest_framework import routers
 from hermes import views
+
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
@@ -32,7 +38,13 @@ def get_csrf_token(request):
        headers: {'X-CSRFToken': this_token}
     """
     token = csrf.get_token(request)
-    return JsonResponse({'token': token})
+    response = JsonResponse({'token': token})
+
+    logger.debug(f'get_csrf_token response.headers: {response.headers}')
+    response.headers['Access-Control-Allow-Origin': '*']
+    logger.debug(f'get_csrf_token response.headers: {response.headers}')
+    
+    return response
 
 
 urlpatterns = [
