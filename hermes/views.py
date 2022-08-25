@@ -258,9 +258,10 @@ class LogoutRedirectView(RedirectView):
 
 
 class GetCSRFTokenView(View):
-    pattern_name = 'get_csrf_token'
+    pattern_name = 'get-csrf-token'
 
     def get(self, request, *args, **kwargs):
+        logger.info(f'GetCSRFTokenView request: {request}')
 
         token = csrf.get_token(request)
         response = JsonResponse(data={'token': token})

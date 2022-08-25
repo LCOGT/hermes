@@ -57,7 +57,6 @@ urlpatterns = [
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
     #path('get-csrf-token/', get_csrf_token) # for the frontend
-    path('get-csrf-token/', views.GetCSRFTokenView.as_view(), name='get_csrf_token') # for the frontend
 ]
 
 # mozilla_django_oidc.urls provides:
