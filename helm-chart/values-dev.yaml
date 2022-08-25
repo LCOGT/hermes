@@ -23,6 +23,7 @@ ingress:
         - "/api"
         - "/submit"
         - "/auth"
+        - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"
 
