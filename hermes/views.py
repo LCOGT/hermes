@@ -36,7 +36,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 
 class CandidateDataSchema(Schema):
@@ -163,18 +163,13 @@ class HopSubmitView(APIView):
     """
     Submit a message to the hop client
     """
-    # This should remove the default authentication_classes from this APIView. see SO:30871033
-    # TODO: don't remove default authentication_classes in production!!!
-    #authentication_classes = []
 
-    #@csrf_exempt
     def post(self, request, *args, **kwargs):
-        # what's going on here?
-        logger.debug(f'args: {args}')
-        logger.debug(f'kwargs: {kwargs}')
-        logger.debug(f'dir(request): {dir(request)}')
-        logger.debug(f'request: {request}')
-        logger.debug(f'request.POST: {dir(request.POST)}')
+        """Sumbit to Hopskotch
+
+        Requests to this method go through rest_framework.authentication.SessionMiddleware
+        and as such require a CSRF token in the header. see GetCSRFTokenView.
+        """
         # request.data does not read the data stream again. So,
         # that is more appropriate than request.body which does
         # (read the stream again).
@@ -182,9 +177,7 @@ class HopSubmitView(APIView):
         #logger.info(f'type(request.body): {type(request.body)}')
         #logger.info(f'request.body: {request.body}')
         # YES:
-        logger.debug(f'type(request.data): {type(request.data)}')
-        logger.info(f'request.data: {request.data}')
-        logger.debug(f'request.headers: {request.headers}')
+        logger.debug(f'request.data: {request.data}')
 
         return submit_to_hop(request, request.data)
 

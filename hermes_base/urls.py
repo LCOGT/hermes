@@ -29,34 +29,12 @@ logger.setLevel(logging.DEBUG)
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
 
-# This is a really a view, but I'm including it here
-def get_csrf_token(request):
-    """return a CSRF token from the middleware
-
-    The frontend can call this method upon start-up, store the token
-    in a cookie, and include it in subsequent calls like this:
-       headers: {'X-CSRFToken': this_token}
-    """
-    logger.info(f'get_csrf_token')
-    token = csrf.get_token(request)
-    response = JsonResponse({'token': token})
-
-    logger.info(f'get_csrf_token response.headers: {response.headers}')
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    logger.info(f'get_csrf_token response.headers: {response.headers}')
-
-    return response
-
-
-
-
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
-    #path('get-csrf-token/', get_csrf_token) # for the frontend
 ]
 
 # mozilla_django_oidc.urls provides:
