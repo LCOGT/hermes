@@ -261,18 +261,9 @@ class GetCSRFTokenView(View):
     pattern_name = 'get-csrf-token'
 
     def get(self, request, *args, **kwargs):
-        logger.info(f'GetCSRFTokenView request: {request}')
-        logger.info(f'GetCSRFTokenView type(request): {type(request)}')
-        logger.info(f'GetCSRFTokenView dir(request): {dir(request)}')
-
         token = csrf.get_token(request)
         response = JsonResponse(data={'token': token})
-
-        logger.info(f'GetCSRFTokenView reponse: {response}')
-        logger.info(f'GetCSRFTokenView type(reponse): {type(response)}')
-        logger.info(f'GetCSRFTokenView dir(reponse): {dir(response)}')
-        logger.info(f'GetCSRFTokenView reponse.headers: {response.headers}')
-
+        # this is where you can modify or log the response before returning it
         return response
 
 
