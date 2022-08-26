@@ -26,5 +26,4 @@ ingress:
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"
-        - "/asdf"
 
