@@ -262,12 +262,15 @@ class GetCSRFTokenView(View):
 
     def get(self, request, *args, **kwargs):
         logger.info(f'GetCSRFTokenView request: {request}')
+        logger.info(f'GetCSRFTokenView type(request): {type(request)}')
+        logger.info(f'GetCSRFTokenView dir(request): {dir(request)}')
 
         token = csrf.get_token(request)
         response = JsonResponse(data={'token': token})
 
         logger.info(f'GetCSRFTokenView reponse: {response}')
-        logger.info(f'GetCSRFTokenView reponse.data: {response.data}')
+        logger.info(f'GetCSRFTokenView type(reponse): {type(response)}')
+        logger.info(f'GetCSRFTokenView dir(reponse): {dir(response)}')
         logger.info(f'GetCSRFTokenView reponse.headers: {response.headers}')
 
         return response
