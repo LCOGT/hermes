@@ -36,7 +36,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 
 class CandidateDataSchema(Schema):
@@ -165,7 +165,7 @@ class HopSubmitView(APIView):
     """
     # This should remove the default authentication_classes from this APIView. see SO:30871033
     # TODO: don't remove default authentication_classes in production!!!
-    authentication_classes = []
+    #authentication_classes = []
 
     #@csrf_exempt
     def post(self, request, *args, **kwargs):
@@ -184,6 +184,8 @@ class HopSubmitView(APIView):
         # YES:
         logger.debug(f'type(request.data): {type(request.data)}')
         logger.info(f'request.data: {request.data}')
+        logger.debug(f'request.headers: {request.headers}')
+
         return submit_to_hop(request, request.data)
 
     def get(self, request, *args, **kwargs):
@@ -260,7 +262,15 @@ class LogoutRedirectView(RedirectView):
 class GetCSRFTokenView(View):
     pattern_name = 'get-csrf-token'
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """return a CSRF token from the middleware in a JsonResponse:
+        key: 'token'
+        value: <csrf token>
+
+        The frontend can call this method upon start-up, store the token
+        in a cookie, and include it in subsequent calls like this:
+        headers: {'X-CSRFToken': this_token}
+        """
         token = csrf.get_token(request)
         response = JsonResponse(data={'token': token})
         # this is where you can modify or log the response before returning it
