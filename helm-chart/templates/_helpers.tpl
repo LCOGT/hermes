@@ -94,6 +94,8 @@ build it here and use it everywhere.
   value: {{ .Values.djangoDebug | toString | lower | title | quote }}
 - name: HERMES_FRONT_END_BASE_URL
   value: {{ .Values.hermesFrontEndBaseUrl | quote }}
+- name: HOP_AUTH_BASE_URL
+  value: {{ .Values.hopAuthBaseUrl | quote }}
 {{- end }}
 
 {{/*

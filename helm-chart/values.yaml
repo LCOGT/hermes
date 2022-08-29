@@ -2,6 +2,11 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+#
+# SCiMMA Auth (Hop Auth, scimma-admin) config
+#
+hopAuthBaseUrl: https://my.hop.scimma.org/hopauth
+
 djangoDebug: true
 
 gunicornWorkers: 2
