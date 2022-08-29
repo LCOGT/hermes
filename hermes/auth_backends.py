@@ -51,14 +51,17 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             msg = "Your account is missing LDAP claims. Are you sure you used the account you use for SCIMMA?"
             raise PermissionDenied(msg)
 
-        for group in [self.kafka_user_auth_group]:
-            if not is_member_of(claims, group):
-                name = claims.get('vo_display_name', 'Unknown')
-                id = claims.get('vo_person_id', 'Unknown')
-                email = claims.get('email', 'Unknown')
-                msg = f"User vo_display_name={name}, vo_person_id={id}, email={email} is not in {group}, but requested access"
-                logger.error(msg)
-                raise NotInKafkaUsers(msg)
+        # This is how SCiMMA Auth (scimma-admin) enforces Hopskotch users being in kafkaUsers group
+        # but since they are doing that HERMES doesn't have to: 
+        #
+        #for group in [self.kafka_user_auth_group]:
+        #    if not is_member_of(claims, group):
+        #        name = claims.get('vo_display_name', 'Unknown')
+        #        id = claims.get('vo_person_id', 'Unknown')
+        #        email = claims.get('email', 'Unknown')
+        #        msg = f"User vo_display_name={name}, vo_person_id={id}, email={email} is not in {group}, but requested access"
+        #        logger.error(msg)
+        #        raise NotInKafkaUsers(msg)
 
         if "email" in claims:
             return True
