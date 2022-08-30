@@ -28,6 +28,7 @@ logger.setLevel(logging.DEBUG)
 
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
+router.register(r'topics', views.TopicViewSet, basename='topic')
 
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),

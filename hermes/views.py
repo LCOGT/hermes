@@ -99,6 +99,38 @@ class MessageViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
+
+class TopicViewSet(viewsets.ViewSet):
+    """This ViewSet does not have a Model backing it. It uses the SCiMMA Auth (Hop Auth) API
+    to construct a response and return a dictionary
+    {'read': <topic list>, 'write': <topic-list>}
+    """
+    authentication_classes = [] # TODO: remove after implementation!!!!
+
+    def list(self, request, *args, **kwargs):
+        """
+        """
+        username = request.user.username
+
+        # TODO: remove after implementation!!!!
+        username = 'SCiMMA1000020' # llindstrom@lco.global
+
+        #user_hop_auth: Auth = _extract_hop_auth(request)
+        #user_api_token = hopskotch.get_user_api_token
+
+        topics = hopskotch.get_user_topics(username)
+        logger.info(f'TopicViewSet.list topics for {username}: {topics}')
+        #logger.info(f'TopicViewSet.list hop_auth for {username}: {user_hop_auth}')
+
+        #data ={
+        #    'read': [],
+        #    'write': []
+        #}
+
+        response = JsonResponse(data=topics)
+        return response
+
+
 class MessageListView(ListView):
     # change the model form Message to User for OIDC experimentation
     model = User
