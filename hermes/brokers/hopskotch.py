@@ -546,7 +546,6 @@ def get_user_topics(vo_person_id, user_api_token=None):
             ],
         'write': [
             'hermes.test',
-            'gcn.circular'
         ],
         'notes': 'This is sample data',
     }

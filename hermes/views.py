@@ -102,8 +102,11 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 class TopicViewSet(viewsets.ViewSet):
     """This ViewSet does not have a Model backing it. It uses the SCiMMA Auth (Hop Auth) API
-    to construct a response and return a dictionary
-    {'read': <topic list>, 'write': <topic-list>}
+    to construct a response and return a dictionary:
+        {
+        'read': <topic list>,
+        'write': <topic-list>,
+        }
     """
     # this is for dev/testing so I can hit the back-end endopint directly and not via the front-end
     authentication_classes = [] # TODO: remove after implementation!!!!
@@ -122,11 +125,6 @@ class TopicViewSet(viewsets.ViewSet):
         topics = hopskotch.get_user_topics(username)
         logger.info(f'TopicViewSet.list topics for {username}: {topics}')
         #logger.info(f'TopicViewSet.list hop_auth for {username}: {user_hop_auth}')
-
-        #data ={
-        #    'read': [],
-        #    'write': []
-        #}
 
         response = JsonResponse(data=topics)
         return response
