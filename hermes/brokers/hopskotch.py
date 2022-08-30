@@ -18,6 +18,7 @@ from http.client import responses
 import json
 import logging
 import os
+from pydoc_data.topics import topics
 import requests
 
 from django.conf import settings
@@ -492,4 +493,55 @@ def get_user_groups(vo_person_id, user_api_token=None):
         group_names.append(group_response.json()['name'])
 
     return group_names
+
+
+def get_user_topics(vo_person_id, user_api_token=None):
+    """
+    """
+    logger.info(f'get_user_topics user: {vo_person_id}')
+
+    if user_api_token is None:
+        user_api_token = get_user_api_token(vo_person_id)
+
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
+
+    # examine the list of topics
+    topics_url = get_hop_auth_api_url() + f'/topics'
+    logger.info(f'get_user_topics topics URL: {topics_url}')
+
+    user_topics_response = requests.get(topics_url,
+                                        headers={'Authorization': user_api_token,
+                                                 'Content-Type': 'application/json'})
+    # from the response, extract the list of topics
+    # {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
+    topics = user_topics_response.json()
+    logger.info(f'get_user_topics {len(topics)} topics found')
+    logger.info(f'get_user_topics example topic: {topics[0]}')
+
+    # examine the details of a single topic
+    topic_name = 'hermes.test'
+    topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
+
+    topic_details_url = get_hop_auth_api_url() + f'/topics/{topic_pk}'
+    user_topic_response = requests.get(topic_details_url,
+                                       headers={'Authorization': user_api_token,
+                                                'Content-Type': 'application/json'})
+    # from the response, extract the topic details
+    topics_details = user_topic_response.json()
+    logger.info(f'get_user_topics topic details for {topic_name}: {topics_details}')
+
+    # examine the permissions of a topic
+    topic_permissions_url = get_hop_auth_api_url() + f'/topics/{topic_pk}/permissions'
+    topic_permissions_response = requests.get(topic_permissions_url,
+                                              headers={'Authorization': user_api_token,
+                                                       'Content-Type': 'application/json'})
+    # from the response, extract the topic permissions
+    topics_permissions = topic_permissions_response.json()
+    logger.info(f'get_user_topics topic permissions for {topic_name}: {topics_permissions}')
+
+    return {
+        'read': [],
+        'write': [],
+    }
+
 
