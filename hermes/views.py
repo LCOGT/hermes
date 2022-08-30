@@ -105,6 +105,7 @@ class TopicViewSet(viewsets.ViewSet):
     to construct a response and return a dictionary
     {'read': <topic list>, 'write': <topic-list>}
     """
+    # this is for dev/testing so I can hit the back-end endopint directly and not via the front-end
     authentication_classes = [] # TODO: remove after implementation!!!!
 
     def list(self, request, *args, **kwargs):

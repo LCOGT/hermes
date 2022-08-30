@@ -540,8 +540,15 @@ def get_user_topics(vo_person_id, user_api_token=None):
     logger.info(f'get_user_topics topic permissions for {topic_name}: {topics_permissions}')
 
     return {
-        'read': [],
-        'write': [],
+        'read': [
+            'hermes.test',
+            'gcn.circular'
+            ],
+        'write': [
+            'hermes.test',
+            'gcn.circular'
+        ],
+        'notes': 'This is sample data',
     }
 
 
