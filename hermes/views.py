@@ -39,6 +39,14 @@ logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 
+def _extract_hop_auth(request) -> Auth:
+    """The hop.auth.Auth instance was inserted in to the Session dictionary upon logon
+    in AuthenticationBackend.authenticate. This method extracts it. jsons is used (not json)
+    because Auth is non-trivial to serialize/deserialize.
+    """
+    hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+    return hop_user_auth
+
 class CandidateDataSchema(Schema):
     candidate_id = fields.String(required=True)
     ra = fields.String(required=True)
@@ -134,8 +142,7 @@ def submit_to_hop(request, message):
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
     try:
-        # the hop.auth.Auth requires jsons for non-trivial serialization/deserialization
-        hop_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+        hop_auth: Auth = _extract_hop_auth(request)
     except KeyError as err:
         logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
         # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
@@ -359,8 +366,7 @@ class HopAuthTestView(RedirectView):
             test_query(user_api_token, "/groups/1/permissions_given")
             test_query(user_api_token, "/groups/1/permissions_received")
 
-        # hop_user_auth_json added to Session dict in AuthenticationBackend.authenticate
-        hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+        hop_user_auth: Auth = _extract_hop_auth(request)
         logger.info(f'HopAuthTestView Extracted Auth from Session: username: {hop_user_auth.username} password: {hop_user_auth.password}')
 
         hop_user_auths = hopskotch.get_user_hop_authorizations(request.user.username)
