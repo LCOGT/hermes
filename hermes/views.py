@@ -108,7 +108,7 @@ class TopicViewSet(viewsets.ViewSet):
         'write': <topic-list>,
         }
     """
-    def list(self, request, *args, **kwargs):
+    def list(self, request, *args, **kwargs) -> JsonResponse:
         """
         """
         username = request.user.username
@@ -122,7 +122,7 @@ class TopicViewSet(viewsets.ViewSet):
                 'write': ['hermes.test'],
                 }
             logger.error(f'TopicViewSet returning default topics: {default_topics}')
-            return default_topics
+            return JsonResponse(data=default_topics)
 
         credential_name = user_hop_auth.username
         user_api_token = hopskotch.get_user_api_token(username)
