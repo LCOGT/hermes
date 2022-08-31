@@ -162,7 +162,7 @@ def authorize_user(user: str) -> Auth:
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth: Auth = get_user_hop_authorization(user)
     logger.info(f'authorize_user SCRAM credential created for {user}:  {user_hop_auth.username}')
-    credential_pk = _get_hop_credential_pk(user, user_hop_auth, user_pk=user_pk, user_api_token=user_api_token)
+    credential_pk = _get_hop_credential_pk(user, user_hop_auth.username, user_pk=user_pk, user_api_token=user_api_token)
 
     # TODO: this could also be refactored out into a function
     topic_name = 'hermes.test'
@@ -187,14 +187,14 @@ def authorize_user(user: str) -> Auth:
     return user_hop_auth
 
 
-def deauthorize_user(username, user_hop_auth):
+def deauthorize_user(username, user_hop_auth: Auth):
     """Remove from Hop Auth the SCRAM credentials (user_hop_auth) that were created
     for this session.
 
     This should be called from the OIDC_OP_LOGOUT_URL_METHOD, upon HERMES logout.
     """
     logger.info(f'deauthorize_user Deauthorizing for Hopskotch, user: {username} auth: {user_hop_auth.username}')
-    delete_user_hop_authorization(username, user_hop_auth)
+    delete_user_hop_credentials(username, user_hop_auth.username)
 
 
 def _get_hop_user_pk(vo_person_id, user_api_token) -> int:
@@ -274,31 +274,30 @@ def _get_hop_topic_pk(topic_name, user_api_token) -> int:
     return hop_topic_pk
 
 
-def _get_hop_credential_pk(user, user_hop_auth, user_pk=None, user_api_token=None):
+def _get_hop_credential_pk(vo_person_id, credential_name, user_pk=None, user_api_token=None):
     """Return the PK of the given Hop Auth (user_hop_auth) instance for the user.
 
     user is vo_person_id
     """
     if user_api_token is None:
-        user_api_token = get_user_api_token(user)
+        user_api_token = get_user_api_token(vo_person_id)
     if user_pk is None:
-        user_pk = _get_hop_user_pk(user)
+        user_pk = _get_hop_user_pk(vo_person_id, user_api_token)
 
     # get the list of credentials for the user
-    hop_credentials = get_user_hop_authorizations(user, user_api_token)
-    # TODO: rename get_user_hop_authorizations to get_user_hop_credentials
+    hop_credentials = get_user_hop_credentials(vo_person_id, user_api_token)
 
     # extract the one that matches the Auth user.username
     # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
-    hop_cred = next((item for item in hop_credentials if item['username'] == user_hop_auth.username), None)
+    hop_cred = next((item for item in hop_credentials if item['username'] == credential_name), None)
     logger.debug(f'_get_hop_credential_pk: hop_cred {hop_cred}')
 
     if hop_cred is not None:
         hop_cred_pk = hop_cred['pk']
-        logger.debug(f'_get_hop_credential_pk: PK for credential {user_hop_auth.username} is {hop_cred_pk}')
+        logger.debug(f'_get_hop_credential_pk: PK for credential {credential_name} is {hop_cred_pk}')
     else:
         hop_cred_pk = None
-        logger.error(f'_get_hop_credential_pk: Can not find credential {user_hop_auth.username} in Hop Auth credentials.')
+        logger.error(f'_get_hop_credential_pk: Can not find credential {credential_name} in Hop Auth credentials.')
 
     return hop_cred_pk
 
@@ -332,8 +331,8 @@ def get_user_hop_authorization(vo_person_id, user_api_token=None) -> Auth:
 
     return user_hop_authorization
 
-# TODO: rename get_user_hop_authorizations to get_user_hop_credentials
-def get_user_hop_authorizations(vo_person_id, user_api_token=None):
+
+def get_user_hop_credentials(vo_person_id, user_api_token=None):
     """return a list of credential dictionaries for the user with vo_person_id
 
     The dictionaries look like this:
@@ -360,12 +359,12 @@ def get_user_hop_authorizations(vo_person_id, user_api_token=None):
                                              headers={'Authorization': user_api_token,
                                                       'Content-Type': 'application/json'})
     # from the response, extract the list of user credential dictionaries
-    user_hop_authorizations = user_credentials_response.json()
-    logger.debug(f'HopAuthTestView get_user_hop_authorizations : {user_hop_authorizations}')
-    return user_hop_authorizations
+    user_hop_credentials = user_credentials_response.json()
+    logger.debug(f'HopAuthTestView get_user_hop_credentials : {user_hop_credentials}')
+    return user_hop_credentials
 
-# TODO: rename delete_user_hop_authorizations to delete_user_hop_credentials
-def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_token=None):
+
+def delete_user_hop_credentials(vo_person_id, credential_name, user_api_token=None):
     """Remove the given SCRAM credentials from Hop Auth
 
     The intention is for HERMES to create user SCRAM credentials in Hop Auth
@@ -389,7 +388,7 @@ def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_to
     # from the response, extract the list of user credential dictionaries
     user_creds = user_credentials_response.json()
     # this is the idiom for searchng a list of dictionaries for certain key-value (username)
-    user_cred = next((item for item in user_creds if item["username"] == user_hop_auth.username), None)
+    user_cred = next((item for item in user_creds if item["username"] == credential_name), None)
     if user_cred is not None:
         scram_pk = user_cred['pk']
         user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{scram_pk}'
@@ -405,7 +404,7 @@ def delete_user_hop_authorization(vo_person_id, user_hop_auth: Auth, user_api_to
             (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
              f'[{user_credentials_delete_response.status_code}]'))
     else:
-        logger.error(f'HopAuthTestView can not clean up SCRAM credential: {user_hop_auth.username} not found in {user_creds}')
+        logger.error(f'HopAuthTestView can not clean up SCRAM credential: {credential_name} not found in {user_creds}')
 
 
 def get_user_api_token(vo_person_id: str, hermes_api_token=None):
