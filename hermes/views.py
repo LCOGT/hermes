@@ -112,7 +112,13 @@ class TopicViewSet(viewsets.ViewSet):
         """
         """
         username = request.user.username
-        user_hop_auth: Auth = _extract_hop_auth(request)
+        try:
+            user_hop_auth: Auth = _extract_hop_auth(request)
+        except KeyError as err:
+            # TODO: what to do for HERMES Guest (AnonymousUser)
+            logger.error(f'TopicViewSet {err}')
+            return {'read': 'hermes.test', 'write': 'hermes.test'}
+
         credential_name = user_hop_auth.username
         user_api_token = hopskotch.get_user_api_token(username)
 
