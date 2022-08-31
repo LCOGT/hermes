@@ -108,23 +108,16 @@ class TopicViewSet(viewsets.ViewSet):
         'write': <topic-list>,
         }
     """
-    # this is for dev/testing so I can hit the back-end endopint directly and not via the front-end
-    authentication_classes = [] # TODO: remove after implementation!!!!
-
     def list(self, request, *args, **kwargs):
         """
         """
         username = request.user.username
+        user_hop_auth: Auth = _extract_hop_auth(request)
+        credential_name = user_hop_auth.username
+        user_api_token = hopskotch.get_user_api_token(username)
 
-        # TODO: remove after implementation!!!!
-        username = 'SCiMMA1000020' # llindstrom@lco.global
-
-        #user_hop_auth: Auth = _extract_hop_auth(request)
-        #user_api_token = hopskotch.get_user_api_token
-
-        topics = hopskotch.get_user_topics(username)
+        topics = hopskotch.get_user_topics(username, credential_name, user_api_token)
         logger.info(f'TopicViewSet.list topics for {username}: {topics}')
-        #logger.info(f'TopicViewSet.list hop_auth for {username}: {user_hop_auth}')
 
         response = JsonResponse(data=topics)
         return response
