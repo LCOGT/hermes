@@ -507,59 +507,55 @@ def get_user_groups(vo_person_id, user_api_token=None):
     return group_names
 
 
-def get_user_topics(vo_person_id, user_api_token=None):
+def get_user_topics(vo_person_id, credential_name, user_api_token=None):
     """
     """
-    logger.info(f'get_user_topics user: {vo_person_id}')
+    logger.debug(f'get_user_topics user: {vo_person_id} credential: {credential_name}')
 
     if user_api_token is None:
         user_api_token = get_user_api_token(vo_person_id)
 
-    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL
+    hop_user_pk = _get_hop_user_pk(vo_person_id, user_api_token)  # need the pk for the URL    
+    hop_cred_pk = _get_hop_credential_pk(vo_person_id, credential_name, user_api_token=user_api_token)
 
-    # examine the list of topics
-    topics_url = get_hop_auth_api_url() + f'/topics'
-    logger.info(f'get_user_topics topics URL: {topics_url}')
+    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{hop_cred_pk}/permissions'
+    perm_response = requests.get(perm_url,
+                                 headers={'Authorization': user_api_token,
+                                          'Content-Type': 'application/json'})
+    permissions = perm_response.json()
+    logger.debug(f'get_user_topics permissions for {credential_name} ({vo_person_id}): {permissions}')
+    # permission dictionaries look like this:
+    # {'pk': 811, 'principal': 147, 'topic': 398, 'operation': 'All'}
 
-    user_topics_response = requests.get(topics_url,
-                                        headers={'Authorization': user_api_token,
-                                                 'Content-Type': 'application/json'})
-    # from the response, extract the list of topics
-    # {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
-    topics = user_topics_response.json()
-    logger.info(f'get_user_topics {len(topics)} topics found')
-    logger.info(f'get_user_topics example topic: {topics[0]}')
+    read_topics = []
+    write_topics = []
+    for permission in permissions:
+        # get the topic name for this this permission
+        topic_pk = permission['topic']
+        topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
+        # topic dictionaries looks like this:
+        # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
+        logger.debug(f'get_user_topics permission: {permission}')
+        logger.debug(f'get_user_topics      topic: {topic}')
 
-    # examine the details of a single topic
-    topic_name = 'hermes.test'
-    topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
+        if permission['operation'] == 'All':
+            read_topics.append(topic['name'])
+            write_topics.append(topic['name'])
+        elif topic['operation'] == 'Write':
+            write_topics.append(topic['name'])
+        elif topic['operation'] == 'Read':
+            read_topics.append(topic['name'])
 
-    topic_details_url = get_hop_auth_api_url() + f'/topics/{topic_pk}'
-    user_topic_response = requests.get(topic_details_url,
-                                       headers={'Authorization': user_api_token,
-                                                'Content-Type': 'application/json'})
-    # from the response, extract the topic details
-    topics_details = user_topic_response.json()
-    logger.info(f'get_user_topics topic details for {topic_name}: {topics_details}')
+    #sample_topics = {
+    #    'read': ['hermes.test', 'gcn.circular'],
+    #    'write': ['hermes.test'],
+    #    'notes': 'This is sample data',
+    #}
 
-    # examine the permissions of a topic
-    topic_permissions_url = get_hop_auth_api_url() + f'/topics/{topic_pk}/permissions'
-    topic_permissions_response = requests.get(topic_permissions_url,
-                                              headers={'Authorization': user_api_token,
-                                                       'Content-Type': 'application/json'})
-    # from the response, extract the topic permissions
-    topics_permissions = topic_permissions_response.json()
-    logger.info(f'get_user_topics topic permissions for {topic_name}: {topics_permissions}')
-
-    return {
-        'read': [
-            'hermes.test',
-            'gcn.circular'
-            ],
-        'write': [
-            'hermes.test',
-        ],
-        'notes': 'This is sample data',
+    topics = {
+        'read': read_topics,
+        'write': write_topics,
     }
 
+    return topics
 
