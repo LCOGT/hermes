@@ -153,8 +153,6 @@ def authorize_user(user: str) -> Auth:
                                            json=group_add_request_data,
                                            headers={'Authorization': hermes_api_token,
                                                     'Content-Type': 'application/json'})
-        logger.debug(f'authorize_user group_add_response: {group_add_response}, {dir(group_add_response)}')
-        logger.debug(f'authorize_user group_add_response.reason: {group_add_response.reason}')
         logger.debug(f'authorize_user group_add_response.text: {group_add_response.text}')
     else:
         logger.info(f'authorize_user User {user} already a member of group {group_name}')
@@ -164,12 +162,12 @@ def authorize_user(user: str) -> Auth:
     logger.info(f'authorize_user SCRAM credential created for {user}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(user, user_hop_auth.username, user_pk=user_pk, user_api_token=user_api_token)
 
-    # TODO: this could also be refactored out into a function
+    # TODO: refactor this out into a function
+    # TODO: when it is a function, use it to add the user to the gcn.circular group for Read access
     topic_name = 'hermes.test'
     topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
     # add hermes.test topic permissions to the new SCRAM credential
     credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
-    logger.debug(f'authorize_user credential_permission_url: {credential_permission_url}')
     credential_permission_request_data = {
         'principal':  credential_pk,
         'topic': topic_pk,
@@ -180,8 +178,6 @@ def authorize_user(user: str) -> Auth:
                                                    json=credential_permission_request_data,
                                                    headers={'Authorization': hermes_api_token,
                                                             'Content-Type': 'application/json'})
-    logger.debug(f'authorize_user credential_permission_response:        {credential_permission_response}')
-    logger.debug(f'authorize_user credential_permission_response.reason: {credential_permission_response.reason}')
     logger.debug(f'authorize_user credential_permission_response.text:   {credential_permission_response.text}')
 
     return user_hop_auth
@@ -460,8 +456,7 @@ def get_user_api_token(vo_person_id: str, hermes_api_token=None):
         user_api_token = f'Token {user_api_token}'  # Django wants a 'Token ' prefix
         user_api_token_expiration_date_as_str = token_info['token_expires'] # TODO: convert to datetime.datetime
 
-        logger.debug(f'get_user_api_token vo_person_id: {vo_person_id}')
-        logger.debug(f'get_user_api_token user_api_token: {user_api_token}')
+        logger.debug(f'get_user_api_token vo_person_id: {vo_person_id};  user_api_token: {user_api_token}')
         logger.debug(f'get_user_api_token user_api_token Expires: {user_api_token_expiration_date_as_str}')
     else:
         logger.error((f'HopAuthTestView hopskotch_auth_response.status_code: '
@@ -481,7 +476,6 @@ def get_user_groups(vo_person_id, user_api_token=None):
 
     # limit the API query to the specific users (whose pk we just found)
     user_groups_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
-    logger.debug(f'get_user_groups user_credentials URL: {user_groups_url}')
 
     user_groups_response = requests.get(user_groups_url,
                                         headers={'Authorization': user_api_token,
