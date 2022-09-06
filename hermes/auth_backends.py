@@ -43,6 +43,9 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
     def verify_claims(self, claims):
         """
+        NB:  SCiMMA Auth (scimma-admin) enforces Hopskotch users being in kafkaUsers group
+        but since they are doing that HERMES doesn't have to. See scimma-admin repo for how
+        that check was done.
         """
         logger.debug(f'HopskotchOIDCAuthenticationBackend.verify_claims')
         # Value for 'is_member_of' key is  list(COManage groups)
@@ -50,18 +53,6 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             logger.error(f"Account is missing LDAP claims; claims={claims}")
             msg = "Your account is missing LDAP claims. Are you sure you used the account you use for SCIMMA?"
             raise PermissionDenied(msg)
-
-        # This is how SCiMMA Auth (scimma-admin) enforces Hopskotch users being in kafkaUsers group
-        # but since they are doing that HERMES doesn't have to: 
-        #
-        #for group in [self.kafka_user_auth_group]:
-        #    if not is_member_of(claims, group):
-        #        name = claims.get('vo_display_name', 'Unknown')
-        #        id = claims.get('vo_person_id', 'Unknown')
-        #        email = claims.get('email', 'Unknown')
-        #        msg = f"User vo_display_name={name}, vo_person_id={id}, email={email} is not in {group}, but requested access"
-        #        logger.error(msg)
-        #        raise NotInKafkaUsers(msg)
 
         if "email" in claims:
             return True
@@ -109,14 +100,6 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         hop_auth = hopskotch.authorize_user(user.username)
         # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
         request.session['hop_user_auth_json'] = jsons.dump(hop_auth)
-
-        #for session_key in request.session.keys():
-        #    logger.debug(f'authenticate BEFORE request.session[{session_key}]: {request.session[session_key]}')
-        #logger.debug(f'authenticate: request.session.session_key: {request.session.session_key}')
-        #logger.debug(f'authenticate: type(request.session): {type(request.session)}')
-        #logger.debug(f'authenticate: request.session: {request.session}')
-        #for session_key in request.session.keys():
-        #    logger.debug(f'authenticate AFTER request.session[{session_key}]: {request.session[session_key]}')
 
         return user # mimic super()
 
