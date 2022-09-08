@@ -156,19 +156,17 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 #
 # Client ID (OIDC_RP_CLIENT_ID) and SECRET (OIDC_RP_CLIENT_SECRET)
 # are how HERMES represents itself as the "relying party" (RP) to
-# CILogon.org (the OP). They should enter the environment as k8s secrets.
-# Client ID and SECRET values were obtained from CILogon.org via SCiMMA/Chris Weaver.
+# the SCiMMA Keycloak instance (login.scimma.org) (the OP). They should
+# enter the environment as k8s secrets. Client ID and SECRET values were
+# obtained from Keycloak via SCiMMA/Chris Weaver.
 OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
+OIDC_RP_SIGN_ALGO = 'RS256' # Signing Algorithm for Keycloak
 
-# Signing Algorithm for CILogon
-OIDC_RP_SIGN_ALGO = 'RS256'
-OIDC_OP_JWKS_ENDPOINT = 'https://cilogon.org/oauth2/certs'
-
-# more OIDC config
-OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://cilogon.org/authorize/'
-OIDC_OP_TOKEN_ENDPOINT = 'https://cilogon.org/oauth2/token'
-OIDC_OP_USER_ENDPOINT = 'https://cilogon.org/oauth2/userinfo'
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
+OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
+OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
+OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
 # this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
 OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
 
