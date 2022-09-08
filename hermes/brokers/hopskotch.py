@@ -11,7 +11,7 @@ Notes on the change of OIDC Provider from CILogon to SCiMMA's Keycloak instance:
  * Usernames
    * for CILogon, 'vo_person_id' was the key of the username claim. It looked like this: SCiMMA10000030
    * for Keycloak, 'sub' is the key of the username claim. Like this: 0d988bdd-ec83-420d-8ded-dd9091318c24
-   * In the changeover from CILogon to Keycloak, vo_person_id variable names will become username
+   * In the changeover from CILogon to Keycloak, vo_person_id variable names were changed to username
 
 The top level functions are:
   * authorize_user()
