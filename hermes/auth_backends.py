@@ -162,15 +162,15 @@ def hopskotch_logout(request):
       * must return the logout URL
       * called as a hook (via settings.OIDC_OP_LOGOUT_URL_METHOD) from
         mozilla_django_oidc.OIDCLogoutView.post() (from /logout endpoint)
-      * the request.user is a django.utils.functional.SimpleLazyObject (see SO:10506766)
+      * the request.user is a django.utils.functional.SimpleLazyObject which is a wrapper
+        around a django.contrib.auth.User (see SO:10506766).
     """
-    logger.debug(f'hopskotch_logout for request.user.username: {request.user.username}')
-    logger.debug(f'hopskotch_logout for type(request.user): {type(request.user)}')
-    logger.debug(f'hopskotch_logout for dir(request.user): {dir(request.user)}')
-    logger.debug(f'hopskotch_logout for request.user.get_username(): {request.user.get_username()}')
     # hop_user_auth_json added to Session dict in AuthenticationBackend.authenticate
-    hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
-    hopskotch.deauthorize_user(request.user.username, hop_user_auth)
+    try:
+        hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+        hopskotch.deauthorize_user(request.user.username, hop_user_auth)
+    except KeyError as err:
+        logger.error(f'No hop.auth.Auth instance in Session. Clean up SCiMMA Auth manually. session: {request.session}')
 
     return settings.LOGOUT_REDIRECT_URL
 
