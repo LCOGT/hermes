@@ -1,10 +1,15 @@
 Django>=4
-djangorestframework
-psycopg2-binary
-django-bootstrap4
-whitenoise
-lcogt-logging
-hop-client
-django-cors-headers
-marshmallow
-astropy
+djangorestframework==3.13.1
+psycopg2-binary==2.9.3
+django-bootstrap4==22.1
+whitenoise==6.0.0
+lcogt-logging==0.3.2
+hop-client==0.5.0
+django-cors-headers==3.11.0
+mozilla-django-oidc==2.0.0
+marshmallow==3.16.0
+astropy==5.1
+django-extensions # for shell_plus debugging
+requests==2.27.1
+scramp==1.4.1
+jsons==1.6.3 # for Auth serialization

@@ -10,6 +10,8 @@ resources:
     cpu: 1000m
     memory: 1024Mi
 
+hermesFrontEndBaseUrl: http://hermes-dev.lco.gtn/
+
 ingress:
   enabled: true
   annotations:
@@ -20,3 +22,8 @@ ingress:
         - "/messages"
         - "/api"
         - "/submit"
+        - "/auth"
+        - "/get-csrf-token"
+        - "/login-redirect"
+        - "/logout-redirect"
+

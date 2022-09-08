@@ -1,5 +1,45 @@
 {% extends 'base.html' %}
 {% block content %}
+  <!-- see base.html for login/logout stuff -- it was removed to the navbar -->
+  <h1>Known Users</h1>
+  {% if user_list %}
+  <ul>
+
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Email</th>
+            <th>is_staff</th>
+            <th>is_authenticated</th>
+            <th>Logged In</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for this_user in user_list %}
+        <tr>
+          <td>{{ this_user.username }}</td>
+          <td>{{ this_user.email }}</td>
+          <td>{{ this_user.is_staff }}</td>
+          <td>{{ this_user.is_authenticated }}</td>
+          <td>
+            {% if this_user != user  %}
+              No
+            {% else %}
+              Yes
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      </table>
+
+  </ul>
+  {% else %}
+    <p>There are no users in context user_list</p>
+  {% endif %}
+
+  <hr>
   <h1>Messages</h1>
   {% if message_list %}
   <ul>

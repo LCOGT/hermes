@@ -14,6 +14,9 @@ from cmath import log
 import os
 import logging.config
 from pathlib import Path
+from this import d
+
+from corsheaders.defaults import default_headers
 
 from lcogt_logging import LCOGTFormatter
 
@@ -44,19 +47,22 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
+    'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
+    'mozilla_django_oidc',
     'hermes',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -137,13 +143,84 @@ STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+
+# OpenID Connect (OIDC) Provider (OP) Configuration
+# https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html
+#
+# CILogin callbacks registered for HERMES (via SCiMMA/Chris Weaver) are:
+#   http://127.0.0.1/auth/callback
+#   http://127.0.0.1:8000/auth/callback
+#   http://127.0.0.1:8001/auth/callback
+#   http://hermes-dev.lco.gtn/auth/callback
+#   http://hermes.lco.global/auth/callback
+# TODO: are these values still current after swtich to Keycloak?
+
+
+#
+# Client ID (OIDC_RP_CLIENT_ID) and SECRET (OIDC_RP_CLIENT_SECRET)
+# are how HERMES represents itself as the "relying party" (RP) to
+# the SCiMMA Keycloak instance (login.scimma.org) (the OP). They should
+# enter the environment as k8s secrets. Client ID and SECRET values were
+# obtained from Keycloak via SCiMMA/Chris Weaver.
+OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
+OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
+OIDC_RP_SIGN_ALGO = 'RS256' # Signing Algorithm for Keycloak
+
+OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
+OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
+OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/userinfo'
+OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
+# this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
+OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
+
+# this tells mozilla-django-oidc that the front end can logout with a GET
+# which allows the front end to use location.href to /auth/logout to logout.
+ALLOW_LOGOUT_GET_METHOD = True
+
+# https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
+AUTHENTICATION_BACKENDS = [
+    'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
+    # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
+]
+
+
+# SCiMMA_admin and Hopskotch specific configuration
+#HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
+#HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
+HOP_AUTH_BASE_URL = os.getenv('HOP_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production scimmma_admin (hopauth)
+KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+
+# TODO: set up helm chart for dev and prod environments; this default works for local development
+HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8080/')
+
+# https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
+LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
+LOGIN_REDIRECT_URL = '/login-redirect/'  # URL path to redirect to after login
+LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
+# TODO: handle login_failure !!
+
+
+# Django REST Framework
+# https://www.django-rest-framework.org/
+
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
 }
 
+
+#
+# CORS configuration
+# https://pypi.org/project/django-cors-headers/
+#
+
 CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    # add custom headers here
+]
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
@@ -170,12 +247,18 @@ LOGGING = {
     'loggers': {
         '': {
             'handlers': ['console'],
+            'level': 'INFO',
+            #'level': 'DEBUG'
+        },
+        'mozilla_django_oidc': {
+            'handlers': ['console'],
             'level': 'INFO'
         },
     }
 }
 logging.config.dictConfig(LOGGING)
 
+#logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
 
 try:
     logging.info('Looking for local_settings.')

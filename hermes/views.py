@@ -1,9 +1,16 @@
+from http.client import responses
 import json
 import logging
-import os
 
-from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import ListView, DetailView, FormView
+
+from django.contrib.auth.models import User
+from django.conf import settings
+
+#from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from django.middleware import csrf
+
+from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from rest_framework.views import APIView
@@ -12,20 +19,33 @@ from rest_framework.response import Response
 
 from astropy.coordinates import SkyCoord
 from astropy import units
-
+import jsons
 from marshmallow import Schema, fields, ValidationError, validates_schema
 
 from hop import Stream
 from hop.auth import Auth
 
+import requests
+
 from rest_framework import viewsets
 
+from hermes.brokers import hopskotch
 from hermes.models import Message
 from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
 
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+#logger.setLevel(logging.DEBUG)
+
+
+def _extract_hop_auth(request) -> Auth:
+    """The hop.auth.Auth instance was inserted in to the Session dictionary upon logon
+    in AuthenticationBackend.authenticate. This method extracts it. jsons is used (not json)
+    because Auth is non-trivial to serialize/deserialize.
+    """
+    hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
+    return hop_user_auth
 
 class CandidateDataSchema(Schema):
     candidate_id = fields.String(required=True)
@@ -79,8 +99,46 @@ class MessageViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
+
+class TopicViewSet(viewsets.ViewSet):
+    """This ViewSet does not have a Model backing it. It uses the SCiMMA Auth (Hop Auth) API
+    to construct a response and return a dictionary:
+        {
+        'read': <topic list>,
+        'write': <topic-list>,
+        }
+    """
+    def list(self, request, *args, **kwargs) -> JsonResponse:
+        """
+        """
+        username = request.user.username
+        try:
+            user_hop_auth: Auth = _extract_hop_auth(request)
+        except KeyError as err:
+            # This means no SCRAM creds were saved in this request's Session dict
+            # TODO: what to do for HERMES Guest (AnonymousUser)
+            logger.error(f'TopicViewSet {err}')
+            default_topics = {
+                'read': ['hermes.test', 'gcn.circular'],
+                'write': ['hermes.test'],
+                }
+            logger.error(f'TopicViewSet returning default topics: {default_topics}')
+            return JsonResponse(data=default_topics)
+
+        credential_name = user_hop_auth.username
+        user_api_token = hopskotch.get_user_api_token(username)
+
+        topics = hopskotch.get_user_topics(username, credential_name, user_api_token)
+        logger.info(f'TopicViewSet.list topics for {username}: {topics}')
+
+        response = JsonResponse(data=topics)
+        return response
+
+
 class MessageListView(ListView):
-    model = Message
+    # change the model form Message to User for OIDC experimentation
+    model = User
+    template_name = 'hermes/message_list.html'
 
 
 class MessageDetailView(DetailView):
@@ -111,18 +169,25 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(message):
-    # TODO: submit the message to scimma hopskotch via hop-client
-    # handle authentication: HOP_USERNAME and HOP_PASSWORD should enter
-    # the environment as k8s secrets
-    username = os.getenv('HOP_USERNAME', None)
-    password = os.getenv('HOP_PASSWORD', None)
-    if username is None or password is None:
-        error_message = 'Supply Hop credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
-        logger.error(error_message)
-        return Response({'message': 'Hop credentials are not set correctly on the server'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    hop_auth = Auth(username, password)
+def submit_to_hop(request, message):
+    """Open the Hopskotch kafka stream for write and publish an Alert
+
+    The request holds the Session dict which has the 'hop_user_auth_json` key
+    whose value can be deserialized into a hop.auth.Auth instance to open the
+    stream with. (The hop.auth.Auth instance was added to the Session dict upon
+    logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
+    """
+    try:
+        hop_auth: Auth = _extract_hop_auth(request)
+    except KeyError as err:
+        logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
+        # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
+        # use the Hermes service account temporarily while testing...
+        logger.warning(f'Submitting with Hermes service account authorization (testing only)')
+        hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
+
+    # TODO: provide some indication of the User/vo_person_id submitting the message
+    logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
 
     try:
         topic = 'hermes.test'
@@ -141,14 +206,13 @@ class HopSubmitView(APIView):
     """
     Submit a message to the hop client
     """
-    @csrf_exempt
+
     def post(self, request, *args, **kwargs):
-        # what's going on here?
-        logger.info(f'args: {args}')
-        logger.info(f'kwargs: {kwargs}')
-        logger.info(f'dir(request): {dir(request)}')
-        logger.info(f'request: {request}')
-        logger.info(f'request.POST: {dir(request.POST)}')
+        """Sumbit to Hopskotch
+
+        Requests to this method go through rest_framework.authentication.SessionMiddleware
+        and as such require a CSRF token in the header. see GetCSRFTokenView.
+        """
         # request.data does not read the data stream again. So,
         # that is more appropriate than request.body which does
         # (read the stream again).
@@ -156,9 +220,9 @@ class HopSubmitView(APIView):
         #logger.info(f'type(request.body): {type(request.body)}')
         #logger.info(f'request.body: {request.body}')
         # YES:
-        logger.info(f'type(request.data): {type(request.data)}')
-        logger.info(f'request.data: {request.data}')
-        return submit_to_hop(request.data)
+        logger.debug(f'request.data: {request.data}')
+
+        return submit_to_hop(request, request.data)
 
     def get(self, request, *args, **kwargs):
         return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
@@ -201,4 +265,47 @@ class HopSubmitCandidatesView(APIView):
         if errors:
             return Response(errors, status.HTTP_400_BAD_REQUEST)
 
-        return submit_to_hop(vars(candidates))
+        return submit_to_hop(request, vars(candidates))
+
+
+class LoginRedirectView(RedirectView):
+    pattern_name = 'login-redirect'
+
+    def get(self, request, *args, **kwargs):
+
+        logger.debug(f'LoginRedirectView.get -- request.user: {request.user}')
+
+        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
+        logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {login_redirect_url}')
+        self.url = login_redirect_url
+
+        return super().get(request, *args, **kwargs)
+
+class LogoutRedirectView(RedirectView):
+    pattern_name = 'logout-redirect'
+
+    def get(self, request, *args, **kwargs):
+
+        logout_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}'
+        logger.info(f'LogoutRedirectView.get setting self.url and redirecting to {logout_redirect_url}')
+        self.url = logout_redirect_url
+
+        return super().get(request, *args, **kwargs)
+
+
+class GetCSRFTokenView(View):
+    pattern_name = 'get-csrf-token'
+
+    def get(self, request, *args, **kwargs) -> JsonResponse:
+        """return a CSRF token from the middleware in a JsonResponse:
+        key: 'token'
+        value: <csrf token>
+
+        The frontend can call this method upon start-up, store the token
+        in a cookie, and include it in subsequent calls like this:
+        headers: {'X-CSRFToken': this_token}
+        """
+        token = csrf.get_token(request)
+        response = JsonResponse(data={'token': token})
+        # this is where you can modify or log the response before returning it
+        return response

@@ -13,17 +13,32 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
+from django.http import JsonResponse
+from django.middleware import csrf
 from django.urls import include, path
 from rest_framework import routers
 from hermes import views
 
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
+router.register(r'topics', views.TopicViewSet, basename='topic')
 
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
+    path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
 ]
+
+# mozilla_django_oidc.urls provides:
+#  oidc_authentication_callback
+#  oidc_authentication_init
+#  oidc_logout
