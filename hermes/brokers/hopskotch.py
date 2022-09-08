@@ -40,9 +40,9 @@ import scramp
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
-#  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
-HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
-HOP_PASSWORD = os.getenv('HOP_PASSWORD', 'set the HOP_PASSWORD for the HERMES service account')
+#  from the environment, get the HERMES service account credentials for SCiMMA pAuth (scimma-admin).
+HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
+HERMES_PASSWORD = os.getenv('HERMES_PASSWORD', None)
 
 def get_hop_auth_api_url(api_version=None) -> str:
     """Use the HOP_AUTH_BASE_URL from settings.py and construct the API url from that.
@@ -72,16 +72,16 @@ def get_hop_auth_api_url(api_version=None) -> str:
 def get_hermes_hop_authorization() -> Auth:
     """return the hop.auth.Auth instance for the HERMES service account
 
-    The HOP_USERNAME and HOP_PASSWORD environment variables are used and
-    should enter the environmnet as k8s secrets.
+    The HERMES_USERNAME and HERMES_PASSWORD are module level varialbes. (see above).
+    They are environment variables and should enter the environmnet as k8s secrets.
     """
-    # TODO: I think this can use the module level variables (set above)
-    username = os.getenv('HOP_USERNAME', None)
-    password = os.getenv('HOP_PASSWORD', None)
+    username = HERMES_USERNAME
+    password = HERMES_PASSWORD
+
     if username is None or password is None:
-        error_message = 'Supply HERMES service account credentials: set HOP_USERNAME and HOP_PASSWORD environment variables.'
+        error_message = 'Supply HERMES service account credentials: set HERMES_USERNAME and HERMES_PASSWORD environment variables.'
         logger.error(error_message)
-        return Response({'message': 'HERMES service account credentials for HopAuth are not set correctly on the server'},
+        return Response({'message': 'HERMES service account credentials for SCiMMA Auth are not set correctly on the server'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     hop_auth: Auth = Auth(username, password)
@@ -138,7 +138,7 @@ def authorize_user(username: str) -> Auth:
 
     # Only Hop Auth admins can add users to groups and permissions to credentials.
     # So, get the hermes_api_token for Authorization to do those things below.
-    hermes_api_token = get_hermes_api_token(HOP_USERNAME, HOP_PASSWORD)
+    hermes_api_token = get_hermes_api_token(HERMES_USERNAME, HERMES_PASSWORD)
 
     # TODO: this should probably be factored out into it's own function
     # Add the user to the hermes group
