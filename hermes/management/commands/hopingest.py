@@ -33,21 +33,18 @@ class Command(BaseCommand):
         """Get username and password and configure Hop client authentication
 
         If command line arguments are supplied, use them.
-        Otherwise, get HOP_USERNAME and HOP_PASSWORD from environment.
-
-        For the moment, since there is not yet user account support,
-        HOP_USERNAME and HOP_PASSWORD should be set to enter the environment
-        up as k8s secrets.
+        Otherwise, get HERMES_USERNAME and HERMES_PASSWORD from environment.
+        HERMES_USERNAME and HERMES_PASSWORD should be enter the environment as k8s secrets.
         """
         username = options.get('username')
         if username is None:
-            username = os.getenv('HOP_USERNAME', None)
+            username = os.getenv('HERMES_USERNAME', None)
         password = options.get('password')
         if password is None:
-            password = os.getenv('HOP_PASSWORD', None)
+            password = os.getenv('HERMES_PASSWORD', None)
 
         if username is None or password is None:
-            error_message = 'Supply Hop credentials on command line or set HOP_USERNAME and HOP_PASSWORD environment variables.'
+            error_message = 'Supply Hop credentials on command line or set HERMES_USERNAME and HERMES_PASSWORD environment variables.'
             logger.error(error_message)
             raise CommandError(error_message)
 
