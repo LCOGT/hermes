@@ -153,6 +153,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 #   http://127.0.0.1:8001/auth/callback
 #   http://hermes-dev.lco.gtn/auth/callback
 #   http://hermes.lco.global/auth/callback
+# TODO: are these values still current after swtich to Keycloak?
+
+
 #
 # Client ID (OIDC_RP_CLIENT_ID) and SECRET (OIDC_RP_CLIENT_SECRET)
 # are how HERMES represents itself as the "relying party" (RP) to
