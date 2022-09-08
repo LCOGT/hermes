@@ -36,7 +36,7 @@ from hermes.serializers import MessageSerializer
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 
 def _extract_hop_auth(request) -> Auth:

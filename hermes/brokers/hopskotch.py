@@ -38,7 +38,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for HopAuth (scimma-admin).
 HOP_USERNAME = os.getenv('HOP_USERNAME', 'set the HOP_USENAME for the HERMES service account')
@@ -59,6 +59,8 @@ def get_hop_auth_api_url(api_version=None) -> str:
             hop_auth_api_version = response.json()['current']
         except:
             hop_auth_api_version = 0
+            logger.error(f'Error requesting SCiMMA Auth API Version. Using version {hop_auth_api_version}')
+
     else:
         hop_auth_api_version = api_version
 
