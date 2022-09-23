@@ -533,7 +533,7 @@ def get_user_topics(username, credential_name, user_api_token=None):
     permissions = perm_response.json()
     logger.debug(f'get_user_topics permissions for {credential_name} ({username}): {permissions}')
     # permission dictionaries look like this:
-    # {'pk': 811, 'principal': 147, 'topic': 398, 'operation': 'All'}
+    #     {'pk': 811, 'principal': 147, 'topic': 398, 'operation': 'All'}
 
     read_topics = []
     write_topics = []
@@ -543,17 +543,20 @@ def get_user_topics(username, credential_name, user_api_token=None):
         topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
         # topic dictionaries looks like this:
         # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
-        logger.info(f'get_user_topics permission: {permission}')
-        logger.info(f'get_user_topics      topic: {topic}')
+        logger.debug(f'get_user_topics permission: {permission}')
+        logger.debug(f'get_user_topics      topic: {topic}')
+
+        # In the UI, if Read is checked (only), then permisstion['operation'] is 'Read'
+        # In the UI, if Write is checked (only), then permisstion['operation'] is 'Write'
+        # In the UI, if Read and Write is checked, then permisstion['operation'] is 'All'
 
         if permission['operation'] == 'All':
             read_topics.append(topic['name'])
             write_topics.append(topic['name'])
-        else:
-            if permission['operation'] == 'Write':
-                write_topics.append(topic['name'])
-            if permission['operation'] == 'Read':
-                read_topics.append(topic['name'])
+        elif permission['operation'] == 'Write':
+            write_topics.append(topic['name'])
+        elif permission['operation'] == 'Read':
+            read_topics.append(topic['name'])
 
     #sample_topics = {
     #    'read': ['hermes.test', 'gcn.circular'],
