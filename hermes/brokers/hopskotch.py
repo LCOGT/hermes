@@ -543,8 +543,8 @@ def get_user_topics(username, credential_name, user_api_token=None):
         topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
         # topic dictionaries looks like this:
         # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
-        logger.debug(f'get_user_topics permission: {permission}')
-        logger.debug(f'get_user_topics      topic: {topic}')
+        logger.info(f'get_user_topics permission: {permission}')
+        logger.info(f'get_user_topics      topic: {topic}')
 
         if permission['operation'] == 'All':
             read_topics.append(topic['name'])
