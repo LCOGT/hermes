@@ -24,7 +24,6 @@ from http.client import responses
 import json
 import logging
 import os
-from pydoc_data.topics import topics
 import requests
 
 from django.conf import settings
