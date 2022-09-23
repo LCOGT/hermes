@@ -200,6 +200,7 @@ LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
 LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
 # TODO: handle login_failure !!
 
+# TODO: explain this configuration change more thouroughly
 # experiment to see if Django needs to be told to no ignore HTTP_X_FORWARDED headers
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

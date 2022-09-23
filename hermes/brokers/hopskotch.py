@@ -549,10 +549,11 @@ def get_user_topics(username, credential_name, user_api_token=None):
         if permission['operation'] == 'All':
             read_topics.append(topic['name'])
             write_topics.append(topic['name'])
-        elif topic['operation'] == 'Write':
-            write_topics.append(topic['name'])
-        elif topic['operation'] == 'Read':
-            read_topics.append(topic['name'])
+        else:
+            if permission['operation'] == 'Write':
+                write_topics.append(topic['name'])
+            if permission['operation'] == 'Read':
+                read_topics.append(topic['name'])
 
     #sample_topics = {
     #    'read': ['hermes.test', 'gcn.circular'],
