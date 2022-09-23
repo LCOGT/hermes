@@ -546,9 +546,9 @@ def get_user_topics(username, credential_name, user_api_token=None):
         logger.debug(f'get_user_topics permission: {permission}')
         logger.debug(f'get_user_topics      topic: {topic}')
 
-        # In the UI, if Read is checked (only), then permisstion['operation'] is 'Read'
-        # In the UI, if Write is checked (only), then permisstion['operation'] is 'Write'
-        # In the UI, if Read and Write is checked, then permisstion['operation'] is 'All'
+        # In the UI, if Read is checked (only), then permission['operation'] is 'Read'
+        # In the UI, if Write is checked (only), then permission['operation'] is 'Write'
+        # In the UI, if Read and Write is checked, then permission['operation'] is 'All'
 
         if permission['operation'] == 'All':
             read_topics.append(topic['name'])
