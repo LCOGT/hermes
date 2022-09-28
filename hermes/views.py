@@ -1,3 +1,5 @@
+from abc import abstractmethod
+from ast import BitAnd
 from http.client import responses
 import json
 import logging
@@ -20,7 +22,7 @@ from rest_framework.response import Response
 from astropy.coordinates import SkyCoord
 from astropy import units
 import jsons
-from marshmallow import Schema, fields, ValidationError, validates_schema
+from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 
 from hop import Stream
 from hop.auth import Auth
@@ -34,6 +36,9 @@ from hermes.models import Message
 from hermes.forms import MessageForm
 from hermes.serializers import MessageSerializer
 
+from datetime import datetime
+import astropy.time
+
 
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
@@ -46,6 +51,19 @@ def _extract_hop_auth(request) -> Auth:
     """
     hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
     return hop_user_auth
+
+
+def coordinates_valid(data):
+        for row in data:
+            try:
+                ra, dec = float(row['ra']), float(row['dec'])
+                SkyCoord(ra, dec, unit=(units.deg, units.deg))
+            except:
+                try:
+                    SkyCoord(row['ra'], row['dec'], unit=(units.hourangle, units.deg))
+                except:
+                    raise ValidationError('Coordinates do not all have valid RA and Dec')
+
 
 class CandidateDataSchema(Schema):
     candidate_id = fields.String(required=True)
@@ -61,15 +79,7 @@ class CandidateDataSchema(Schema):
 
     @validates_schema(skip_on_field_errors=True)
     def validate_coordinates(self, data):
-        for row in data:
-            try:
-                ra, dec = float(row['ra']), float(row['dec'])
-                SkyCoord(ra, dec, unit=(units.deg, units.deg))
-            except:
-                try:
-                    SkyCoord(row['ra'], row['dec'], unit=(units.hourangle, units.deg))
-                except:
-                    raise ValidationError('Coordinates do not all have valid RA and Dec')
+        coordinates_valid(data)
 
     @validates_schema(skip_on_field_errors=True)
     def validate_brightness_unit(self, data):
@@ -78,19 +88,57 @@ class CandidateDataSchema(Schema):
             if row['brightness_unit'] not in brightness_units:
                 raise ValidationError(f'Unrecognized brightness unit. Accepted brightness units are {brightness_units}')
 
-
-class CandidateMessageSubSchema(Schema):
-    authors = fields.String()
-    main_data = fields.Nested(CandidateDataSchema)
-
-
-class CandidateMessageSchema(Schema):
+class MessageSchema(Schema):
     title = fields.String(required=True)
     topic = fields.String(required=True)
     event_id = fields.String()
     message_text = fields.String(required=True)
-    author = fields.String(required=True)
-    data = fields.Nested(CandidateMessageSubSchema)
+    submitter = fields.String(required=True)
+    authors = fields.String()
+    @property
+    @abstractmethod
+    def data(self):
+        pass
+
+
+class CandidateMessageSchema(MessageSchema):
+    data = fields.Nested(CandidateDataSchema)
+
+
+class PhotometryDataSchema(Schema):
+    target_name = fields.String()
+    ra = fields.String(required=True)
+    dec = fields.String(required=True)
+    date_observed = fields.String(required=True)
+    date_format = fields.String()
+    telescope = fields.String(required=True)
+    instrument = fields.String(required=True)
+    band = fields.String(required=True)
+    brightness = fields.Float(required=True)
+    brightness_error = fields.Float(required=True)
+    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"]))
+
+    @validates_schema(skip_on_field_errors=True)
+    def validate_coordinates(self, data):
+        coordinates_valid(data)
+
+    @validates_schema(skip_on_field_errors=True)
+    def validate_date_observed(self, data):
+        for row in data:
+            if 'date_format' in row:
+                try:
+                    date_observed = datetime.strptime(row['date_observed'], row['date_format'])
+                except ValueError:
+                    raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
+            else:
+                try:
+                    date_observed = astropy.time.Time(row["date_observed"])
+                except ValueError:
+                    raise ValidationError(f'Date observed: {row["date_observed"]} does not parse and no expected date format was provided.')
+
+
+class PhotometryMessageSchema(MessageSchema):
+    data = fields.Nested(PhotometryDataSchema)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -237,21 +285,21 @@ class HopSubmitCandidatesView(APIView):
         
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
-         author: <submitter of the message>,
+         submitter: <submitter of the message>,
+         authors: <Text full list of authors on a message>
          message_text: <Text of the message to send>,
          event_id: <ID of the non-localized event for these candidates>,
-         data: {authors: <Text full list of authors on a message>,
-                main_data: {[{candidate_id: <ID of the candidate>,
-                              ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
-                              dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                              discovery_date: <Date/time of the candidate discovery>,
-                              telescope: <Discovery telescope>,
-                              instrument: <Discovery instrument>,
-                              band: <Wavelength band of the discovery observation>,
-                              brightness: <Brightness of the candidate at discovery>,
-                              brightness_error: <Brightness error of the candidate at discovery>,
-                              brightness_unit: <Brightness units for the discovery, 
-                                  current supported values: [AB mag, Vega mag]>
+         data: {[{candidate_id: <ID of the candidate>,
+                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
+                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
+                  discovery_date: <Date/time of the candidate discovery>,
+                  telescope: <Discovery telescope>,
+                  instrument: <Discovery instrument>,
+                  band: <Wavelength band of the discovery observation>,
+                  brightness: <Brightness of the candidate at discovery>,
+                  brightness_error: <Brightness error of the candidate at discovery>,
+                  brightness_unit: <Brightness units for the discovery, 
+                                   current supported values: [AB mag, Vega mag]>
                            }, ...]}
         }
         """
@@ -266,6 +314,45 @@ class HopSubmitCandidatesView(APIView):
             return Response(errors, status.HTTP_400_BAD_REQUEST)
 
         return submit_to_hop(request, vars(candidates))
+
+
+class SubmitPhotometryView(APIView):
+    def get(self, request, *args, **kwargs):
+        message = """This endpoint is used to send a message to report photometry of one or more targets.
+         
+        Requests should be structured as below:
+
+        {title: <Title of the message>,
+         topic: <kafka topic to post message to>, 
+         submitter: <submitter of the message>,
+         authors: <Text full list of authors on a message>
+         message_text: <Text of the message to send>,
+         event_id: <ID of the non-localized event for these candidates>,
+         data: {[{target_name: <Name of the observed target>,
+                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
+                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
+                  date_observed: <Date/time of the observation>,
+                  telescope: <Discovery telescope>,
+                  instrument: <Discovery instrument>,
+                  band: <Wavelength band of the discovery observation>,
+                  brightness: <Brightness of the candidate at discovery>,
+                  brightness_error: <Brightness error of the candidate at discovery>,
+                  brightness_unit: <Brightness units for the discovery, 
+                                   current supported values: [AB mag, Vega mag, mJy, and erg / s / cm² / Å]>
+                           }, ...]}
+        }
+        """
+        return Response({"message": message}, status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        photometry_schema = PhotometryMessageSchema()
+        photometry, errors = photometry_schema.load(request.json)
+
+        if errors:
+            logger.debug(f"Request data: {request.json}")
+            return Response(errors, status.HTTP_400_BAD_REQUEST)
+
+        return submit_to_hop(request, vars(photometry))
 
 
 class LoginRedirectView(RedirectView):
