@@ -125,10 +125,16 @@ class PhotometryDataSchema(Schema):
     def validate_date_observed(self, data):
         for row in data:
             if 'date_format' in row:
-                try:
-                    date_observed = datetime.strptime(row['date_observed'], row['date_format'])
-                except ValueError:
-                    raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
+                if 'jd' in row['date_format'].lower():
+                    try: 
+                        float(row['date_observed'])
+                    except ValueError:
+                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
+                else:
+                    try:
+                        date_observed = datetime.strptime(row['date_observed'], row['date_format'])
+                    except ValueError:
+                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
             else:
                 try:
                     date_observed = astropy.time.Time(row["date_observed"])
@@ -292,6 +298,7 @@ class HopSubmitCandidatesView(APIView):
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
                   discovery_date: <Date/time of the candidate discovery>,
+                  date_format: <Python strptime format string or "mjd" or "jd">,
                   telescope: <Discovery telescope>,
                   instrument: <Discovery instrument>,
                   band: <Wavelength band of the discovery observation>,
