@@ -106,16 +106,16 @@ class CandidateMessageSchema(MessageSchema):
 
 class PhotometryDataSchema(Schema):
     target_name = fields.String()
-    ra = fields.String(required=True)
-    dec = fields.String(required=True)
+    ra = fields.String()
+    dec = fields.String()
     date_observed = fields.String(required=True)
     date_format = fields.String()
     telescope = fields.String(required=True)
-    instrument = fields.String(required=True)
+    instrument = fields.String()
     band = fields.String(required=True)
     brightness = fields.Float(required=True)
     brightness_error = fields.Float(required=True)
-    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"]))
+    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"], required=True))
 
     @validates_schema(skip_on_field_errors=True)
     def validate_coordinates(self, data):
