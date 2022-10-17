@@ -200,8 +200,11 @@ LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
 LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
 # TODO: handle login_failure !!
 
-# TODO: explain this configuration change more thouroughly
-# experiment to see if Django needs to be told to no ignore HTTP_X_FORWARDED headers
+# Our hermes (django) backend is deployed behind nginx/guncorn. By default Django ignores
+# the X-FORWARDED request headers generated. mozilla-django-oidc calls
+# Django's request.build_absolute_uri method in such a way that the htttps
+# request produces an http redirect_uri. So, we need to tell Django not to ignore
+# the X-FORWARDED header and the protocol to use:
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
