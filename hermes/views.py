@@ -115,7 +115,7 @@ class PhotometryDataSchema(Schema):
     band = fields.String(required=True)
     brightness = fields.Float(required=True)
     brightness_error = fields.Float(required=True)
-    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"], required=True))
+    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"]), required=True)
 
     @validates_schema(skip_on_field_errors=True)
     def validate_coordinates(self, data):
