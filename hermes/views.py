@@ -26,8 +26,6 @@ from marshmallow import Schema, fields, ValidationError, validates_schema, valid
 from hop import Stream
 from hop.auth import Auth
 
-import requests
-
 from rest_framework import viewsets
 
 from hermes.brokers import hopskotch
