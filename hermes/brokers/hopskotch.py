@@ -514,10 +514,10 @@ def get_user_groups(username, user_api_token=None):
     return group_names
 
 
-def get_user_topics(username, credential_name, user_api_token=None):
+def get_user_topic_permissions(username, credential_name, user_api_token=None):
     """
     """
-    logger.debug(f'get_user_topics user: {username} credential: {credential_name}')
+    logger.debug(f'get_user_topic_permissions user: {username} credential: {credential_name}')
 
     if user_api_token is None:
         user_api_token = get_user_api_token(username)
@@ -530,7 +530,7 @@ def get_user_topics(username, credential_name, user_api_token=None):
                                  headers={'Authorization': user_api_token,
                                           'Content-Type': 'application/json'})
     permissions = perm_response.json()
-    logger.debug(f'get_user_topics permissions for {credential_name} ({username}): {permissions}')
+    logger.debug(f'get_user_topic_permissions permissions for {credential_name} ({username}): {permissions}')
     # permission dictionaries look like this:
     #     {'pk': 811, 'principal': 147, 'topic': 398, 'operation': 'All'}
 
@@ -542,8 +542,8 @@ def get_user_topics(username, credential_name, user_api_token=None):
         topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
         # topic dictionaries looks like this:
         # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
-        logger.debug(f'get_user_topics permission: {permission}')
-        logger.debug(f'get_user_topics      topic: {topic}')
+        logger.debug(f'get_user_topic_permissions permission: {permission}')
+        logger.debug(f'get_user_topic_permissions      topic: {topic}')
 
         # In the UI, if Read is checked (only), then permission['operation'] is 'Read'
         # In the UI, if Write is checked (only), then permission['operation'] is 'Write'
@@ -563,10 +563,10 @@ def get_user_topics(username, credential_name, user_api_token=None):
     #    'notes': 'This is sample data',
     #}
 
-    topics = {
+    topic_permissions = {
         'read': read_topics,
         'write': write_topics,
     }
 
-    return topics
+    return topic_permissions
 
