@@ -43,9 +43,17 @@ logger = logging.getLogger(__name__)
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
 HERMES_PASSWORD = os.getenv('HERMES_PASSWORD', None)
 
+ # set this (to cache it) in first call to get_hop_auth_api_url and
+ # return it in subsequent calls so we don't keep hitting the API
+HOP_AUTH_API_URL = None
+
 def get_hop_auth_api_url(api_version=None) -> str:
     """Use the HOP_AUTH_BASE_URL from settings.py and construct the API url from that.
     """
+    global HOP_AUTH_API_URL
+    if HOP_AUTH_API_URL is not None:
+        return HOP_AUTH_API_URL
+
     # get the base url from the configuration in settings.py
     hop_auth_base_url = settings.HOP_AUTH_BASE_URL
 
@@ -64,7 +72,10 @@ def get_hop_auth_api_url(api_version=None) -> str:
         hop_auth_api_version = api_version
 
     hop_auth_api_url = hop_auth_base_url + f'/api/v{hop_auth_api_version}'
+    HOP_AUTH_API_URL = hop_auth_api_url  # cache this value for furture calls to this function
+
     logger.debug(f'get_hop_auth_api_url: hop_auth_api_url: {hop_auth_api_url}')
+
     return hop_auth_api_url
 
 
