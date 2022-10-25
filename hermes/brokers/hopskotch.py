@@ -316,20 +316,30 @@ def _get_hop_group_pk(group_name, user_api_token) -> int:
 
 
 def _get_hop_topic_from_pk(topic_pk, user_api_token) -> str:
-    topic_url = get_hop_auth_api_url() + f'/topics/{topic_pk}'
-    response = requests.get(topic_url,
+    """Return the Topic dictionary for the Topic with given primary key.
+
+    /api/v0/topics/<PK> returns a topic dictionary of the form:
+    {
+        'pk': the PK of the topic,
+        'owning_group': the PK of the group,
+        'name': <str>,
+        'publically_readable': Boolean,
+        'description': <str>
+    }
+    """
+    url = get_hop_auth_api_url() + f'/topics/{topic_pk}'
+    response = requests.get(url,
                             headers={'Authorization': user_api_token,
                                      'Content-Type': 'application/json'})
-    # example topic dictionary:
-    # {'pk': 84, 'owning_group': 10, 'name': 'lvalert-dev.external_snews',
-    #  'publicly_readable': False, 'description': ''}
-    hop_topic = response.json()
-    return hop_topic
+    topic = response.json()
+    return topic
 
 
 def _get_hop_topic_pk(topic_name, user_api_token) -> int:
     """return the primary key of the given topic from the Hop Auth API
     """
+    logger.warning(f'_get_hop_topic_pk: Calling this functions is probably expensive and unnecessary.')
+
     # request the list of topicss from the Hop Auth API
     topics_url = get_hop_auth_api_url() + '/topics'
     response = requests.get(topics_url,
