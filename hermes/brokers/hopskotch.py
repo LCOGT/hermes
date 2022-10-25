@@ -159,7 +159,7 @@ def authorize_user(username: str) -> Auth:
     # if user is already in hermes group, don't add
     user_groups = get_user_groups(username, user_api_token=user_api_token)
 
-    if not group_name in user_groups:
+    if not group_name in [group['name'] for group in user_groups]:
         # add the user
         group_add_url = get_hop_auth_api_url() +  f'/groups/{group_pk}/members'
         logger.debug(f'authorize_user group_add_url: {group_add_url}')
@@ -542,7 +542,17 @@ def get_user_api_token(username: str, hermes_api_token=None):
 
 
 def get_user_groups(username, user_api_token=None):
-    """return a list of Hop Auth Groups that the user with username is a member of
+    """Return a list of Hop Auth Groups that the user with username is a member of
+
+    First get the User's Groups with /api/v0/users/<PK>/memberships then
+    for each membership, get the Group details with /api/v0/groups/<PK>.
+
+    Returns a list of Group dictionaries of the form:
+    {
+    "pk": 25,
+    "name": "tomtoolkit",
+    "description": "TOM Toolkit Integration testing"
+    }
     """
     if user_api_token is None:
         user_api_token = get_user_api_token(username)
@@ -550,19 +560,19 @@ def get_user_groups(username, user_api_token=None):
     hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
 
     # limit the API query to the specific users (whose pk we just found)
-    user_groups_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
+    user_memberships_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
 
-    user_groups_response = requests.get(user_groups_url,
+    user_memberships_response = requests.get(user_memberships_url,
                                         headers={'Authorization': user_api_token,
                                                  'Content-Type': 'application/json'})
     # from the response, extract the list of user groups
-    # {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
-    user_groups = user_groups_response.json()
-    logger.debug(f'get_user_groups user_groups: {user_groups}')
+    # GroupMembership: {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
+    user_memberships = user_memberships_response.json()
+    logger.debug(f'get_user_groups user_memberships: {user_memberships}')
 
     # extract the name of the group from the group dictionaries; collect and return the list
-    group_names = []
-    for group_pk in [ group['group'] for group in user_groups]:
+    groups = []
+    for group_pk in [ group['group'] for group in user_memberships]:
         group_url = get_hop_auth_api_url() + f'/groups/{group_pk}'
         group_response = requests.get(group_url,
                                       headers={'Authorization': user_api_token,
@@ -571,13 +581,148 @@ def get_user_groups(username, user_api_token=None):
         # {'pk': 25, 'name': 'tomtoolkit', 'description': 'TOM Toolkit Integration testing'}
         # {'pk': 26, 'name': 'hermes', 'description': 'Hermes - Messaging for Multi-messenger astronomy'}
         logger.debug(f'get_user_groups group_response: {group_response.json()}')
-        group_names.append(group_response.json()['name'])
+        groups.append(group_response.json()) # construct list of Group dictionaries
 
-    return group_names
+    return groups
+
+
+def get_group_topics(group_name, user_api_token) -> list:
+    """Return a list of dictionaries describing the topics owned by the given group.
+
+    /api/v0/groups/<PK>/topics returns a list of topic dictionaries of the form:
+    {
+        'pk': the PK of the topic,
+        'owning_group': the PK of the group,
+        'name': <str>,
+        'publically_readable': Boolean,
+        'description': <str>
+    }
+    """
+    group_pk = _get_hop_group_pk(group_name, user_api_token)
+
+    url = get_hop_auth_api_url() + f'/groups/{group_pk}/topics'
+    response =  requests.get(url,
+                             headers={'Authorization': user_api_token,
+                                      'Content-Type': 'application/json'})
+    topics = response.json()
+
+    logger.debug(f'get_group_topics for group {group_name} topics: {topics}')
+    return topics
+
+
+def get_topics(user_api_token, publicly_readable_only=False) -> list:
+    """Return a list of dictionaries describing SCiMMA Auth Topics.
+
+    By default, get all the topics. Set publicly_readable=True to return only pulicly
+    readable topics.
+
+    /api/v0/topics returns a list of topic dictionaries of the form:
+
+    {
+        'pk': the PK of the topic,
+        'owning_group': the PK of the group,
+        'name': <str>,
+        'publicly_readable': Boolean,
+        'description': <str>
+    }
+    """
+    url = get_hop_auth_api_url() + f'/topics'
+    response =  requests.get(url,
+                             headers={'Authorization': user_api_token,
+                                      'Content-Type': 'application/json'})
+    if publicly_readable_only:
+        topics = [topic for topic in response.json() if topic['publicly_readable']]
+    else:
+        topics = response.json()
+
+    return topics
+
+
+def get_group_permissions_received(group_pk, user_api_token):
+    """Return a list of dictionaries describing GroupKafkaPermissions received by the Group.
+
+    /api/v0/groups/<PK>/permissions_received returns a list of GroupKafkaPermission
+    dictionaries of the form:
+
+    {
+        'pk': the PK of the GroupKafkaPermission,
+        'principal': the PK of the Group,
+        'topic': the PK of the Topic
+        'operation': <str>  # 'All', 'Read', or 'Write'
+    }
+    """
+    url = get_hop_auth_api_url() + f'/groups/{group_pk}/permissions_received'
+    logger.debug(f'get_group_permissions_recieved url: {url}')
+    response =  requests.get(url,
+                             headers={'Authorization': user_api_token,
+                                      'Content-Type': 'application/json'})
+
+    logger.debug(f'get_group_permissions_recieved response.status_code: {response.status_code}')
+    logger.debug(f'get_group_permissions_recieved response.text: {response.text}')
+    permissions = response.json()
+
+    return permissions
+
+
+def get_group_topic_permissions(topic_pk, user_api_token) -> list:
+    """Return a list of dictionaries describing GroupKafkaPermissions for the given Topic.
+
+    /api/v0/topics/<PK>/permissions returns a list of GroupKafkaPermission
+    dictionaries of the form:
+
+    {
+        'pk': the PK of the GroupKafkaPermission,
+        'principal': the PK of the Group,
+        'topic': the PK of the Topic
+        'operation': <str>  # 'All', 'Read', or 'Write'
+    }
+    """
+    url = get_hop_auth_api_url() + f'/topics/{topic_pk}/permissions'
+    response =  requests.get(url,
+                             headers={'Authorization': user_api_token,
+                                      'Content-Type': 'application/json'})
+    permissions = response.json()
+
+    return permissions
+
+
+def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, topic_pk: int, operation: str, api_token):
+    """Add Permission for the given Topic, to the given Credential of the given User.
+
+    POST to /api/v0/users/<PK>/credentials/<PK>/permissions with POST data:
+    data = {
+        'principal': <Credential PK>,
+        'topic': <Topic PK>,
+        'operation': <int> # (1=ALL, 2=READ, 3=WRITE)
+    }
+    """
+    if operation == 'All':
+        operation_code = 1
+    elif operation == 'Write':
+        operation_code = 3
+    else:
+        operation_code = 2 # Read is least permissive
+
+    credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
+    credential_permission_request_data = {
+        'principal':  credential_pk,
+        'topic': topic_pk,
+        'operation': operation_code,
+    }
+    # this requires admin priviledge so use HERMES service account API token
+    credential_permission_response = requests.post(credential_permission_url,
+                                                   json=credential_permission_request_data,
+                                                   headers={'Authorization': api_token,
+                                                            'Content-Type': 'application/json'})
+    logger.debug(f'_add_permission_to_credential credential_permission_response.text:   {credential_permission_response.text}')
+
 
 
 def get_user_topic_permissions(username, credential_name, user_api_token=None):
-    """
+    """Returns a dictionary: {
+        'read' : [topic_name, ...],
+        'write': [topic_name, ...]
+    }
     """
     logger.debug(f'get_user_topic_permissions user: {username} credential: {credential_name}')
 
