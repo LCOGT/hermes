@@ -143,12 +143,13 @@ def authorize_user(username: str) -> Auth:
     * returns hop.auth.Auth to authenticate() for inclusion in Session dictionary
     """
     logger.info(f'authorize_user Authorizing for Hopskotch, user: {username}')
-    user_api_token = get_user_api_token(username)
-    user_pk = _get_hop_user_pk(username, user_api_token=user_api_token)
 
     # Only Hop Auth admins can add users to groups and permissions to credentials.
     # So, get the hermes_api_token for Authorization to do those things below.
     hermes_api_token = get_hermes_api_token(HERMES_USERNAME, HERMES_PASSWORD)
+
+    user_api_token = get_user_api_token(username, hermes_api_token=hermes_api_token)
+    user_pk = _get_hop_user_pk(username, user_api_token=user_api_token)
 
     # TODO: this should probably be factored out into it's own function
     # Add the user to the hermes group
