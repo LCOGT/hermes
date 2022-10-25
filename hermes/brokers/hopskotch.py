@@ -37,7 +37,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for SCiMMA pAuth (scimma-admin).
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
