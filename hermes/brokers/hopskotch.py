@@ -182,25 +182,75 @@ def authorize_user(username: str) -> Auth:
     logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_pk=user_pk, user_api_token=user_api_token)
 
-    # TODO: refactor this out into a function
-    # TODO: when it is a function, use it to add the user to the gcn.circular group for Read access
-    topic_name = 'hermes.test'
-    topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
-    # add hermes.test topic permissions to the new SCRAM credential
-    credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
-    credential_permission_request_data = {
-        'principal':  credential_pk,
-        'topic': topic_pk,
-        'operation': 1,  # All=1, Read=2, Write=3, etc, etc
-    }
-    # this requires admin priviledge so use HERMES service account API token
-    credential_permission_response = requests.post(credential_permission_url,
-                                                   json=credential_permission_request_data,
-                                                   headers={'Authorization': hermes_api_token,
-                                                            'Content-Type': 'application/json'})
-    logger.debug(f'authorize_user credential_permission_response.text:   {credential_permission_response.text}')
+    add_permissions_to_credential(username, user_pk, credential_pk, user_api_token=user_api_token)
 
     return user_hop_auth
+
+
+def add_permissions_to_credential(username,  user_pk, credential_pk, user_api_token):
+    """Via SCiMMA Auth API, add a CredentialKafkaPermisson to the given credential_pk for every applicable Topic.
+
+    Applicable Topics is determined by
+        For each Group that the User is a member of
+            For each permission_received (GroupKafkaPermission)
+                The GroupKafkaPermission's 'topic' is an applicable topic for it's 'operation'
+
+    This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
+    _add_permission_to_credential_for_user().
+    """
+    user_group_pks = [group['pk'] for group in get_user_groups(username, user_api_token)]
+
+    for group_pk in user_group_pks:
+        for group_permission in get_group_permissions_received(group_pk, user_api_token):
+            if logger.level == logging.DEBUG:
+                topic = _get_hop_topic_from_pk(group_permission['topic'], user_api_token)
+                logger.debug(f'add_permissions_to_credential adding topic {topic["name"]} operation: {group_permission["operation"]}')
+            _add_permission_to_credential_for_user(user_pk, credential_pk, group_permission['topic'], group_permission['operation'], user_api_token)
+
+    if logger.level == logging.DEBUG:
+        logger.debug(f'{_get_user_topic_permissions(user_pk, credential_pk, user_api_token )}')
+
+
+    ##     for group_permission in get_group_topic_permissions(topic['pk'], user_api_token):
+    ##         logger.debug(f'add_permissions_to_credential topic_pk: {topic["pk"]}; group_permission: {group_permission}')
+    ##         owning_group_pk = group_permission['principal']
+    ##         if owning_group_pk in user_group_pks:
+    ##             # then the User is a member of this Group and the User's SCRAM Credential
+    ##             # should be given a CredentialKafkaPermisson to this topic
+    ##             logger.debug(f'add_permissions_to_credential adding {topic["name"]} Permission to {user_hop_auth.username}')
+    ##             _add_permission_to_credential_for_user(user_pk, credential_pk, topic['pk'], user_api_token, read_only=True)
+
+    ## # Add the publicly_readable topics to the new Credential
+    ## for topic in get_topics(user_api_token, publicly_readable_only=True):
+    ##     logger.debug(f'authorize_user adding (Public) {topic["name"]} Permission to {user_hop_auth.username}')
+    ##     _add_permission_to_credential_for_user(user_pk, credential_pk, topic['pk'], user_api_token, read_only=True)
+
+    ## # Add all applicable topic permissions to the new Credential
+    ## #   Get the Topics owned by each Group that the User belongs to and add them
+    ## for group_name in get_user_groups(username, user_api_token=user_api_token):
+    ##     # get the topics owned by this group
+    ##     for topic in get_group_topics(group_name, user_api_token):
+    ##         if topic['publicly_readable']:
+    ##             continue  # we've already added this topic
+    ##         logger.debug(f'authorize_user adding ({group_name}) {topic["name"]} Permission to {user_hop_auth.username}')
+    ##         _add_permission_to_credential_for_user(user_pk, credential_pk, topic['pk'], user_api_token)
+
+    # TODO: when it is a function, use it to add the user to the gcn.circular group for Read access
+#    topic_name = 'hermes.test'
+#    topic_pk = _get_hop_topic_pk(topic_name, user_api_token)
+#    # add hermes.test topic permissions to the new SCRAM credential
+#    credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
+#    credential_permission_request_data = {
+#        'principal':  credential_pk,
+#        'topic': topic_pk,
+#        'operation': 1,  # All=1, Read=2, Write=3, etc, etc
+#    }
+#    # this requires admin priviledge so use HERMES service account API token
+#    credential_permission_response = requests.post(credential_permission_url,
+#                                                   json=credential_permission_request_data,
+#                                                   headers={'Authorization': hermes_api_token,
+#                                                            'Content-Type': 'application/json'})
+#    logger.debug(f'authorize_user credential_permission_response.text:   {credential_permission_response.text}')
 
 
 def deauthorize_user(username: str, user_hop_auth: Auth):
