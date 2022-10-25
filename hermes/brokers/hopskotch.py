@@ -741,15 +741,32 @@ def get_user_topic_permissions(username, credential_name, user_api_token=None):
 
     hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL    
     hop_cred_pk = _get_hop_credential_pk(username, credential_name, user_api_token=user_api_token)
+    return _get_user_topic_permissions(hop_user_pk, hop_cred_pk, user_api_token)
 
-    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{hop_cred_pk}/permissions'
+
+def _get_user_topic_permissions(user_pk, credential_pk, user_api_token):
+    """ See doc string for get_user_topic_permissions.
+    Use this function when you already have the PKs for the User and Credential.
+
+    /api/v0//users/{user_pk}/credentials/{cred_pk}/permissions returns dictionaries of the form:
+    {
+        'pk': 811,
+        'principal': 147,
+        'topic': 398,
+        'operation': 'All'
+    }
+
+    However, this method returns a dictionary like this:
+    {
+        'read' : [topic_name, ...],
+        'write': [topic_name, ...]
+    }
+    """
+    perm_url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials/{credential_pk}/permissions'
     perm_response = requests.get(perm_url,
                                  headers={'Authorization': user_api_token,
                                           'Content-Type': 'application/json'})
     permissions = perm_response.json()
-    logger.debug(f'get_user_topic_permissions permissions for {credential_name} ({username}): {permissions}')
-    # permission dictionaries look like this:
-    #     {'pk': 811, 'principal': 147, 'topic': 398, 'operation': 'All'}
 
     read_topics = []
     write_topics = []
