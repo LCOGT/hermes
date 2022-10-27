@@ -37,7 +37,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 #  from the environment, get the HERMES service account credentials for SCiMMA pAuth (scimma-admin).
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
@@ -206,7 +206,7 @@ def add_permissions_to_credential(username,  user_pk, credential_pk, user_api_to
                                                    group_permission['operation'], user_api_token)
 
     # This is just to check what topic permissions are reported back to the UI (just for testing)
-    logger.debug(f'add_permissions_to_credential: {_get_user_topic_permissions(user_pk, credential_pk, user_api_token )}')
+    logger.info(f'add_permissions_to_credential: {_get_user_topic_permissions(user_pk, credential_pk, user_api_token )}')
 
 
 def deauthorize_user(username: str, user_hop_auth: Auth):
