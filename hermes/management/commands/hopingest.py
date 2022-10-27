@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from hop import Stream
 from hop.auth import Auth
 from hop.io import StartPosition, Metadata
-from hop.models import GCNCircular
+from hop.models import GCNCircular, JSONBlob
 
 from hermes.models import Message
 
@@ -77,10 +77,17 @@ class Command(BaseCommand):
 
         # map from topic to alert parser/db-updater for that topic
         alert_handler = {
-            'gcn.circular': self._update_db_with_gcn_circular,
             'tomtoolkit.test': self._update_db_with_hermes_alert,
-            'hermes.test': self._update_db_with_hermes_alert,
-            'sys.heartbeat': self._heartbeat_handler
+            #'hermes.test': self._update_db_with_hermes_alert,
+            'hermes.test': self._hopskotch_alert_handler,
+            # Public Topics
+            # TODO: get this list from the SCiMMA Auth API via hopskotch.get_topcs
+            'sys.heartbeat': self._heartbeat_handler,
+            'sys.heartbeat-cit': self._heartbeat_handler,
+            'gcn.circular': self._hopskotch_alert_handler,
+            'gcn.notice': self._hopskotch_alert_handler,
+            'icecube.HE-tracks': self._hopskotch_alert_handler,
+            'amon.nuem': self._hopskotch_alert_handler,
         }
 
         # instanciate the Stream in a way that sets the io.StartPosition
@@ -94,12 +101,18 @@ class Command(BaseCommand):
                 alert_handler[metadata.topic](alert, metadata)
 
 
-    def _heartbeat_handler(self, heartbeat,  metadata):
-        t = datetime.fromtimestamp(heartbeat["timestamp"]/1e6, tz=timezone.utc)
-        heartbeat['utc_time_iso'] = t.isoformat()
+    def _heartbeat_handler(self, heartbeat: JSONBlob,  metadata: Metadata):
+        """The hop.models.JSONBlob has a content dict with the data.
+        """
+        if heartbeat.content['count'] % 3600 == 0:
+            isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
+            logger.info(f'_heartbeat_handler at {isotime} heartbeat: {heartbeat} with metadata: {metadata}')
 
-        logging.info(f'heartbeat: {heartbeat}')
-        logging.info(f'metadata: {metadata}')
+
+    def _hopskotch_alert_handler(self, alert: JSONBlob,  metadata: Metadata):
+        """The hop.models.JSONBlob has a content dict with the data.
+        """
+        logger.info(f'_hopskotch_alert_hander: {metadata.topic}  {alert}')
 
 
     def _test_sys_heartbeat(self, auth):
@@ -189,17 +202,17 @@ class Command(BaseCommand):
 #     """
 # )
 
-    def _update_db_with_hermes_alert(self, hermes_alert,  metadata):
+    def _update_db_with_hermes_alert(self, hermes_alert: JSONBlob,  metadata: Metadata):
         logger.info(f'updating db with hermes alert {hermes_alert}')
         logger.info(f'metadata: {metadata}')
         try:
             message, created = Message.objects.update_or_create(
                 # all these fields must match for update...
-                topic=hermes_alert['topic'],
-                title=hermes_alert['title'],
-                author=hermes_alert['author'],
-                data=hermes_alert['data'],
-                message_text=hermes_alert['message_text'],
+                topic=hermes_alert.content['topic'],
+                title=hermes_alert.content['title'],
+                author=hermes_alert.content['author'],
+                data=hermes_alert.content['data'],
+                message_text=hermes_alert.content['message_text'],
             )
         except KeyError as err:
             logger.error(f'Required key ({err} not found in Hermes alert: {hermes_alert}.')
