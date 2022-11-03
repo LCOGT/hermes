@@ -14,7 +14,6 @@ from cmath import log
 import os
 import logging.config
 from pathlib import Path
-from this import d
 
 from corsheaders.defaults import default_headers
 
