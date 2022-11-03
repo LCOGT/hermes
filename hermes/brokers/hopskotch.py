@@ -473,7 +473,7 @@ def get_user_api_token(username: str, hermes_api_token=None):
 
     # Set up the URL
     # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
-    token_for_user_url = get_hop_auth_api_url() + '/oidc/token_for_user'
+    url = get_hop_auth_api_url() + '/oidc/token_for_user'
 
     # Set up the request data
     # the username comes from the request.user.username for OIDC Provider-created
@@ -485,7 +485,7 @@ def get_user_api_token(username: str, hermes_api_token=None):
     }
 
     # Make the request and extract the user api token from the response
-    response = requests.post(token_for_user_url,
+    response = requests.post(url,
                              data=json.dumps(hop_auth_request_data),
                              headers={'Authorization': hermes_api_token,
                                       'Content-Type': 'application/json'})
