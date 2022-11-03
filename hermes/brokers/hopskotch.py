@@ -149,7 +149,7 @@ def authorize_user(username: str) -> Auth:
     hermes_api_token = get_hermes_api_token(HERMES_USERNAME, HERMES_PASSWORD)
 
     user_api_token = get_user_api_token(username, hermes_api_token=hermes_api_token)
-    user_pk = _get_hop_user_pk(username, user_api_token=user_api_token)
+    user_pk = _get_hop_user_pk(username, user_api_token)
 
     # TODO: this should probably be factored out into it's own function
     # Add the user to the hermes group
@@ -219,30 +219,44 @@ def deauthorize_user(username: str, user_hop_auth: Auth):
     delete_user_hop_credentials(username, user_hop_auth.username)
 
 
-def _get_hop_user_pk(username, user_api_token) -> int:
-    """return the primary key of this user from the Hop Auth API
+def get_hop_user(username, api_token) -> dict:
+    """Return the SCiMMA Auth User with the given username.
+    If no SCiMMA Auth User exists with the given username, return None.
 
-    username-ss are assigned by Keycloak and are of the form: <see module doc string>.
-    The api/v0/users API endpoint returns a list of user dictionaries with
-    keys of (pk, username, email), where the username is the username
+    /api/v0/users returns a list of User dictionaries of the form:
+
+    {
+        "pk": 20,
+        "username": "0d988bdd-ec83-420d-8ded-dd9091318c24",
+        "email": "llindstrom@lco.global"
+    }
     """
     # request the list of users from the Hop Auth API
-    users_url = get_hop_auth_api_url() + '/users'
-    response = requests.get(users_url,
-                            headers={'Authorization': user_api_token,
+    url = get_hop_auth_api_url() + '/users'
+    response = requests.get(url,
+                            headers={'Authorization': api_token,
                                      'Content-Type': 'application/json'})
     # from the response, extract the list of user dictionaries
     hop_users = response.json()
     # find the user dict whose username matches our username
     # this is the idiom for searchng a list of dictionaries for certain key-value (username)
     hop_user = next((item for item in hop_users if item['username'] == username), None)
+
+    if hop_user is None:
+        logger.warning(f'get_hop_user: SCiMMA Auth user {username} not found.')
+
+    return hop_user
+
+
+def _get_hop_user_pk(username, api_token) -> int:
+    """Return the primary key of this user from the Hop Auth API. Returns None if
+    no user with the given username is returned from the API.
+    """
+    hop_user = get_hop_user(username, api_token)
     if hop_user is not None:
         hop_user_pk = hop_user['pk']
-        logger.debug(f'_get_hop_user_pk: PK for {username} is {hop_user_pk}')
     else:
-        hop_user_pk = None
-        logger.error(f'_get_hop_user_pk: Can not find user {username} in Hop Auth users.')
-
+         hop_user_pk = None
     return hop_user_pk
 
 
