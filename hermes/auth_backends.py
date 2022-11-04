@@ -105,6 +105,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         there and, if not, use the API to create it.
         """
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user claims: {claims}')
+
+        username = self.get_username(claims)
         if "email" in claims:
             email = claims.get("email")
         elif "email_list" in claims:
@@ -113,16 +115,22 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         if isinstance(email, list):
             email = email[0]
 
-        logger.info(f'create_user claims: {claims}')
+        # make sure the User has been created in SCiMMA Auth
+        scimma_auth_user, created = hopskotch.get_or_create_user(claims)
+        if created:
+            logger.info(f'create_user - Created SCiMMA Auth User {username}')
+        else:
+            logger.info(f'create_user - Found existing SCiMMA Auth User {scimma_auth_user}')
 
+        # now make our local HERMES User
         new_user = self.UserModel.objects.create(
-            username=self.get_username(claims),
+            username=username,
             email=self.get_email(claims),
             is_staff=is_member_of(claims, '/SCiMMA Developers'),
             first_name=claims.get('given_name', ''),
             last_name=claims.get('family_name', ''),
         )
-        logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: new_user: {new_user} with claims: {claims}')
+        logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: new HERMES User: {new_user} with claims: {claims}')
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: UserModel: {self.UserModel}')
 
         return new_user
