@@ -94,12 +94,17 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
 
     def create_user(self, claims):
-        """Create a Django User with
-             * username given by OIDC Provider claims['sub']
-             * email given by claims['email'] or claims['email_list][0]
-             * is_staff is True for SCiMMA DevOps members
+        """Create a HERMES Django User with
+          * username given by OIDC Provider claims['sub']
+          * email given by claims['email'] or claims['email_list][0]
+          * is_staff is True for SCiMMA DevOps members
+
+        HERMES requires that a SCiMMA Auth User exists so it can access the User's
+        Group and Topic permission stored there. So, before creating the Hermes User,
+        pass these claims to hopskotch.get_or_create_user to make sure this User exists
+        there and, if not, use the API to create it.
         """
-        logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user')
+        logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user claims: {claims}')
         if "email" in claims:
             email = claims.get("email")
         elif "email_list" in claims:
