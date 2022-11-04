@@ -37,9 +37,13 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
-#  from the environment, get the HERMES service account credentials for SCiMMA pAuth (scimma-admin).
+# TODO: the idea is that SCIMMA_ADMIN_BASE_URL is the only configuration
+#   needed in settings.py, but consider moving the service account creds
+#   there as well
+
+#  from the environment, get the HERMES service account credentials for SCiMMA Auth (scimma-admin).
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
 HERMES_PASSWORD = os.getenv('HERMES_PASSWORD', None)
 
