@@ -132,6 +132,76 @@ def get_hermes_api_token(scram_username, scram_password) -> str:
     return hermes_api_token
 
 
+def get_or_create_user(claims: dict):
+    """Create a User instance in the SCiMMA Auth Django project. If a SCiMMA Auth User
+    matching the claims already exists, return that Users json dict from the API..
+
+    Because this method requires the OIDC Provider claims, it must be called from some where
+    the claims are available, e.g. `auth_backend.HopskotchOIDCAuthenticationBackend.create_user`.
+
+    :param claims: The claims dictionary from the OIDC Provider.
+    :type claims: dict
+
+    Hermes requires that SCiMMA Auth have a User instance matching the OIDC claims.
+    (Both Hermes and SCiMMA Auth have similar OIDC Provider configuration and workflows).
+
+    The claims dictionary is passed through to the SCiMMA Auth API as the request.data and
+    it looks like this:
+    {
+        'sub': 'edb01519-2541-4fa4-a96b-95d09e152f51',
+        'email': 'lindy.lco@gmail.com'
+        'email_verified': False,
+        'name': 'W L',
+        'given_name': 'W',
+        'family_name': 'L',
+        'preferred_username': 'lindy.lco@gmail.com',
+        'upstream_idp': 'http://google.com/accounts/o8/id',
+        'is_member_of': ['/Hopskotch Users'],
+    }
+    However, SCiMMA Auth needs the following keys added:
+    {
+        'vo_person_id': claims['sub']
+    }
+    (This is for historical reasons having to do with the CILogon to Keycloak move).
+
+    If a User matching the given claims already exists at SCiMMA Auth,
+    return it's JSON dict, which looks like this:
+    {
+        "pk": 45,
+        "username": "0d988bdd-ec83-420d-8ded-dd9091318c24",
+        "email": "llindstrom@lco.global"
+    }
+    """
+    logger.info(f'get_or_create_user claims: {claims}')
+
+    # check to see if the user already exists in SCiMMA Auth
+    hermes_api_token = get_hermes_api_token(HERMES_USERNAME, HERMES_PASSWORD)
+    username = claims['sub']
+
+    hop_user = get_hop_user(username, hermes_api_token)
+    if hop_user is not None:
+        logger.debug(f'get_or_create_user SCiMMA Auth User {username} already exists')
+        return hop_user, False  # not created
+    else:
+        logger.debug(f'hopskotch.get_or_create_user {username}')
+        # add the keys that SCiMMA Auth needs
+        claims['vo_person_id'] = username
+
+        # pass the claims on to SCiMMA Auth to create the User there.
+        url = get_hop_auth_api_url() +  f'/users'
+        # this requires admin priviledge so use HERMES service account API token
+        response = requests.post(url, json=claims,
+                                 headers={'Authorization': hermes_api_token,
+                                          'Content-Type': 'application/json'})
+        hop_user = json.loads(response.text)
+
+        logger.debug(f'get_or_create_user {responses[response.status_code]} [{response.status_code}]')
+        logger.debug(f'get_or_create_user response.text: {response.text} type: {type(response.text)}')
+        logger.debug(f'get_or_create_user new hop_user: {hop_user} type: {type(hop_user)}')
+
+        return hop_user, True
+
+
 def authorize_user(username: str) -> Auth:
     """Set up user for all Hopskotch interactions.
     (Should be called upon logon (probably via OIDC authenticate)
