@@ -278,6 +278,7 @@ def get_hop_user(username, api_token) -> dict:
         "email": "llindstrom@lco.global"
     }
     """
+    # TODO: this is illegal -- don't show other people's email addresses GDPR violation
     # request the list of users from the Hop Auth API
     url = get_hop_auth_api_url() + '/users'
     response = requests.get(url,
@@ -428,7 +429,7 @@ def get_user_hop_authorization(username, user_api_token=None) -> Auth:
                                               data=json.dumps({'description': 'Created by HERMES'}),
                                               headers={'Authorization': user_api_token,
                                                        'Content-Type': 'application/json'})
-    logger.debug(f'HopAuthTestView user_credentials_response.json(): {user_credentials_response.json()}')
+    logger.debug(f'get_user_hop_authroization user_credentials_response.json(): {user_credentials_response.json()}')
 
     user_hop_username = user_credentials_response.json()['username']
     user_hop_password = user_credentials_response.json()['password']
@@ -466,14 +467,14 @@ def get_user_hop_credentials(username, user_api_token=None):
     hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
 
     # limit the API query to the specific users (whose pk we just found)
-    user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
 
-    user_credentials_response = requests.get(user_credentials_url,
-                                             headers={'Authorization': user_api_token,
-                                                      'Content-Type': 'application/json'})
+    response = requests.get(url,
+                            headers={'Authorization': user_api_token,
+                                     'Content-Type': 'application/json'})
     # from the response, extract the list of user credential dictionaries
-    user_hop_credentials = user_credentials_response.json()
-    logger.debug(f'HopAuthTestView get_user_hop_credentials : {user_hop_credentials}')
+    user_hop_credentials = response.json()
+    logger.debug(f'get_user_hop_credentials: {user_hop_credentials}')
     return user_hop_credentials
 
 
@@ -491,31 +492,31 @@ def delete_user_hop_credentials(username, credential_name, user_api_token=None):
 
     hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
 
-    user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
 
     # find the <PK> of the SCRAM credential just issued
-    user_credentials_response = requests.get(user_credentials_url,
-                                             headers={'Authorization': user_api_token,
-                                                      'Content-Type': 'application/json'})
+    response = requests.get(url,
+                            headers={'Authorization': user_api_token,
+                                     'Content-Type': 'application/json'})
     # from the response, extract the list of user credential dictionaries
-    user_creds = user_credentials_response.json()
+    user_creds = response.json()
     # this is the idiom for searchng a list of dictionaries for certain key-value (username)
     user_cred = next((item for item in user_creds if item["username"] == credential_name), None)
     if user_cred is not None:
         scram_pk = user_cred['pk']
         user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{scram_pk}'
-        user_credentials_detail_url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
-        logger.debug(f'HopAuthTestView SCRAM cred: {user_cred}')
+        url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
+        logger.debug(f'delete_user_hop_credentials SCRAM cred: {user_cred}')
 
         # delete the user SCRAM credential in Hop Auth
-        user_credentials_delete_response = requests.delete(user_credentials_detail_url,
-                                                           headers={'Authorization': user_api_token,
-                                                                    'Content-Type': 'application/json'})
+        response = requests.delete(url,
+                                   headers={'Authorization': user_api_token,
+                                            'Content-Type': 'application/json'})
         logger.debug(
-            (f'HopAuthTestView user_credentials_delete_response: {responses[user_credentials_delete_response.status_code]}',
-             f'[{user_credentials_delete_response.status_code}]'))
+            (f'delete_user_hop_credentials response: {responses[response.status_code]}',
+             f'[{response.status_code}]'))
     else:
-        logger.error(f'HopAuthTestView can not clean up SCRAM credential: {credential_name} not found in {user_creds}')
+        logger.error(f'delete_user_hop_credentials: Can not clean up SCRAM credential: {credential_name} not found in {user_creds}')
 
 
 def get_user_api_token(username: str, hermes_api_token=None):
@@ -561,9 +562,9 @@ def get_user_api_token(username: str, hermes_api_token=None):
         logger.debug(f'get_user_api_token username: {username};  user_api_token: {user_api_token}')
         logger.debug(f'get_user_api_token user_api_token Expires: {user_api_token_expiration_date_as_str}')
     else:
-        logger.error((f'HopAuthTestView hopskotch_auth_response.status_code: '
-                      f'{responses[response.status_code]} [{response.status_code}]'))
-        user_api_token = None # this is a problem
+        logger.error((f'get_user_api_token response.status_code: '
+                      f'{responses[response.status_code]} [{response.status_code}] ({url})'))
+        user_api_token = None # signal to create_user in SCiMMA Auth
 
     return user_api_token
 
