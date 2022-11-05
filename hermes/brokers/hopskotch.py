@@ -47,40 +47,13 @@ logger.setLevel(logging.DEBUG)
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
 HERMES_PASSWORD = os.getenv('HERMES_PASSWORD', None)
 
- # set this (to cache it) in first call to get_hop_auth_api_url and
- # return it in subsequent calls so we don't keep hitting the API
-HOP_AUTH_API_URL = None
+ # this API client was written against this version of the API
+SCIMMA_AUTH_API_VERSION = 0
 
-def get_hop_auth_api_url(api_version=None) -> str:
-    """Use the HOP_AUTH_BASE_URL from settings.py and construct the API url from that.
+def get_hop_auth_api_url(api_version=SCIMMA_AUTH_API_VERSION) -> str:
+    """Use the SCIMMA_AUTH_BASE_URL from settings.py and construct the API url from that.
     """
-    global HOP_AUTH_API_URL
-    if HOP_AUTH_API_URL is not None:
-        return HOP_AUTH_API_URL
-
-    # get the base url from the configuration in settings.py
-    hop_auth_base_url = settings.HOP_AUTH_BASE_URL
-
-    if api_version is None:
-        try:
-            # get the current API version from the API
-            version_url = hop_auth_base_url + '/api/version'
-            response = requests.get(version_url, headers={'Content-Type': 'application/json'})
-            # get the API version from response
-            hop_auth_api_version = response.json()['current']
-        except:
-            hop_auth_api_version = 0
-            logger.error(f'Error requesting SCiMMA Auth API Version. Using version {hop_auth_api_version}')
-
-    else:
-        hop_auth_api_version = api_version
-
-    hop_auth_api_url = hop_auth_base_url + f'/api/v{hop_auth_api_version}'
-    HOP_AUTH_API_URL = hop_auth_api_url  # cache this value for furture calls to this function
-
-    logger.debug(f'get_hop_auth_api_url: hop_auth_api_url: {hop_auth_api_url}')
-
-    return hop_auth_api_url
+    return settings.SCIMMA_AUTH_BASE_URL + f'/api/v{api_version}'
 
 
 def get_hermes_hop_authorization() -> Auth:
