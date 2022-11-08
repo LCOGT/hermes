@@ -22,6 +22,9 @@ class NotInKafkaUsers(PermissionDenied):
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
     """Subclass Mozilla's OIDC Auth backend for custom hopskotch behavior.
 
+    `mozilla_django_oidc.auth.OIDCAuthenticationBackend` is a subclass of
+    `django.contrib.auth.backends.ModelBackend`.
+
     For the Keycloak OIDC Provider (login.scimma.org), the claims passed to many of
     these methods looks like this:
         claims = {
@@ -42,6 +45,11 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
 
     def filter_users_by_claims(self, claims):
+        """Return all users matching the username extracted from the claims via
+        `self.get_username`.
+
+        Overrides base class method.
+        """
         logger.debug(f'HopskotchOIDCAuthenticationBackend.filter_users_by_claims: {claims}')
         username = self.get_username(claims)
         if not username:
@@ -54,11 +62,14 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
         For the Keycloak OIDC provider (login.scimma.org), the value of the
         'sub' key is the username.
+
+        Overrides base class method.
         """
         return claims.get('sub')
 
 
     def get_email(self, claims):
+        """Extract email from claims"""
         email = ""
         if "email" in claims:
             email = claims.get("email")
@@ -75,6 +86,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         NB:  SCiMMA Auth (scimma-admin) enforces Hopskotch users being in kafkaUsers group
         but since they are doing that HERMES doesn't have to. See scimma-admin repo for how
         that check was done.
+
+        Overrides base class method.
         """
         logger.debug(f'HopskotchOIDCAuthenticationBackend.verify_claims claims: {claims}')
         # Value for 'is_member_of' key is list(COManage groups)
@@ -103,6 +116,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         Group and Topic permission stored there. So, before creating the Hermes User,
         pass these claims to hopskotch.get_or_create_user to make sure this User exists
         there and, if not, use the API to create it.
+
+        Overrides base class method.
         """
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user claims: {claims}')
 
@@ -137,7 +152,26 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
     
     def update_user(self, user, claims):
-        logger.debug(f'HopskotchOIDCAuthenticationBackend.update_user {user} with claims: {claims}')
+        """Update existing user with new claims, if necessary save, and return user
+
+        Base class extensions:
+          * save first_name, last_name, email, is_staff
+          * check that SCiMMA Auth User exista and create if necessary.
+
+        Overrides base class method.
+        """
+        logger.info(f'HopskotchOIDCAuthenticationBackend.update_user {user} with claims: {claims}')
+
+        # make sure the User exists in SCiMMA Auth
+        scimma_auth_user, created = hopskotch.get_or_create_user(claims)
+        if created:
+            logger.info(f'create_user - Created SCiMMA Auth User {scimma_auth_user}')
+        else:
+            logger.info(f'create_user - Found existing SCiMMA Auth User {scimma_auth_user}')
+
+        # NOTE: if we ever wanted to save the claims in the session, this (and create_user) would
+        #   be the place to do it.
+
         user.first_name = claims.get('given_name', '')
         user.last_name = claims.get('family_name', '')
         user.email = self.get_email(claims)
@@ -155,6 +189,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
          * the request.session is a SessionStore instance
          * the user is a django.contrib.auth.User instance
          * the safe way to the username is user.get_username()
+
+        Extends base class method.
         """
         user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
 
