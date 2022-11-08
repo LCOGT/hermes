@@ -114,7 +114,9 @@ def get_or_create_user(claims: dict):
     matching the claims already exists, return that Users json dict from the API..
 
     Because this method requires the OIDC Provider claims, it must be called from some where
-    the claims are available, e.g. `auth_backend.HopskotchOIDCAuthenticationBackend.create_user`.
+    the claims are available, e.g.
+     * `auth_backend.HopskotchOIDCAuthenticationBackend.create_user` (if the Hermes User doesn't exist).
+     * `auth_backend.HopskotchOIDCAuthenticationBackend.update_user.` (if the Hermes User does exist).
 
     :param claims: The claims dictionary from the OIDC Provider.
     :type claims: dict
