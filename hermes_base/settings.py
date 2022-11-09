@@ -14,7 +14,6 @@ from cmath import log
 import os
 import logging.config
 from pathlib import Path
-from this import d
 
 from corsheaders.defaults import default_headers
 
@@ -184,10 +183,10 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-# SCiMMA_admin and Hopskotch specific configuration
-#HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
-#HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
-HOP_AUTH_BASE_URL = os.getenv('HOP_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production scimmma_admin (hopauth)
+# SCiMMA Auth and Hopskotch specific configuration
+#SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
+#SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
+SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 # TODO: set up helm chart for dev and prod environments; this default works for local development
