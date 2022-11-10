@@ -174,10 +174,9 @@ class Command(BaseCommand):
         metadata.topic --> topic
         subject        --> title
         from           --> author
-        .asdict()      --> data
         body           --> message_text
 
-        The topic and data fields will be used to query the database for the Message
+        The topic and body fields will be used to query the database for the Message
         prior to creation in update_or_create()
 
         """
@@ -185,8 +184,8 @@ class Command(BaseCommand):
 
         message, created = Message.objects.update_or_create(
             # fields to be compared to find existing Message (if any)
-            data=gcn_circular.asdict(),
             topic=metadata.topic,
+            message_text=gcn_circular.body,
             # fields to be used to update existing or create new Message
             defaults={
                 'title': gcn_circular.header['subject'],
@@ -270,11 +269,10 @@ class Command(BaseCommand):
 
 
     def _update_db_with_gcn_notice(self, alert: JSONBlob,  metadata: Metadata):
-        """Ingest a GCN Circular. (this just logs for now)
+        """Ingest a GCN Notice. For now, do some logging and call _update_db_with_alert()
         """
-        logger.info(f'type(alert) {type(alert)}')
-        logger.info(f'alert {alert}')
-        logger.info(f'metadata: {metadata}')
+        # untill we do some special processing on the gcn_notice, just ingest genericly
+        self._update_db_with_alert(alert, metadata)
 
 
     def _test_sys_heartbeat(self, auth):
