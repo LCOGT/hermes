@@ -4,7 +4,7 @@ psycopg2-binary==2.9.3
 django-bootstrap4==22.1
 whitenoise==6.0.0
 lcogt-logging==0.3.2
-hop-client==0.5.0
+hop-client~=0.7
 django-cors-headers==3.11.0
 mozilla-django-oidc==2.0.0
 marshmallow==3.16.0
