@@ -32,7 +32,7 @@ class Command(BaseCommand):
         parser.add_argument('-p', '--password', required=False, help='Password for hop-client from scimma-admin')
         parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
                             help='Log four sys.heartbeat and exit')
-        parser.add_argument('-P', '--public', required=False, default=True, action='store_true',
+        parser.add_argument('-P', '--public', required=False, default=False, action='store_true',
                             help='Ingest all the publicly_readable topics.')
 
 
@@ -125,6 +125,8 @@ class Command(BaseCommand):
             logger.info('getting publicly_readable topics from SCiMMA Auth.')
             publicly_readable_topics = self._get_topic_list(username, password)
             logger.info(f'publicly_readable_topics: {publicly_readable_topics}')
+        else:
+            publicly_readable_topics = []  # for when we combine with -T topics below
 
         logger.info(f"options['topic']: {options['topic']}")
         if options['topic'] is None:
