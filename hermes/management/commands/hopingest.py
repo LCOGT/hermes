@@ -161,13 +161,13 @@ class Command(BaseCommand):
             logger.info(f'_heartbeat_handler at {isotime} heartbeat: {heartbeat} with metadata: {metadata}')
 
 
-    def _hopskotch_alert_handler(self, alert: JSONBlob,  metadata: Metadata):
+    def _hopskotch_alert_logger(self, alert: JSONBlob,  metadata: Metadata):
         """The hop.models.JSONBlob has a content dict with the data.
         """
-        logger.info(f'_hopskotch_alert_hander: {metadata.topic}  {alert}')
+        logger.info(f'_hopskotch_alert_logger: {metadata.topic}  {alert}')
 
 
-    def _update_db_with_gcn_circular(self, gcn_circular, metadata):
+    def _update_db_with_gcn_circular(self, gcn_circular: GCNCircular, metadata: Metadata):
         """Add GNC Circular to Message db table (unless it already exists)
 
         hop.models.GCNCircular field mapping to hermes.models.Message:
@@ -248,7 +248,7 @@ class Command(BaseCommand):
             logger.info(f'found existing Message with id: {message.id}')
 
 
-    def update_db_with_alert(self, alert: JSONBlob,  metadata: Metadata):
+    def _update_db_with_alert(self, alert: JSONBlob,  metadata: Metadata):
         """Ingest a Hermes-published alert.
         """
         logger.info(f'updating db with alert {alert}')
@@ -268,7 +268,13 @@ class Command(BaseCommand):
         else:
             logger.info(f'found existing Message with id: {message.id}')
 
-        pass
+
+    def _update_db_with_gcn_notice(self, alert: JSONBlob,  metadata: Metadata):
+        """Ingest a GCN Circular. (this just logs for now)
+        """
+        logger.info(f'type(alert) {type(alert)}')
+        logger.info(f'alert {alert}')
+        logger.info(f'metadata: {metadata}')
 
 
     def _test_sys_heartbeat(self, auth):
