@@ -16,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = 'Start a hop-client consuming messages from hop'
+    help = """
+    Start a hop-client consuming messages from hop. If both -P, --public  and -T, --topic switches
+    are used together, the publicly_readable topics and the specifically named topics are all ingested.
+    """
 
     def add_arguments(self, parser):
         # parser is an argparse.ArguementParser
@@ -103,6 +106,8 @@ class Command(BaseCommand):
 
     def _heartbeat_handler(self, heartbeat: JSONBlob,  metadata: Metadata):
         """The hop.models.JSONBlob has a content dict with the data.
+
+        Understands that sys.heartbeat has a content['timestamp'] and converts to datetime
         """
         if heartbeat.content['count'] % 3600 == 0:
             isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
@@ -203,6 +208,11 @@ class Command(BaseCommand):
 # )
 
     def _update_db_with_hermes_alert(self, hermes_alert: JSONBlob,  metadata: Metadata):
+        """Ingest a Hermes-published alert.
+
+        This method understands that Hermes-published alerts have the following content keys:
+        'topic', 'title', 'author', 'data', and 'message_text'.
+        """
         logger.info(f'updating db with hermes alert {hermes_alert}')
         logger.info(f'metadata: {metadata}')
         try:
