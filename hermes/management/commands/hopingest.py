@@ -10,6 +10,7 @@ from hop.auth import Auth
 from hop.io import StartPosition, Metadata
 from hop.models import GCNCircular, JSONBlob
 
+from hermes.brokers import hopskotch
 from hermes.models import Message
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,8 @@ class Command(BaseCommand):
         parser.add_argument('-p', '--password', required=False, help='Password for hop-client from scimma-admin')
         parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
                             help='Log four sys.heartbeat and exit')
+        parser.add_argument('-P', '--public', required=False, default=True, action='store_true',
+                            help='Ingest all the publicly_readable topics.')
 
 
     def _get_scram_credential(self, options):
@@ -60,12 +63,20 @@ class Command(BaseCommand):
         return Auth(username, password)
 
 
+    def _get_topic_list(self, username, password):
+        api_token = hopskotch.get_hermes_api_token(username, password)
+        topics = hopskotch.get_topics(api_token, publicly_readable_only=True)
+        topic_names = [topic['name'] for topic in topics]
+        return topic_names
+
+
     def handle(self, *args, **options):
         logger.debug(f'args: {args}')
         logger.debug(f'options: {options}')
 
         # interpret command line options
-        hop_auth = self._get_hop_authentication(options)
+        username, password = self._get_scram_credential(options)
+        hop_auth = self._get_hop_authentication(username, password)
         if options['test']:
             logger.info('testing...')
             self._test_sys_heartbeat(hop_auth)
@@ -76,13 +87,23 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
-        topics = options['topic']
-        if topics is None:
-            topics = [['sys.heartbeat']] # default defined here
-        logger.info(f'topic set to  {topics}')
+        if options['public']:
+            logger.info('getting publicly_readable topics from SCiMMA Auth.')
+            publicly_readable_topics = self._get_topic_list(username, password)
+            logger.info(f'publicly_readable_topics: {publicly_readable_topics}')
 
-        stream_url = f'kafka://kafka.scimma.org/{",".join(topics[0])}'
-        logger.info(f'stream_url:  {stream_url}')
+        logger.info(f"options['topic']: {options['topic']}")
+        if options['topic'] is None:
+            extra_topics = ['sys.heartbeat'] # default defined here
+        else:
+            extra_topics = options['topic'][0] # repeatable parser arg is list of lists
+        logger.info(f'extra_topics list: {extra_topics}')
+
+        topics_to_ingest = list(set(publicly_readable_topics + extra_topics))
+        logger.info(f'topics_to_ingest: {topics_to_ingest}')
+
+        # construct the alert_handler as a defaultdict from the list of topics
+        # alert_handler = self._construct_alert_handler(topics_to_ingest)
 
         # map from topic to alert parser/db-updater for that topic
         alert_handler = {
@@ -101,7 +122,7 @@ class Command(BaseCommand):
 
         # instanciate the Stream in a way that sets the io.StartPosition
         stream = Stream(auth=hop_auth, start_at=start_position)
-        stream_url = f'kafka://kafka.scimma.org/{",".join(topics[0])}'
+        stream_url = f'kafka://kafka.scimma.org/{",".join(topics_to_ingest)}'
         logger.info(f'stream_url:  {stream_url}')
         with stream.open(stream_url, 'r') as src:
             for alert, metadata in src.read(metadata=True):
