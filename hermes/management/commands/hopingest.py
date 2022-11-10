@@ -147,39 +147,6 @@ class Command(BaseCommand):
         logger.info(f'_hopskotch_alert_hander: {metadata.topic}  {alert}')
 
 
-    def _test_sys_heartbeat(self, auth):
-        topic = 'sys.heartbeat'
-        stream = Stream(auth=auth)
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'r') as src:
-            limit = 3
-            for heartbeat, metadata in src.read(metadata=True):
-                # decode the timestamp and insert into the gcn_circular dictionary
-                t = datetime.fromtimestamp(heartbeat["timestamp"]/1e6, tz=timezone.utc)
-                heartbeat['utc_time_iso'] = t.isoformat()
-
-                logging.info(f'{limit}: heartbeat: {heartbeat}')
-                logging.info(f'{limit}: metadata: {metadata}')
-
-                limit -= 1
-                if limit <= 0:
-                    break
-
-# heartbeat =  {
-#     'timestamp': 1649861479186756,
-#     'count': 22798,
-#     'beat': 'LISTEN',
-#     'utc_time_iso': '2022-04-13T14:51:19.186756+00:00'
-# }
-# hop.io.Metadata(
-#     topic='sys.heartbeat',
-#     partition=6,
-#     offset=2106694,
-#     timestamp=1649861479186,
-#     key=None,
-#     headers=None,
-#     _raw=<cimpl.Message object at 0x7f1a22d8cec0>)
-
-
     def _update_db_with_gcn_circular(self, gcn_circular, metadata):
         """Add GNC Circular to Message db table (unless it already exists)
 
@@ -252,11 +219,68 @@ class Command(BaseCommand):
                 message_text=hermes_alert.content['message_text'],
             )
         except KeyError as err:
-            logger.error(f'Required key ({err} not found in Hermes alert: {hermes_alert}.')
+            logger.error(f'Required key ({err} not found in {metadata.topic} alert: {hermes_alert}.')
             return 
 
         if created:
             logger.info(f'created new Message with id: {message.id}')
         else:
             logger.info(f'found existing Message with id: {message.id}')
-            # TODO: assert GCN Circular Number fields matches
+
+
+    def update_db_with_alert(self, alert: JSONBlob,  metadata: Metadata):
+        """Ingest a Hermes-published alert.
+        """
+        logger.info(f'updating db with alert {alert}')
+        logger.info(f'metadata: {metadata}')
+        try:
+            message, created = Message.objects.update_or_create(
+                # these fields must match for update...
+                topic=metadata.topic,
+                data=alert.content,
+            )
+        except KeyError as err:
+            logger.error(f'Required key ({err} not found in {metadata.topic} alert: {alert}.')
+            return
+
+        if created:
+            logger.info(f'created new Message with id: {message.id}')
+        else:
+            logger.info(f'found existing Message with id: {message.id}')
+
+        pass
+
+
+    def _test_sys_heartbeat(self, auth):
+        topic = 'sys.heartbeat'
+        stream = Stream(auth=auth)
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'r') as src:
+            limit = 3
+            for heartbeat, metadata in src.read(metadata=True):
+                # decode the timestamp and insert into the gcn_circular dictionary
+                t = datetime.fromtimestamp(heartbeat["timestamp"]/1e6, tz=timezone.utc)
+                heartbeat['utc_time_iso'] = t.isoformat()
+
+                logging.info(f'{limit}: heartbeat: {heartbeat}')
+                logging.info(f'{limit}: metadata: {metadata}')
+
+                limit -= 1
+                if limit <= 0:
+                    break
+
+# heartbeat =  {
+#     'timestamp': 1649861479186756,
+#     'count': 22798,
+#     'beat': 'LISTEN',
+#     'utc_time_iso': '2022-04-13T14:51:19.186756+00:00'
+# }
+# hop.io.Metadata(
+#     topic='sys.heartbeat',
+#     partition=6,
+#     offset=2106694,
+#     timestamp=1649861479186,
+#     key=None,
+#     headers=None,
+#     _raw=<cimpl.Message object at 0x7f1a22d8cec0>)
+
+
