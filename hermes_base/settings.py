@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
-from cmath import log
 import os
 import logging.config
 from pathlib import Path
@@ -163,7 +162,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 # obtained from Keycloak via SCiMMA/Chris Weaver.
 OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
-OIDC_RP_SIGN_ALGO = 'RS256' # Signing Algorithm for Keycloak
+OIDC_RP_SIGN_ALGO = 'RS256'  # Signing Algorithm for Keycloak
 
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
 OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
@@ -184,8 +183,8 @@ AUTHENTICATION_BACKENDS = [
 
 
 # SCiMMA Auth and Hopskotch specific configuration
-#SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
-#SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
+# SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
+# SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
 SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
@@ -193,10 +192,10 @@ KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8080/')
 
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
-LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
+LOGIN_URL = '/'  # This is the default redirect URL for user authentication tests
 LOGIN_REDIRECT_URL = '/login-redirect/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
-LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
+LOGOUT_REDIRECT_URL = '/logout-redirect/'  # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL  # TODO: create login failure page
 # TODO: handle login_failure !!
 
 # Our hermes (django) backend is deployed behind nginx/guncorn. By default Django ignores
@@ -254,7 +253,7 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': 'INFO',
-            #'level': 'DEBUG'
+            # 'level': 'DEBUG'
         },
         'mozilla_django_oidc': {
             'handlers': ['console'],
@@ -263,8 +262,6 @@ LOGGING = {
     }
 }
 logging.config.dictConfig(LOGGING)
-
-#logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
 
 try:
     logging.info('Looking for local_settings.')
