@@ -127,9 +127,7 @@ spec:
             - python
             - manage.py
             - hopingest
-            - --topic
-            - hermes.test
-            - gcn.circular
+            - --public
           env:
             {{ include "hermes.extraEnv" . | nindent 12 }}
             {{ include "hermes.backendEnv" . | nindent 12 }}
