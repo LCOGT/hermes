@@ -1,1 +1,1 @@
-helmPipeline()
+dockerPipeline()
