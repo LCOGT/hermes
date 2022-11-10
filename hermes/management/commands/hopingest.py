@@ -220,6 +220,58 @@ class Command(BaseCommand):
 #     """
 # )
 
+
+    def _update_db_with_gcn_notice(self, alert: JSONBlob,  metadata: Metadata):
+        """Ingest a GCN Notice.
+
+        GCN Notice keypath mapping to hermes.models.Message:
+        metadata.topic           --> topic
+        role: Description        --> title
+        Who.Author.contactName   --> author
+
+        The topic and body fields will be used to query the database for the Message
+        prior to creation in update_or_create()
+        """
+        logger.info(f'updating db with gcn_notice metadata: {metadata}')
+        logger.info(f'updating db with gcn_notice alert.content: {alert.content}')
+
+        # extract keypath values into vars for Hermes Message fields
+        contact_name: str = f"{alert.content['Who']['Author']['contactName']}"
+        try:
+            contact_email: str = f" <{alert.content['Who']['Author']['contactEmail']}>"
+        except KeyError:
+            contact_email = ''
+        author = contact_name + contact_email
+
+        role: str = alert.content['role']
+        title: str = alert.content['Description']
+        if not title:
+            title = "<no Description specified>"
+        if role == 'test':
+            title: str = f'[{role}]: {title}'
+
+        logger.info(f'updating db with gcn_notice author: {author}')
+        logger.info(f'updating db with gcn_notice title: {title}')
+
+        message, created = Message.objects.update_or_create(
+            # fields to be compared to find existing Message (if any)
+            topic=metadata.topic,
+            message_text=alert.content,
+            # fields to be used to update existing or create new Message
+            defaults={
+                'author': author,
+                'title': title,
+                'message_text': alert.content,
+            }
+        )
+
+        if created:
+            logger.info(f'created new Message with id: {message.id}')
+        else:
+            logger.info(f'found existing Message with id: {message.id}')
+            # TODO: assert GCN Circular Number fields matches
+
+
     def _update_db_with_hermes_alert(self, hermes_alert: JSONBlob,  metadata: Metadata):
         """Ingest a Hermes-published alert.
 
@@ -248,7 +300,7 @@ class Command(BaseCommand):
 
 
     def _update_db_with_alert(self, alert: JSONBlob,  metadata: Metadata):
-        """Ingest a Hermes-published alert.
+        """Ingest a generic  alert from a topic we have no a priori knowledge of.
         """
         logger.info(f'updating db with alert {alert}')
         logger.info(f'metadata: {metadata}')
@@ -266,13 +318,6 @@ class Command(BaseCommand):
             logger.info(f'created new Message with id: {message.id}')
         else:
             logger.info(f'found existing Message with id: {message.id}')
-
-
-    def _update_db_with_gcn_notice(self, alert: JSONBlob,  metadata: Metadata):
-        """Ingest a GCN Notice. For now, do some logging and call _update_db_with_alert()
-        """
-        # untill we do some special processing on the gcn_notice, just ingest genericly
-        self._update_db_with_alert(alert, metadata)
 
 
     def _test_sys_heartbeat(self, auth):
