@@ -32,25 +32,31 @@ class Command(BaseCommand):
         parser.add_argument('-t', '--test', required=False, default=False, action='store_true',
                             help='Log four sys.heartbeat and exit')
 
-    def _get_hop_authentication(self, options):
-        """Get username and password and configure Hop client authentication
+
+    def _get_scram_credential(self, options):
+        """Get username and password from options or environment.
 
         If command line arguments are supplied, use them.
-        Otherwise, get HERMES_USERNAME and HERMES_PASSWORD from environment.
-        HERMES_USERNAME and HERMES_PASSWORD should be enter the environment as k8s secrets.
+        Otherwise, get HERMES_INGEST_USERNAME and HERMES_INGEST_PASSWORD from environment.
+        HERMES_INGEST_USERNAME and HERMES_INGEST_PASSWORD should be enter the environment as k8s secrets.
         """
         username = options.get('username')
         if username is None:
-            username = os.getenv('HERMES_USERNAME', None)
+            username = os.getenv('HERMES_INGEST_USERNAME', None)
         password = options.get('password')
         if password is None:
-            password = os.getenv('HERMES_PASSWORD', None)
+            password = os.getenv('HERMES_INGEST_PASSWORD', None)
 
         if username is None or password is None:
-            error_message = 'Supply Hop credentials on command line or set HERMES_USERNAME and HERMES_PASSWORD environment variables.'
+            error_message = ('Supply Hop credentials on command line or set HERMES_INGEST_USERNAME'
+                             ' and HERMES_PASSWORD environment variables.')
             logger.error(error_message)
             raise CommandError(error_message)
 
+        return username, password
+
+
+    def _get_hop_authentication(self, username, password) -> Auth:
         return Auth(username, password)
 
 
