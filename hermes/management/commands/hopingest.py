@@ -70,6 +70,40 @@ class Command(BaseCommand):
         return topic_names
 
 
+    def _construct_alert_handler(self, topics) -> dict:
+        """Set up and return the alert_handler dictionary.
+
+        The alert_handler dictionary is keyed by topic name and it's values are
+        callables with Hopskotch-specific signitures:
+            def handle_the_hopskotch_alert(alert: hop.models.JSONBlob, metadata: hop.models.Metadata)
+        or
+            def handle_the_gcn_circular(alert: hop.models.GCNCircular, metadata: hop.models.Metadata)
+
+        (hop.models.JSONBlob and hop.models.GCNCircular are the only Hopskotch alert types that I know about).
+
+        Hermes-published alerts are hop.models.JSONBlobs with specific `content` dictionary keys and so use a
+        Hermes-specific alert_handler which understands those keys.
+
+        For alerts from arbitary topics where we have no knowledge of the content keys, we use a generic
+        hander. This handler is set up to be the default in the defaultdict that we return.
+        """
+        alert_handler = {}
+        for topic in topics:
+            # set up the default alert_handler for all topics
+            alert_handler[topic] = self._update_db_with_alert
+            if topic.startswith('hermes.'):
+                alert_handler[topic] = self._update_db_with_hermes_alert
+            if topic.startswith('sys.heartbeat'):
+                alert_handler[topic] = self._heartbeat_handler
+
+        # now, overwrite specific alert_handers for topics we know about a priori
+        alert_handler['gcn.circular'] = self._update_db_with_gcn_circular
+        alert_handler['gcn.notice'] = self._update_db_with_gcn_notice
+
+        logger.debug(f'alert_handler: {alert_handler}')
+        return alert_handler
+
+
     def handle(self, *args, **options):
         logger.debug(f'args: {args}')
         logger.debug(f'options: {options}')
@@ -102,23 +136,9 @@ class Command(BaseCommand):
         topics_to_ingest = list(set(publicly_readable_topics + extra_topics))
         logger.info(f'topics_to_ingest: {topics_to_ingest}')
 
-        # construct the alert_handler as a defaultdict from the list of topics
-        # alert_handler = self._construct_alert_handler(topics_to_ingest)
-
-        # map from topic to alert parser/db-updater for that topic
-        alert_handler = {
-            'tomtoolkit.test': self._update_db_with_hermes_alert,
-            #'hermes.test': self._update_db_with_hermes_alert,
-            'hermes.test': self._hopskotch_alert_handler,
-            # Public Topics
-            # TODO: get this list from the SCiMMA Auth API via hopskotch.get_topcs
-            'sys.heartbeat': self._heartbeat_handler,
-            'sys.heartbeat-cit': self._heartbeat_handler,
-            'gcn.circular': self._hopskotch_alert_handler,
-            'gcn.notice': self._hopskotch_alert_handler,
-            'icecube.HE-tracks': self._hopskotch_alert_handler,
-            'amon.nuem': self._hopskotch_alert_handler,
-        }
+        # construct the alert_handler, the map from topic to alert parser/db-updater
+        # for alerts on that topic
+        alert_handler = self._construct_alert_handler(topics_to_ingest)
 
         # instanciate the Stream in a way that sets the io.StartPosition
         stream = Stream(auth=hop_auth, start_at=start_position)
