@@ -258,7 +258,7 @@ class Command(BaseCommand):
         message, created = Message.objects.update_or_create(
             # fields to be compared to find existing Message (if any)
             topic=metadata.topic,
-            message_text=alert.content,
+            data=alert.content,
             # fields to be used to update existing or create new Message
             defaults={
                 'author': author,
