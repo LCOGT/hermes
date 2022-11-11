@@ -263,7 +263,7 @@ class Command(BaseCommand):
             defaults={
                 'author': author,
                 'title': title,
-                'message_text': alert.content,
+                'message_text': "Note added by Hermes: Please Show JSON or Additional Data Table for details."
             }
         )
 
