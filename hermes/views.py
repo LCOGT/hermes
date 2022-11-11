@@ -255,8 +255,12 @@ def submit_to_hop(request, message):
 
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
 
+    logger.debug(f'submit_to_hop request: {request}')
+    logger.debug(f'submit_to_hop request.data: {request.data}')
+    logger.debug(f'submit_to_hop s.write => message: {message}')
+
     try:
-        topic = 'hermes.test'
+        topic = request.data['topic']
         stream = Stream(auth=hop_auth)
         # open for write ('w')
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
@@ -286,7 +290,7 @@ class HopSubmitView(APIView):
         #logger.info(f'type(request.body): {type(request.body)}')
         #logger.info(f'request.body: {request.body}')
         # YES:
-        logger.debug(f'request.data: {request.data}')
+        logger.debug(f'HopSubmitView.post: request.data: {request.data}')
 
         return submit_to_hop(request, request.data)
 
