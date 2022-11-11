@@ -253,7 +253,6 @@ def submit_to_hop(request, message):
         logger.warning(f'Submitting with Hermes service account authorization (testing only)')
         hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
-    # TODO: provide some indication of the User/vo_person_id submitting the message
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
 
     try:
