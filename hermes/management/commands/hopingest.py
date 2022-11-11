@@ -99,6 +99,7 @@ class Command(BaseCommand):
         # now, overwrite specific alert_handers for topics we know about a priori
         alert_handler['gcn.circular'] = self._update_db_with_gcn_circular
         alert_handler['gcn.notice'] = self._update_db_with_gcn_notice
+        alert_handler['tomtoolkit.test'] = self._update_db_with_hermes_alert
 
         logger.debug(f'alert_handler: {alert_handler}')
         return alert_handler
