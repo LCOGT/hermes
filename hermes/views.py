@@ -195,7 +195,8 @@ class TopicViewSet(viewsets.ViewSet):
         credential_name = user_hop_auth.username
         user_api_token = hopskotch.get_user_api_token(username)
 
-        topics = hopskotch.get_user_topic_permissions(username, credential_name, user_api_token)
+        topics = hopskotch.get_user_topic_permissions(username, credential_name, user_api_token,
+                                                      exclude_groups=['sys'])
         logger.info(f'TopicViewSet.list topics for {username}: {topics}')
 
         response = JsonResponse(data=topics)
