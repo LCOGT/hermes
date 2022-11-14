@@ -748,13 +748,16 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
 
 
 
-def get_user_topic_permissions(username, credential_name, user_api_token=None, include_public_topics=True):
+def get_user_topic_permissions(username, credential_name, user_api_token=None,
+                               exclude_groups=[], include_public_topics=True):
     """Get the Read/Write topic permissions for the given user.
 
     Returns a dictionary: {
         'read' : [topic_name, ...],
         'write': [topic_name, ...]
     }
+
+    Topics owned by Groups listed in the exclude_groups: list(str) are filtered.
 
     Adds publicly_readable topics to the 'read': <topic_list>, if include_public_topics is True.
     """
@@ -771,6 +774,11 @@ def get_user_topic_permissions(username, credential_name, user_api_token=None, i
         # add the publicly_readable topics to the list of readable topics fro the user
         public_topic_names = [topic['name'] for topic in get_topics(user_api_token, publicly_readable_only=True)]
         user_topic_permissions['read'] = list(set(user_topic_permissions['read'] + public_topic_names))
+
+    for group in exclude_groups:
+        # filter topics owned by groups in the exclude_groups list of group names
+        user_topic_permissions['write'] = [topic for topic in user_topic_permissions['write'] if not topic.startswith(group)]
+        user_topic_permissions['read'] = [topic for topic in user_topic_permissions['read'] if not topic.startswith(group)]
 
     return user_topic_permissions
 
