@@ -748,11 +748,15 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
 
 
 
-def get_user_topic_permissions(username, credential_name, user_api_token=None):
-    """Returns a dictionary: {
+def get_user_topic_permissions(username, credential_name, user_api_token=None, include_public_topics=True):
+    """Get the Read/Write topic permissions for the given user.
+
+    Returns a dictionary: {
         'read' : [topic_name, ...],
         'write': [topic_name, ...]
     }
+
+    Adds publicly_readable topics to the 'read': <topic_list>, if include_public_topics is True.
     """
     logger.debug(f'get_user_topic_permissions user: {username} credential: {credential_name}')
 
@@ -761,7 +765,14 @@ def get_user_topic_permissions(username, credential_name, user_api_token=None):
 
     hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL    
     hop_cred_pk = _get_hop_credential_pk(username, credential_name, user_api_token=user_api_token)
-    return _get_user_topic_permissions(hop_user_pk, hop_cred_pk, user_api_token)
+    user_topic_permissions = _get_user_topic_permissions(hop_user_pk, hop_cred_pk, user_api_token)
+
+    if include_public_topics:
+        # add the publicly_readable topics to the list of readable topics fro the user
+        public_topic_names = [topic['name'] for topic in get_topics(user_api_token, publicly_readable_only=True)]
+        user_topic_permissions['read'] = list(set(user_topic_permissions['read'] + public_topic_names))
+
+    return user_topic_permissions
 
 
 def _get_user_topic_permissions(user_pk, credential_pk, user_api_token):
