@@ -128,37 +128,27 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
-        if options['public']:
-            logger.info('getting publicly_readable topics from SCiMMA Auth.')
-            publicly_readable_topics = self._get_topic_list(username, password)
-            logger.info(f'publicly_readable_topics: {publicly_readable_topics}')
-        else:
-            publicly_readable_topics = []  # for when we combine with -T topics below
-
-        logger.info(f"options['topic']: {options['topic']}")
-        if options['topic'] is None:
-            extra_topics = ['sys.heartbeat'] # default defined here
-        else:
-            extra_topics = options['topic'][0] # repeatable parser arg is list of lists
-        logger.info(f'extra_topics list: {extra_topics}')
-
-        topics_to_ingest = list(set(publicly_readable_topics + extra_topics))
-        logger.info(f'topics_to_ingest: {topics_to_ingest}')
-
-        # construct the alert_handler, the map from topic to alert parser/db-updater
-        # for alerts on that topic
-        alert_handler = self._construct_alert_handler(topics_to_ingest)
-
         # instanciate the Stream in a way that sets the io.StartPosition
-        stream = Stream(auth=hop_auth, start_at=start_position)
-        stream_url = f'kafka://kafka.scimma.org/{",".join(topics_to_ingest)}'
-        logger.info(f'stream_url:  {stream_url}')
-        # open for read ('r') returns a hop.io.Consumer instance
-        with stream.open(stream_url, 'r') as consumer:
-            for alert, metadata in consumer.read(metadata=True):
-                # type(gcn_circular) is <hop.models.GNCCircular>
-                # type(metadata) is <hop.io.Metadata>
-                alert_handler[metadata.topic](alert, metadata)
+        stream = Stream(auth=self.hop_auth, start_at=start_position)
+
+        while True:
+            topics_to_ingest = self._construct_topic_list()
+            # construct the alert_handler, the map from topic to alert parser/db-updater
+            # for alerts on that topic
+            alert_handler = self._construct_alert_handler(topics_to_ingest)
+            logger.info(f'topics_to_ingest: {topics_to_ingest}')
+
+            stream_url = f'kafka://kafka.scimma.org/{",".join(topics_to_ingest)}'
+            logger.debug(f'stream_url:  {stream_url}')
+            # open for read ('r') returns a hop.io.Consumer instance
+            with stream.open(stream_url, 'r') as consumer:
+                for alert, metadata in consumer.read(metadata=True):
+                    # type(gcn_circular) is <hop.models.GNCCircular>
+                    # type(metadata) is <hop.io.Metadata>
+                    try:
+                        alert_handler[metadata.topic](alert, metadata)
+                    except UpdateTopicsException:
+                        break  # out of the for...consumer.read loop
 
 
     def _heartbeat_handler(self, heartbeat: JSONBlob,  metadata: Metadata):
