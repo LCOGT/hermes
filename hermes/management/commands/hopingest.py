@@ -39,17 +39,17 @@ class Command(BaseCommand):
                             help='Ingest all the publicly_readable topics.')
 
 
-    def _get_scram_credential(self, options):
+    def _get_scram_credential(self):
         """Get username and password from options or environment.
 
         If command line arguments are supplied, use them.
         Otherwise, get HERMES_INGEST_USERNAME and HERMES_INGEST_PASSWORD from environment.
         HERMES_INGEST_USERNAME and HERMES_INGEST_PASSWORD should be enter the environment as k8s secrets.
         """
-        username = options.get('username')
+        username = self.options.get('username')
         if username is None:
             username = os.getenv('HERMES_INGEST_USERNAME', None)
-        password = options.get('password')
+        password = self.options.get('password')
         if password is None:
             password = os.getenv('HERMES_INGEST_PASSWORD', None)
 
@@ -62,15 +62,44 @@ class Command(BaseCommand):
         return username, password
 
 
-    def _get_hop_authentication(self, username, password) -> Auth:
-        return Auth(username, password)
+    def _init_scimma_access(self):
+        """Get and saves SCiMMA Auth access information.
+
+          * API Token: api_token
+          * hop.auth.Auth instance: hop_auth
+        """
+        username, password = self._get_scram_credential()
+        self.api_token = hopskotch.get_hermes_api_token(username, password)
+        self.hop_auth = Auth(username, password)
 
 
-    def _get_topic_list(self, username, password):
-        api_token = hopskotch.get_hermes_api_token(username, password)
-        topics = hopskotch.get_topics(api_token, publicly_readable_only=True)
-        topic_names = [topic['name'] for topic in topics]
-        return topic_names
+    def _construct_topic_list(self) -> list[str]:
+        """Returns the up-to-date list of Topic names to consume.
+
+        Use the saved options to repeatedly construct the topic list, and
+        keep it in sync with the publicaly_readable topics from SCiMMA Auth.
+
+        The Topic list is a combination of the
+          a. the publicly_readable Topics from SCiMMA Auth
+          b. any topics supplied on the command line via -T, --topic
+        """
+        if self.options['public']:
+            logger.info('getting publicly_readable topics from SCiMMA Auth.')
+            topics = hopskotch.get_topics(self.api_token, publicly_readable_only=True)
+            publicly_readable_topics = [topic['name'] for topic in topics]
+            logger.info(f'publicly_readable_topics: {publicly_readable_topics}')
+        else:
+            publicly_readable_topics = []  # for when we combine with -T topics below
+
+        logger.debug(f"options['topic']: {self.options['topic']}")
+        if self.options['topic'] is None:
+            extra_topics = ['sys.heartbeat'] # default defined here
+        else:
+            extra_topics = self.options['topic'][0] # repeatable parser arg is list of lists
+        logger.debug(f'extra_topics list: {extra_topics}')
+
+        topics_to_ingest = list(set(publicly_readable_topics + extra_topics))
+        return topics_to_ingest
 
 
     def _construct_alert_handler(self, topics) -> dict:
@@ -94,6 +123,8 @@ class Command(BaseCommand):
         for topic in topics:
             # set up the default alert_handler for all topics
             alert_handler[topic] = self._update_db_with_alert
+
+            # set up specific handlers for some topics
             if topic.startswith('hermes.'):
                 alert_handler[topic] = self._update_db_with_hermes_alert
             elif topic == 'sys.heartbeat-cit':
@@ -115,12 +146,14 @@ class Command(BaseCommand):
         logger.debug(f'args: {args}')
         logger.debug(f'options: {options}')
 
+        # save the options for when we refresh the stream topics
+        self.options = options
+        self._init_scimma_access() # get and save hop_auth and api_token
+
         # interpret command line options
-        username, password = self._get_scram_credential(options)
-        hop_auth = self._get_hop_authentication(username, password)
         if options['test']:
             logger.info('testing...')
-            self._test_sys_heartbeat(hop_auth)
+            self._test_sys_heartbeat(self.hop_auth)
             exit()
 
         start_position = StartPosition.LATEST
