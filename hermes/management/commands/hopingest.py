@@ -96,7 +96,10 @@ class Command(BaseCommand):
             alert_handler[topic] = self._update_db_with_alert
             if topic.startswith('hermes.'):
                 alert_handler[topic] = self._update_db_with_hermes_alert
-            if topic.startswith('sys.heartbeat'):
+            elif topic == 'sys.heartbeat-cit':
+                # ignore this topic
+                alert_handler['sys.heartbeat-cit'] = self._hopskotch_alert_noop
+            elif topic == 'sys.heartbeat':
                 alert_handler[topic] = self._heartbeat_handler
 
         # now, overwrite specific alert_handers for topics we know about a priori
@@ -179,6 +182,12 @@ class Command(BaseCommand):
         """The hop.models.JSONBlob has a content dict with the data.
         """
         logger.info(f'_hopskotch_alert_logger: {metadata.topic}  {alert}')
+
+
+    def _hopskotch_alert_noop(self, alert: JSONBlob,  metadata: Metadata):
+        """Do nothing with this alert.
+        """
+        pass
 
 
     def _update_db_with_gcn_circular(self, gcn_circular: GCNCircular, metadata: Metadata):
