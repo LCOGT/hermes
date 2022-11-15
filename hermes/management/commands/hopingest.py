@@ -147,8 +147,9 @@ class Command(BaseCommand):
         stream = Stream(auth=hop_auth, start_at=start_position)
         stream_url = f'kafka://kafka.scimma.org/{",".join(topics_to_ingest)}'
         logger.info(f'stream_url:  {stream_url}')
-        with stream.open(stream_url, 'r') as src:
-            for alert, metadata in src.read(metadata=True):
+        # open for read ('r') returns a hop.io.Consumer instance
+        with stream.open(stream_url, 'r') as consumer:
+            for alert, metadata in consumer.read(metadata=True):
                 # type(gcn_circular) is <hop.models.GNCCircular>
                 # type(metadata) is <hop.io.Metadata>
                 alert_handler[metadata.topic](alert, metadata)

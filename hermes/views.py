@@ -263,10 +263,10 @@ def submit_to_hop(request, message):
     try:
         topic = request.data['topic']
         stream = Stream(auth=hop_auth)
-        # open for write ('w')
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
+        # open for write ('w') returns a hop.io.Producer instance
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
             metadata = {'topic': topic}
-            s.write(message, metadata)
+            producer.write(message, metadata)
     except Exception as e:
         return Response({'message': f'Error posting message to kafka: {e}'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
