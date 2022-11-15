@@ -16,6 +16,8 @@ from hermes.models import Message
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
+class UpdateTopicsException(Exception):
+    pass
 
 class Command(BaseCommand):
     help = """
@@ -161,9 +163,16 @@ class Command(BaseCommand):
 
         Understands that sys.heartbeat has a content['timestamp'] and converts to datetime
         """
-        if heartbeat.content['count'] % 3600 == 0:
-            isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
+        heartbeat_count = heartbeat.content['count']
+        isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
+        if heartbeat_count % 3600 == 0:
+            # every hour: log the heartbeat
             logger.info(f'_heartbeat_handler at {isotime} heartbeat: {heartbeat} with metadata: {metadata}')
+        elif heartbeat_count % 60 == 0:
+            # every 5': check for new publicly_readable topics
+            logger.info((f'_heartbeat_handler at {isotime}  triggering Public Topics update'
+                         f' on {metadata.topic} #{heartbeat_count}.'))
+            raise UpdateTopicsException
 
 
     def _hopskotch_alert_logger(self, alert: JSONBlob,  metadata: Metadata):
