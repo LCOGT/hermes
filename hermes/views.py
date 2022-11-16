@@ -270,7 +270,7 @@ def submit_to_hop(request, message):
     except Exception as e:
         return Response({'message': f'Error posting message to kafka: {e}'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response({"message": {"Message was submitted successfully"}}, status=status.HTTP_200_OK)
+    return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
 
 
 class HopSubmitView(APIView):
