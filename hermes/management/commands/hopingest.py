@@ -166,10 +166,11 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
-        # instanciate the Stream in a way that sets the io.StartPosition
-        stream = Stream(auth=self.hop_auth, start_at=start_position)
 
         while True:
+            # instanciate the Stream in a way that sets the io.StartPosition
+            stream = Stream(auth=self.hop_auth, start_at=start_position)
+
             topics_to_ingest = self._construct_topic_list()
             # construct the alert_handler, the map from topic to alert parser/db-updater
             # for alerts on that topic
