@@ -181,19 +181,23 @@ class Command(BaseCommand):
             logger.debug(f'stream_url:  {stream_url}')
             # open for read ('r') returns a hop.io.Consumer instance
             with stream.open(stream_url, 'r') as consumer:
-                for alert, metadata in consumer.read(metadata=True):
-                    # type(gcn_circular) is <hop.models.GNCCircular>
-                    # type(metadata) is <hop.io.Metadata>
-                    try:
-                        alert_handler[metadata.topic](alert, metadata)
-                    except UpdateTopicsException:
-                        break  # out of the for...consumer.read loop
+                try:
+                    for alert, metadata in consumer.read(metadata=True):
+                        # type(gcn_circular) is <hop.models.GNCCircular>
+                        # type(metadata) is <hop.io.Metadata>
+                        try:
+                            alert_handler[metadata.topic](alert, metadata)
+                        except UpdateTopicsException:
+                            break  # out of the for...consumer.read loop
+                except Exception as err:  # TODO: this is a cimpl.KafkaException
+                    logger.error(err)
 
 
     def _heartbeat_handler(self, heartbeat: JSONBlob,  metadata: Metadata):
         """The hop.models.JSONBlob has a content dict with the data.
 
         Understands that sys.heartbeat has a content['timestamp'] and converts to datetime
+        This handler is used to trigger an update of list of the publicly_readable topics to ingest.
         """
         heartbeat_count = heartbeat.content['count']
         isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
