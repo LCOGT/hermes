@@ -1,6 +1,7 @@
 from  datetime import datetime, timezone
 import logging
 import os
+import time
 
 from django.core.management.base import BaseCommand, CommandError
 #from django.conf import settings
@@ -198,9 +199,16 @@ class Command(BaseCommand):
 
         Understands that sys.heartbeat has a content['timestamp'] and converts to datetime
         This handler is used to trigger an update of list of the publicly_readable topics to ingest.
+
+        metadata.timestamp is the number of milliseconds since the epoch (UTC).
         """
         heartbeat_count = heartbeat.content['count']
         isotime = datetime.fromtimestamp(heartbeat.content['timestamp']/1e6, tz=timezone.utc).isoformat()
+
+        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+        logger.debug(f'metadata.timestamp:   {published_time}')
+        logger.debug(f'content["timestamp"]: {isotime}')
+
         if heartbeat_count % 3600 == 0:
             # every hour: log the heartbeat
             logger.info(f'_heartbeat_handler at {isotime} heartbeat: {heartbeat} with metadata: {metadata}')
@@ -238,10 +246,14 @@ class Command(BaseCommand):
         """
         logger.info(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
 
+        # metadata.timestamp is the number of milliseconds since the epoch (UTC).
+        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+
         message, created = Message.objects.update_or_create(
             # fields to be compared to find existing Message (if any)
             topic=metadata.topic,
             message_text=gcn_circular.body,
+            published=published_time,
             # fields to be used to update existing or create new Message
             defaults={
                 'title': gcn_circular.header['subject'],
@@ -306,6 +318,9 @@ class Command(BaseCommand):
         if role == 'test':
             title: str = f'[{role}]: {title}'
 
+        # metadata.timestamp is the number of milliseconds since the epoch (UTC).
+        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+
         logger.info(f'updating db with gcn_notice author: {author}')
         logger.info(f'updating db with gcn_notice title: {title}')
 
@@ -313,6 +328,7 @@ class Command(BaseCommand):
             # fields to be compared to find existing Message (if any)
             topic=metadata.topic,
             data=alert.content,
+            published=published_time,
             # fields to be used to update existing or create new Message
             defaults={
                 'author': author,
@@ -336,6 +352,11 @@ class Command(BaseCommand):
         """
         logger.info(f'updating db with hermes alert {hermes_alert}')
         logger.info(f'metadata: {metadata}')
+
+        # metadata.timestamp is the number of milliseconds since the epoch (UTC).
+        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+        logger.debug(f'published_time: {published_time}')
+
         try:
             message, created = Message.objects.update_or_create(
                 # all these fields must match for update...

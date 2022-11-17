@@ -9,6 +9,9 @@ class Message(models.Model):
     data = models.JSONField(null=True)
     message_text = models.TextField(blank=True)
 
+    published = models.DateTimeField(null=True,
+                                     verbose_name='Time Published to Stream from message metadata.')
+
     created = models.DateTimeField(auto_now_add=True, verbose_name='Time Created')
     modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
