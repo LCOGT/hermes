@@ -247,7 +247,7 @@ class Command(BaseCommand):
         logger.info(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
 
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
 
         message, created = Message.objects.update_or_create(
             # fields to be compared to find existing Message (if any)
@@ -319,7 +319,7 @@ class Command(BaseCommand):
             title: str = f'[{role}]: {title}'
 
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
 
         logger.info(f'updating db with gcn_notice author: {author}')
         logger.info(f'updating db with gcn_notice title: {title}')
@@ -354,7 +354,7 @@ class Command(BaseCommand):
         logger.info(f'metadata: {metadata}')
 
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-        published_time = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc).isoformat()
+        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
         logger.debug(f'published_time: {published_time}')
 
         try:
@@ -365,6 +365,7 @@ class Command(BaseCommand):
                 author=hermes_alert.content['author'],
                 data=hermes_alert.content['data'],
                 message_text=hermes_alert.content['message_text'],
+                published=published_time,
             )
         except KeyError as err:
             logger.error(f'Required key ({err} not found in {metadata.topic} alert: {hermes_alert}.')
