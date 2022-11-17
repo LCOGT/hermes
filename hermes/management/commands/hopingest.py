@@ -1,7 +1,6 @@
 from  datetime import datetime, timezone
 import logging
 import os
-import time
 
 from django.core.management.base import BaseCommand, CommandError
 #from django.conf import settings
@@ -10,6 +9,8 @@ from hop import Stream
 from hop.auth import Auth
 from hop.io import StartPosition, Metadata, list_topics
 from hop.models import GCNCircular, JSONBlob
+
+from confluent_kafka import cimpl
 
 from hermes.brokers import hopskotch
 from hermes.models import Message
@@ -167,31 +168,40 @@ class Command(BaseCommand):
             start_position = StartPosition.EARLIEST
         logger.info(f'hop.io.StartPosition set to {start_position}')
 
+        # instanciate the Stream in a way that sets the io.StartPosition
+        stream = Stream(auth=self.hop_auth, start_at=start_position)
 
         while True:
-            # instanciate the Stream in a way that sets the io.StartPosition
-            stream = Stream(auth=self.hop_auth, start_at=start_position)
+            try:
+                topics_to_ingest = self._construct_topic_list()
+                # construct the alert_handler, the map from topic to alert parser/db-updater
+                # for alerts on that topic
+                alert_handler = self._construct_alert_handler(topics_to_ingest)
+                logger.info(f'topics_to_ingest: {topics_to_ingest}')
 
-            topics_to_ingest = self._construct_topic_list()
-            # construct the alert_handler, the map from topic to alert parser/db-updater
-            # for alerts on that topic
-            alert_handler = self._construct_alert_handler(topics_to_ingest)
-            logger.info(f'topics_to_ingest: {topics_to_ingest}')
+                stream_url = f'{SCIMMA_KAFKA_URL}{",".join(topics_to_ingest)}'
+                logger.debug(f'stream_url:  {stream_url}')
+                # open for read ('r') returns a hop.io.Consumer instance
+                with stream.open(stream_url, 'r') as consumer:
+                    try:
+                        for alert, metadata in consumer.read(metadata=True):
+                            # type(gcn_circular) is <hop.models.GNCCircular>
+                            # type(metadata) is <hop.io.Metadata>
+                            try:
+                                alert_handler[metadata.topic](alert, metadata)
+                            except UpdateTopicsException:
+                                break  # out of the for...consumer.read loop
 
-            stream_url = f'{SCIMMA_KAFKA_URL}{",".join(topics_to_ingest)}'
-            logger.debug(f'stream_url:  {stream_url}')
-            # open for read ('r') returns a hop.io.Consumer instance
-            with stream.open(stream_url, 'r') as consumer:
-                try:
-                    for alert, metadata in consumer.read(metadata=True):
-                        # type(gcn_circular) is <hop.models.GNCCircular>
-                        # type(metadata) is <hop.io.Metadata>
-                        try:
-                            alert_handler[metadata.topic](alert, metadata)
-                        except UpdateTopicsException:
-                            break  # out of the for...consumer.read loop
-                except Exception as err:  # TODO: this is a cimpl.KafkaException
-                    logger.error(err)
+                    # there's an issue with the hop-client that results in weird error
+                    # when the publicly_readable topics have changed
+                    except cimpl.KafkaException as ex:
+                        logger.error(ex)
+            except ValueError as err:
+                logger.error(err)
+            except KeyError as err:
+                logger.error(err)
+            except Exception as ex:
+                logger.error(ex)
 
 
     def _heartbeat_handler(self, heartbeat: JSONBlob,  metadata: Metadata):
