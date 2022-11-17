@@ -222,7 +222,7 @@ class Command(BaseCommand):
         if heartbeat_count % 3600 == 0:
             # every hour: log the heartbeat
             logger.info(f'_heartbeat_handler at {isotime} heartbeat: {heartbeat} with metadata: {metadata}')
-        elif heartbeat_count % 60 == 0:
+        elif heartbeat_count % 300 == 0:
             # every 5': check for new publicly_readable topics
             logger.info((f'_heartbeat_handler at {isotime}  triggering Public Topics update'
                          f' on {metadata.topic} #{heartbeat_count}.'))
