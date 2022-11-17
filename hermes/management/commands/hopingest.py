@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from hop import Stream
 from hop.auth import Auth
-from hop.io import StartPosition, Metadata
+from hop.io import StartPosition, Metadata, list_topics
 from hop.models import GCNCircular, JSONBlob
 
 from hermes.brokers import hopskotch
@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 class UpdateTopicsException(Exception):
     pass
+
+SCIMMA_KAFKA_URL = 'kafka://kafka.scimma.org/'
 
 class Command(BaseCommand):
     help = """
@@ -85,8 +87,10 @@ class Command(BaseCommand):
         """
         if self.options['public']:
             logger.info('getting publicly_readable topics from SCiMMA Auth.')
-            topics = hopskotch.get_topics(self.api_token, publicly_readable_only=True)
-            publicly_readable_topics = [topic['name'] for topic in topics]
+            # use the hop-client to ask Kafka directly for the topics since SCiMMA Auth can be out of sync
+            # include only topics that a) contain a '.'; b) don't start with '__' (excludes __consumer_offsets)
+            publicly_readable_topics = [topic for topic in list_topics(SCIMMA_KAFKA_URL, self.hop_auth).keys()
+                                        if not (topic.startswith('__') and (topic.count('.')==0))]
             logger.info(f'publicly_readable_topics: {publicly_readable_topics}')
         else:
             publicly_readable_topics = []  # for when we combine with -T topics below
@@ -98,7 +102,8 @@ class Command(BaseCommand):
             extra_topics = self.options['topic'][0] # repeatable parser arg is list of lists
         logger.debug(f'extra_topics list: {extra_topics}')
 
-        topics_to_ingest = list(set(publicly_readable_topics + extra_topics))
+        topics_to_ingest = list(set(publicly_readable_topics + extra_topics))  # remove any duplicates
+
         return topics_to_ingest
 
 
@@ -171,7 +176,7 @@ class Command(BaseCommand):
             alert_handler = self._construct_alert_handler(topics_to_ingest)
             logger.info(f'topics_to_ingest: {topics_to_ingest}')
 
-            stream_url = f'kafka://kafka.scimma.org/{",".join(topics_to_ingest)}'
+            stream_url = f'{SCIMMA_KAFKA_URL}{",".join(topics_to_ingest)}'
             logger.debug(f'stream_url:  {stream_url}')
             # open for read ('r') returns a hop.io.Consumer instance
             with stream.open(stream_url, 'r') as consumer:
