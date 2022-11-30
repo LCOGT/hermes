@@ -4,7 +4,8 @@ from django.db import models
 
 class Message(models.Model):
     class Meta:
-        ordering = ['created']  # to avoid DRF pagination UnorderedObjectListWarning
+        # -created means newest first
+        ordering = ['-created']  # to avoid DRF pagination UnorderedObjectListWarning
 
     topic = models.TextField(blank=True)
     title = models.TextField(blank=True)
