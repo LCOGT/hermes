@@ -13,6 +13,7 @@ class MessageSerializer(serializers.HyperlinkedModelSerializer):
             'author',
             'data',
             'message_text',
+            'published'
             'created',
             'modified'
         ]
