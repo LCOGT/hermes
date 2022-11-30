@@ -325,6 +325,7 @@ class Command(BaseCommand):
         title: str = alert.content['Description']
         if not title:
             title = "<no Description specified>"
+            return  # TODO: remove this early exit when we want ALL notices
         if role == 'test':
             title: str = f'[{role}]: {title}'
 
