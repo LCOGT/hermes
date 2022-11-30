@@ -163,8 +163,6 @@ class PhotometryMessageSchema(MessageSchema):
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    pagination_class = None
-
 
 
 class TopicViewSet(viewsets.ViewSet):
