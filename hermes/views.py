@@ -15,8 +15,10 @@ from django.views.generic import ListView, DetailView, FormView, RedirectView, V
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from rest_framework.views import APIView
-from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
 
 from astropy.coordinates import SkyCoord
 from astropy import units
@@ -26,12 +28,11 @@ from marshmallow import Schema, fields, ValidationError, validates_schema, valid
 from hop import Stream
 from hop.auth import Auth
 
-from rest_framework import viewsets
-
 from hermes.brokers import hopskotch
-from hermes.models import Message
+from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.serializers import MessageSerializer
+from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
+from hermes.serializers import MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, NonLocalizedEventSequenceSerializer
 
 from datetime import datetime
 import astropy.time
@@ -78,8 +79,20 @@ def coordinates_valid(data):
                     raise ValidationError('Coordinates do not all have valid RA and Dec')
 
 
-class CandidateDataSchema(Schema):
-    candidate_id = fields.String(required=True)
+class MessageSchema(Schema):
+    title = fields.String(required=True)
+    topic = fields.String(required=True)
+    message_text = fields.String(required=True)
+    submitter = fields.String(required=True)
+    authors = fields.String()
+    @property
+    @abstractmethod
+    def data(self):
+        pass
+
+
+class CandidateSchema(Schema):
+    target_name = fields.String(required=True)
     ra = fields.String(required=True)
     dec = fields.String(required=True)
     discovery_date = fields.String(required=True)
@@ -101,24 +114,17 @@ class CandidateDataSchema(Schema):
             if row['brightness_unit'] not in brightness_units:
                 raise ValidationError(f'Unrecognized brightness unit. Accepted brightness units are {brightness_units}')
 
-class MessageSchema(Schema):
-    title = fields.String(required=True)
-    topic = fields.String(required=True)
+
+class CandidateDataSchema(Schema):
     event_id = fields.String()
-    message_text = fields.String(required=True)
-    submitter = fields.String(required=True)
-    authors = fields.String()
-    @property
-    @abstractmethod
-    def data(self):
-        pass
+    candidates = fields.List(fields.Nested(CandidateSchema))
 
 
 class CandidateMessageSchema(MessageSchema):
     data = fields.Nested(CandidateDataSchema)
 
 
-class PhotometryDataSchema(Schema):
+class PhotometrySchema(Schema):
     target_name = fields.String()
     ra = fields.String()
     dec = fields.String()
@@ -156,15 +162,69 @@ class PhotometryDataSchema(Schema):
                     raise ValidationError(f'Date observed: {row["date_observed"]} does not parse and no expected date format was provided.')
 
 
+class PhotometryDataSchema(Schema):
+    event_id = fields.String()
+    photometry = fields.List(fields.Nested(PhotometrySchema))
+
+
 class PhotometryMessageSchema(MessageSchema):
     data = fields.Nested(PhotometryDataSchema)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
+    http_method_names = ['get', 'head', 'options']
     serializer_class = MessageSerializer
-    pagination_class = None
+    filterset_class = MessageFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
 
+
+class TargetViewSet(viewsets.ModelViewSet):
+    queryset = Target.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = TargetSerializer
+    filterset_class = TargetFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
+
+
+class NonLocalizedEventViewSet(viewsets.ModelViewSet):
+    queryset = NonLocalizedEvent.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = NonLocalizedEventSerializer
+    filterset_class = NonLocalizedEventFilter
+    filter_backends = (
+        DjangoFilterBackend,
+    )
+
+    @action(detail=True, methods=['get'])
+    def targets(self, request, pk=None):
+        targets = Target.objects.filter(messages__nonlocalizedevents__event_id=pk)
+        return Response(TargetSerializer(targets, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def sequences(self, request, pk=None):
+        sequences = NonLocalizedEventSequence.objects.filter(event__event_id=pk)
+        return Response(NonLocalizedEventSequenceSerializer(sequences, many=True).data)
+
+
+class NonLocalizedEventSequenceViewSet(viewsets.ModelViewSet):
+    queryset = NonLocalizedEventSequence.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = NonLocalizedEventSequenceSerializer
+    filterset_class = NonLocalizedEventSequenceFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
 
 
 class TopicViewSet(viewsets.ViewSet):
@@ -311,8 +371,9 @@ class HopSubmitCandidatesView(APIView):
          submitter: <submitter of the message>,
          authors: <Text full list of authors on a message>
          message_text: <Text of the message to send>,
-         event_id: <ID of the non-localized event for these candidates>,
-         data: {[{candidate_id: <ID of the candidate>,
+         data: {
+            event_id:  <ID of the non-localized event for these candidates>,
+            candidates: [{target_name: <ID of the candidate target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
                   discovery_date: <Date/time of the candidate discovery>,
@@ -324,7 +385,8 @@ class HopSubmitCandidatesView(APIView):
                   brightness_error: <Brightness error of the candidate at discovery>,
                   brightness_unit: <Brightness units for the discovery, 
                                    current supported values: [AB mag, Vega mag]>
-                           }, ...]}
+                           }, ...]
+            }
         }
         """
         return Response({"message": message}, status.HTTP_200_OK)
@@ -352,7 +414,9 @@ class SubmitPhotometryView(APIView):
          authors: <Text full list of authors on a message>
          message_text: <Text of the message to send>,
          event_id: <ID of the non-localized event for these candidates>,
-         data: {[{target_name: <Name of the observed target>,
+         data: {
+            event_id: <ID of the non-localized event for these candidates>,
+            photometry: [{target_name: <Name of the observed target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
                   date_observed: <Date/time of the observation>,
@@ -363,7 +427,8 @@ class SubmitPhotometryView(APIView):
                   brightness_error: <Brightness error of the candidate at discovery>,
                   brightness_unit: <Brightness units for the discovery, 
                                    current supported values: [AB mag, Vega mag, mJy, and erg / s / cm² / Å]>
-                           }, ...]}
+                           }, ...]
+            }
         }
         """
         return Response({"message": message}, status.HTTP_200_OK)

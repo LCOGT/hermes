@@ -14,6 +14,8 @@ from confluent_kafka import cimpl
 
 from hermes.brokers import hopskotch
 from hermes.models import Message
+from hermes import parsers
+
 
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
@@ -271,6 +273,7 @@ class Command(BaseCommand):
                 'message_text': gcn_circular.body,
             }
         )
+        parsers.GCNCircularParser().parse(message, gcn_circular.header)
 
         if created:
             logger.info(f'created new Message with id: {message.id}')

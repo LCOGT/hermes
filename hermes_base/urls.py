@@ -26,6 +26,9 @@ logger.setLevel(logging.DEBUG)
 
 router = routers.DefaultRouter()
 router.register(r'messages', views.MessageViewSet)
+router.register(r'nonlocalizedevents', views.NonLocalizedEventViewSet)
+router.register(r'nonlocalizedeventsequence', views.NonLocalizedEventSequenceViewSet)
+router.register(r'targets', views.TargetViewSet)
 router.register(r'topics', views.TopicViewSet, basename='topic')
 
 urlpatterns = [
