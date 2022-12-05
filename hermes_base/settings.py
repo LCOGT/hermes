@@ -44,11 +44,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_filters',
     'corsheaders',
     'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
     'mozilla_django_oidc',
+    'tom_alertstreams',
     'hermes',
 ]
 
@@ -93,7 +95,7 @@ WSGI_APPLICATION = 'hermes_base.wsgi.application'
 
 DATABASES = {
    'default': {
-       'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+       'ENGINE': os.getenv('DB_ENGINE', 'django.contrib.gis.db.backends.postgis'),
        'NAME': os.getenv('DB_NAME', 'hermes'),
        'USER': os.getenv('DB_USER', 'postgres'),
        'PASSWORD': os.getenv('DB_PASS', 'postgres'),
@@ -177,6 +179,7 @@ ALLOW_LOGOUT_GET_METHOD = True
 
 # https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
 AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
     'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
     # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 ]
@@ -214,6 +217,54 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 100,
 }
+
+
+# TOM-Alertstreams configuration
+ALERT_STREAMS = [
+    {
+        'ACTIVE': True,
+        'NAME': 'tom_alertstreams.alertstreams.hopskotch.HopskotchAlertStream',
+        'OPTIONS': {
+            'URL': 'kafka://kafka.scimma.org/',
+            'USERNAME': os.getenv('SCIMMA_AUTH_USERNAME', ''),
+            'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
+            'TOPIC_HANDLERS': {
+                'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes-perm.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
+                '*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
+            },
+        },
+    },
+    {
+        'ACTIVE': True,
+        'NAME': 'tom_alertstreams.alertstreams.gcn.GCNClassicAlertStream',
+        # The keys of the OPTIONS dictionary become (lower-case) properties of the AlertStream instance.
+        'OPTIONS': {
+            # see https://github.com/nasa-gcn/gcn-kafka-python#to-use for configuration details.
+            'GCN_CLASSIC_CLIENT_ID': os.getenv('GCN_CLASSIC_CLIENT_ID', ''),
+            'GCN_CLASSIC_CLIENT_SECRET': os.getenv('GCN_CLASSIC_CLIENT_SECRET', ''),
+            'DOMAIN': 'gcn.nasa.gov',  # optional, defaults to 'gcn.nasa.gov'
+            'CONFIG': {  # optional
+                # 'group.id': 'tom_alertstreams-my-custom-group-id',
+                'auto.offset.reset': 'earliest',
+                # 'enable.auto.commit': False
+            },
+            'TOPIC_HANDLERS': {
+                # 'gcn.classic.text.FERMI_GBM_ALERT': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_GRB_ALERT': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.SWIFT_POINTDIR': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.LVC_INITIAL': 'tom_demo.log_stuff.handle_message',
+                'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+            },
+        },
+    }
+]
 
 
 #
