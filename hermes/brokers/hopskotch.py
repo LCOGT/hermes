@@ -37,7 +37,7 @@ import scramp
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 # TODO: the idea is that SCIMMA_ADMIN_BASE_URL is the only configuration
 #   needed in settings.py, but consider moving the service account creds

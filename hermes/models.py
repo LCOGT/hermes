@@ -5,6 +5,10 @@ from django.contrib.gis.db import models as gis_models
 
 
 class Message(models.Model):
+    class Meta:
+        # -created means newest first
+        ordering = ['-created']  # to avoid DRF pagination UnorderedObjectListWarning
+
     topic = models.TextField(blank=True, db_index=True)
     title = models.TextField(blank=True)
     author = models.TextField(blank=True)

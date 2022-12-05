@@ -326,10 +326,11 @@ class Command(BaseCommand):
 
         role: str = alert.content['role']
         title: str = alert.content['Description']
-        if not title:
-            title = "<no Description specified>"
         if role == 'test':
             title: str = f'[{role}]: {title}'
+        elif not title:
+            title = "<no Description specified>"
+            return  # TODO: remove this early exit when we want ALL notices
 
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
         published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
