@@ -110,6 +110,8 @@ class GCNLVCCounterpartNoticeParser(BaseParser):
             message_date = self.parse_obs_timestamp(parsed_fields)
             if message_date:
                 message.published = message_date
+            if parsed_fields.get('submitter'):
+                message.author = parsed_fields['submitter']
             message.message_parser = repr(self)
             message.save()
             self.link_message(message)

@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from dateutil.parser import parse
-
+from copy import deepcopy
 from hermes.models import Message
 from hermes.parsers import GCNLVCNoticeParser, GCNLVCCounterpartNoticeParser, GCNCircularParser
 
@@ -74,14 +74,14 @@ class Command(BaseCommand):
             )
             GCNLVCNoticeParser().parse(message)
         elif options.get('type') == 'GCN_CIRCULAR':
-            header = BASE_GCN_CIRCULAR['header']
+            header = deepcopy(BASE_GCN_CIRCULAR['header'])
             header['subject'] = header['subject'].format(event_id=options.get('event_id'))
             header['date'] = header['date'].format(published=options.get('published'))
             header['from'] = header['from'].format(author=options.get('author'))
             message, _ = Message.objects.get_or_create(
                 topic=options.get('type'),
                 author=options.get('author'),
-                published=options.get('published'),
+                published=parse(options.get('published')),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],
                 data=header

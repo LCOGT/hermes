@@ -92,7 +92,7 @@ class GCNLVCNoticeParser(BaseParser):
         if 'trigger_num' in message.data:
             nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id = message.data['trigger_num'])
             if 'sequence_num' in message.data:
-                notice_type = self.convert_notice_type(message.data.get('NOTICE_TYPE', ''))
+                notice_type = self.convert_notice_type(message.data.get('notice_type', ''))
                 NonLocalizedEventSequence.objects.get_or_create(
                     event=nonlocalizedevent, sequence_number=message.data['sequence_num'], sequence_type=notice_type,
                     defaults={

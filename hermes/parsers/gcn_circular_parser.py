@@ -64,13 +64,12 @@ class GCNCircularParser(BaseParser):
         ''' extra_data contains the header information for gcn circular messages
         '''
         parsed_fields = message.data
-        try:
-            if all(x.lower() in parsed_fields['title'].lower() for x in ['GCN', 'CIRCULAR']):
+        if all(x.lower() in parsed_fields['title'].lower() for x in ['GCN', 'CIRCULAR']):
                 message.message_parser = repr(self)
                 message.save()
                 self.link_message(message)
-        except Exception as e:
-            logger.warn(f'parse_message failed for gcn circular Message {message.id}: {e}')
+                return True
+        return False
 
     def parse(self, message):
         try:
