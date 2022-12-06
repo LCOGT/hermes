@@ -19,6 +19,7 @@ class BaseParser(ABC):
         ''' Method takes in a message instance, and fills in its data field with JSON data
             This method could also get or create some other model instances in order to link
             them to this message with different relationships.
+            Should return True if the message can be parsed, False if it cannot.
         '''
         pass
 
@@ -90,12 +91,3 @@ class BaseParser(ABC):
         filename = filename.replace('LALInference.fits.gz', 'LALInference.multiorder.fits')
         filename = filename.replace('bayestar.fits.gz', 'bayestar.multiorder.fits')
         return os.path.join(base, filename)
-
-
-class DefaultParser(BaseParser):
-
-    def __repr__(self):
-        return 'Default Parser'
-
-    def parse(self, message):
-        return {}
