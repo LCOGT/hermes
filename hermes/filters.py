@@ -14,11 +14,16 @@ class MessageFilter(filters.FilterSet):
     polygon_search = filters.CharFilter(method='filter_polygon_search', label='Polygon Search',
                                         help_text='Comma-separated pairs of space-delimited coordinates (degrees).')
     event_id = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='icontains', label='Event Id contains')
+    event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
+    message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
+    data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
+    topic_contains = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
 
     class Meta:
         model = Message
         fields = (
-            'topic', 'title', 'published', 'author', 'created', 'modified', 'message_text', 'cone_search', 'polygon_search', 'event_id'
+            'topic', 'title', 'published', 'author', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
+            'event_id_exact', 'message_contains', 'data_has_key', 'topic_contains'
         )
 
 
