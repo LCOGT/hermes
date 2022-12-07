@@ -17,13 +17,16 @@ class MessageFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
     message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic_contains = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
+    topic = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
+    topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
+    author = filters.CharFilter(field_name='author', lookup_expr='icontains', help_text='Author contains keyword')
+    title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
 
     class Meta:
         model = Message
         fields = (
             'topic', 'title', 'published', 'author', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'message_contains', 'data_has_key', 'topic_contains'
+            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains'
         )
 
 
@@ -46,22 +49,26 @@ class MessageFilter(filters.FilterSet):
 
 
 class NonLocalizedEventFilter(filters.FilterSet):
+    event_id_exact = filters.CharFilter(field_name='event_id', lookup_expr='exact', label='Event Id exact')
+    event_id = filters.CharFilter(field_name='event_id', lookup_expr='icontains', label='Event Id contains')
+
     class Meta:
         model = NonLocalizedEvent
         fields = (
-            'event_id',
+            'event_id', 'event_id_exact'
         )
 
 
 class NonLocalizedEventSequenceFilter(filters.FilterSet):
     event_id = filters.CharFilter(field_name='event__event_id', lookup_expr='icontains', label='Event Id contains')
+    event_id_exact = filters.CharFilter(field_name='event__event_id', lookup_expr='exact', label='Event Id exact')
     sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES)
     exclude_sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES, exclude=True)
 
     class Meta:
         model = NonLocalizedEventSequence
         fields = (
-            'event_id', 'sequence_number', 'sequence_type'
+            'event_id', 'event_id_exact', 'sequence_number', 'sequence_type'
         )
 
 
@@ -71,11 +78,13 @@ class TargetFilter(filters.FilterSet):
     polygon_search = filters.CharFilter(method='filter_polygon_search', label='Polygon Search',
                                         help_text='Comma-separated pairs of space-delimited coordinates (degrees).')
     event_id = filters.CharFilter(field_name='messages__nonlocalizedevents__event_id', lookup_expr='icontains', label='Event Id contains')
+    name = filters.CharFilter(field_name='name', lookup_expr='icontains', help_text='Name contains keyword')
+    name_exact = filters.CharFilter(field_name='name', lookup_expr='exact', help_text='Name exact')
 
     class Meta:
         model = Target
         fields = (
-            'name', 'cone_search', 'polygon_search'
+            'name', 'cone_search', 'polygon_search', 'name_exact'
         )
 
     def filter_cone_search(self, queryset, name, value):

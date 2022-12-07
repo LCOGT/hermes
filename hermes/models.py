@@ -12,12 +12,11 @@ class Message(models.Model):
     topic = models.TextField(blank=True, db_index=True)
     title = models.TextField(blank=True)
     author = models.TextField(blank=True)
-    data = models.JSONField(null=True)
+    data = models.JSONField(null=True, blank=True)
     message_text = models.TextField(blank=True)
     published = models.DateTimeField(auto_now_add=True,
                                      verbose_name='Time Published to Stream from message metadata.')
-
-    message_parser = models.CharField(max_length=128, default='')
+    message_parser = models.CharField(max_length=128, default='', blank=True)
     created = models.DateTimeField(auto_now_add=True, verbose_name='Time Created')
     modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
