@@ -26,7 +26,7 @@ def handle_message(message):
         topic=topic,
         message_text=message_text,
         defaults={
-            'author':'GCN Classic Over Kafka'
+            'submitter':'GCN Classic Over Kafka',
         }
     )
 

@@ -19,14 +19,15 @@ class MessageFilter(filters.FilterSet):
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
     topic = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
     topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
-    author = filters.CharFilter(field_name='author', lookup_expr='icontains', help_text='Author contains keyword')
+    authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
+    submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
     title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
 
     class Meta:
         model = Message
         fields = (
-            'topic', 'title', 'published', 'author', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains'
+            'topic', 'title', 'published', 'authors', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
+            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter'
         )
 
 

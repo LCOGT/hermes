@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from http.client import responses
 import json
 import logging
@@ -20,10 +19,7 @@ from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from astropy.coordinates import SkyCoord
-from astropy import units
 import jsons
-from marshmallow import Schema, fields, ValidationError, validates_schema, validate
 
 from hop import Stream
 from hop.auth import Auth
@@ -32,11 +28,8 @@ from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
-from hermes.serializers import MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, NonLocalizedEventSequenceSerializer
-
-from datetime import datetime
-import astropy.time
-
+from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, GenericHermesMessageSerializer,
+                                NonLocalizedEventSequenceSerializer, HermesCandidateSerializer, HermesPhotometrySerializer)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -65,110 +58,6 @@ def _extract_hop_auth(request) -> Auth:
         hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
 
     return hop_user_auth
-
-
-def coordinates_valid(data):
-        for row in data:
-            try:
-                ra, dec = float(row['ra']), float(row['dec'])
-                SkyCoord(ra, dec, unit=(units.deg, units.deg))
-            except:
-                try:
-                    SkyCoord(row['ra'], row['dec'], unit=(units.hourangle, units.deg))
-                except:
-                    raise ValidationError('Coordinates do not all have valid RA and Dec')
-
-
-class MessageSchema(Schema):
-    title = fields.String(required=True)
-    topic = fields.String(required=True)
-    message_text = fields.String(required=True)
-    submitter = fields.String(required=True)
-    authors = fields.String()
-    @property
-    @abstractmethod
-    def data(self):
-        pass
-
-
-class CandidateSchema(Schema):
-    target_name = fields.String(required=True)
-    ra = fields.String(required=True)
-    dec = fields.String(required=True)
-    discovery_date = fields.String(required=True)
-    telescope = fields.String()
-    instrument = fields.String()
-    band = fields.String(required=True)
-    brightness = fields.Float()
-    brightnessError = fields.Float()
-    brightnessUnit = fields.String()
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_coordinates(self, data):
-        coordinates_valid(data)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_brightness_unit(self, data):
-        brightness_units = ['AB mag', 'Vega mag']
-        for row in data:
-            if row['brightness_unit'] not in brightness_units:
-                raise ValidationError(f'Unrecognized brightness unit. Accepted brightness units are {brightness_units}')
-
-
-class CandidateDataSchema(Schema):
-    event_id = fields.String()
-    candidates = fields.List(fields.Nested(CandidateSchema))
-
-
-class CandidateMessageSchema(MessageSchema):
-    data = fields.Nested(CandidateDataSchema)
-
-
-class PhotometrySchema(Schema):
-    target_name = fields.String()
-    ra = fields.String()
-    dec = fields.String()
-    date_observed = fields.String(required=True)
-    date_format = fields.String()
-    telescope = fields.String(required=True)
-    instrument = fields.String()
-    band = fields.String(required=True)
-    brightness = fields.Float(required=True)
-    brightness_error = fields.Float(required=True)
-    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"]), required=True)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_coordinates(self, data):
-        coordinates_valid(data)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_date_observed(self, data):
-        for row in data:
-            if 'date_format' in row:
-                if 'jd' in row['date_format'].lower():
-                    try: 
-                        float(row['date_observed'])
-                    except ValueError:
-                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
-                else:
-                    try:
-                        date_observed = datetime.strptime(row['date_observed'], row['date_format'])
-                    except ValueError:
-                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
-            else:
-                try:
-                    date_observed = astropy.time.Time(row["date_observed"])
-                except ValueError:
-                    raise ValidationError(f'Date observed: {row["date_observed"]} does not parse and no expected date format was provided.')
-
-
-class PhotometryDataSchema(Schema):
-    event_id = fields.String()
-    photometry = fields.List(fields.Nested(PhotometrySchema))
-
-
-class PhotometryMessageSchema(MessageSchema):
-    data = fields.Nested(PhotometryDataSchema)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -283,7 +172,7 @@ class MessageFormView(FormView):
         new_message_data = form.cleaned_data
 
         # List of universal Fields
-        non_json_fields = ['title', 'author', 'message_text']
+        non_json_fields = ['title', 'authors', 'message_text']
         non_json_dict = {key: new_message_data[key] for key in new_message_data.keys() if key in non_json_fields}
         message = Message(**non_json_dict)
 
@@ -333,33 +222,46 @@ def submit_to_hop(request, message):
     return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
 
 
-class HopSubmitView(APIView):
-    """
-    Submit a message to the hop client
-    """
+class SubmitHermesMessageViewSet(viewsets.ViewSet):
+    serializer_class = GenericHermesMessageSerializer
+    
+    def get(self, request, *args, **kwargs):
+        message = """This endpoint is used to send a generic hermes message
+        
+        Requests should be structured as below:
+        
+        {title: <Title of the message>,
+         topic: <kafka topic to post message to>, 
+         submitter: <submitter of the message>,
+         authors: <Text full list of authors on a message>
+         message_text: <Text of the message to send>,
+         data: {<Unparsed json data dict>}
+        }
+        """
+        return Response({"message": message}, status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        """Sumbit to Hopskotch
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            data = serializer.validated_data
+            return submit_to_hop(request, data)
+        else:
+            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-        Requests to this method go through rest_framework.authentication.SessionMiddleware
-        and as such require a CSRF token in the header. see GetCSRFTokenView.
+    @action(detail=False, methods=['post'])
+    def validate(self, request):
+        """ Validate a RequestGrouo
         """
-        # request.data does not read the data stream again. So,
-        # that is more appropriate than request.body which does
-        # (read the stream again).
-        # NO:
-        #logger.info(f'type(request.body): {type(request.body)}')
-        #logger.info(f'request.body: {request.body}')
-        # YES:
-        logger.debug(f'HopSubmitView.post: request.data: {request.data}')
-
-        return submit_to_hop(request, request.data)
-
-    def get(self, request, *args, **kwargs):
-        return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            return Response({}, status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
 
-class HopSubmitCandidatesView(APIView):
+class SubmitCandidatesViewSet(SubmitHermesMessageViewSet):
+    serializer_class = HermesCandidateSerializer
+
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a message with a list of potential candidates corresponding to a 
         non-localized event.
@@ -373,10 +275,11 @@ class HopSubmitCandidatesView(APIView):
          message_text: <Text of the message to send>,
          data: {
             event_id:  <ID of the non-localized event for these candidates>,
+            extra_data: {<dict of key/value pairs of extra unparsed data>},
             candidates: [{target_name: <ID of the candidate target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  discovery_date: <Date/time of the candidate discovery>,
+                  date: <Date/time of the candidate discovery>,
                   date_format: <Python strptime format string or "mjd" or "jd">,
                   telescope: <Discovery telescope>,
                   instrument: <Discovery instrument>,
@@ -391,18 +294,10 @@ class HopSubmitCandidatesView(APIView):
         """
         return Response({"message": message}, status.HTTP_200_OK)
 
-    def post(self, request, *args, **kwargs):
-        candidate_schema = CandidateMessageSchema()
-        candidates, errors = candidate_schema.load(request.json)
 
-        logger.debug(f"Request data: {request.json}")
-        if errors:
-            return Response(errors, status.HTTP_400_BAD_REQUEST)
+class SubmitPhotometryViewSet(SubmitHermesMessageViewSet):
+    serializer_class = HermesPhotometrySerializer
 
-        return submit_to_hop(request, vars(candidates))
-
-
-class SubmitPhotometryView(APIView):
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a message to report photometry of one or more targets.
          
@@ -416,10 +311,12 @@ class SubmitPhotometryView(APIView):
          event_id: <ID of the non-localized event for these candidates>,
          data: {
             event_id: <ID of the non-localized event for these candidates>,
+            extra_data: {<dict of key/value pairs of extra unparsed data>},
             photometry: [{target_name: <Name of the observed target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  date_observed: <Date/time of the observation>,
+                  date: <Date/time of the observation>,
+                  date_format: <Python strptime format string or "mjd" or "jd">,
                   telescope: <Discovery telescope>,
                   instrument: <Discovery instrument>,
                   band: <Wavelength band of the discovery observation>,
@@ -432,16 +329,6 @@ class SubmitPhotometryView(APIView):
         }
         """
         return Response({"message": message}, status.HTTP_200_OK)
-
-    def post(self, request, *args, **kwargs):
-        photometry_schema = PhotometryMessageSchema()
-        photometry, errors = photometry_schema.load(request.json)
-
-        if errors:
-            logger.debug(f"Request data: {request.json}")
-            return Response(errors, status.HTTP_400_BAD_REQUEST)
-
-        return submit_to_hop(request, vars(photometry))
 
 
 class LoginRedirectView(RedirectView):

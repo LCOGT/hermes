@@ -1,8 +1,11 @@
 from django.test import TestCase
 from django.core.management import call_command
 from django.urls import reverse
+from django.utils import timezone
+from copy import deepcopy
 
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
+from hermes.serializers import HermesCandidateSerializer
 
 class TestApiFiltering(TestCase):
     @classmethod
@@ -106,3 +109,126 @@ class TestApiFiltering(TestCase):
         self.assertContains(result, target_name)
         self.assertContains(result, self.target2_ra)
         self.assertContains(result, self.target2_dec)
+
+
+class TestSubmitGenericMessageApi(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.generic_message = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'anything': 'goes',
+                'in': [{
+                    'here': 'or',
+                    'ra': '33.2',
+                    'dec': '42.2'
+                }]
+            }
+        }
+    
+    def test_good_message_submission_accepted(self):
+        result = self.client.post(reverse('submit_message-validate'), self.generic_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+
+    def test_good_message_submission_without_data_accepted(self):
+        good_message = deepcopy(self.generic_message)
+        del good_message['data']
+        del good_message['authors']
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+    
+    def test_message_submission_required_topic(self):
+        bad_message = deepcopy(self.generic_message)
+        del bad_message['topic']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'field is required', status_code=400)
+
+
+class TestSubmitCandidatesApi(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.good_candidate = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'event_id': 'S123456',
+                'candidates': [{
+                    'target_name': 'm44',
+                    'ra': '33.2',
+                    'dec': '42.2',
+                    'date': timezone.now().isoformat(),
+                    'telescope': '1m0a.doma.elp.lco',
+                    'instrument': 'fa16',
+                    'band': 'g',
+                    'brightness': 22.5,
+                    'brightness_error': 1.5,
+                    'brightness_unit': 'AB mag'
+            }],
+                'extra_data': {
+                    'test_key': 'test_value'
+                }
+            }
+        }
+
+    def test_good_candidate_submission_accepted(self):
+        result = self.client.post(reverse('submit_candidates-validate'), self.good_candidate, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+
+    def test_candidate_time_mjd_submission_accepted(self):
+        good_candidate = deepcopy(self.good_candidate)
+        good_candidate['data']['candidates'][0]['date'] = '2348532.241'
+        good_candidate['data']['candidates'][0]['date_format'] = 'mjd'
+        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+
+    def test_candidate_unknown_time_format_rejected(self):
+        bad_candidate = deepcopy(self.good_candidate)
+        bad_candidate['data']['candidates'][0]['date'] = '2348532.241'
+        bad_candidate['data']['candidates'][0]['date_format'] = 'geo'
+        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+        self.assertContains(result, 'does not parse', status_code=400)
+
+    def test_candidate_ha_ra_format(self):
+        good_candidate = deepcopy(self.good_candidate)
+        good_candidate['data']['candidates'][0]['ra'] = '23:21:16'
+        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+
+        # Now check the ra is converted to decimal degrees within the validated data
+        serializer = HermesCandidateSerializer(data=good_candidate)
+        self.assertTrue(serializer.is_valid())
+        expected_ra_deg = 350.316666666666
+        self.assertAlmostEqual(serializer.validated_data['data']['candidates'][0]['ra'], expected_ra_deg)
+
+    def test_candidate_unknown_ra_format_rejected(self):
+        bad_candidate = deepcopy(self.good_candidate)
+        bad_candidate['data']['candidates'][0]['ra'] = 'Ra is 5.2'
+        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+        self.assertContains(result, 'Failed to validate coordinates', status_code=400)
+
+    def test_only_required_fields_accepted(self):
+        good_candidate = deepcopy(self.good_candidate)
+        del good_candidate['authors']
+        del good_candidate['data']['extra_data']
+        del good_candidate['data']['candidates'][0]['brightness']
+        del good_candidate['data']['candidates'][0]['brightness_error']
+        del good_candidate['data']['candidates'][0]['brightness_unit']
+        del good_candidate['data']['candidates'][0]['telescope']
+        del good_candidate['data']['candidates'][0]['instrument']
+
+        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+    
+    def test_missing_a_required_field_rejected(self):
+        bad_candidate = deepcopy(self.good_candidate)
+        del bad_candidate['topic']
+
+        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+        self.assertContains(result, 'field is required', status_code=400)

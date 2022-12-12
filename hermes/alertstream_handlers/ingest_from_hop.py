@@ -53,7 +53,7 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     hop.models.GCNCircular field mapping to hermes.models.Message:
     metadata.topic --> topic
     subject        --> title
-    from           --> author
+    from           --> authors
     body           --> message_text
 
     The topic and body fields will be used to query the database for the Message
@@ -71,7 +71,8 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
         message_text=gcn_circular.body,
         published=published_time,
         title=gcn_circular.header['subject'],
-        author=gcn_circular.header['from'],
+        submitter='Hop gcn.circular',
+        authors=gcn_circular.header['from'],
         data=gcn_circular.header
     )
     GCN_CIRCULAR_PARSER.parse(message)
@@ -85,7 +86,7 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     """Ingest a Hermes-published alert.
 
     This method understands that Hermes-published alerts have the following content keys:
-    'topic', 'title', 'author', 'data', and 'message_text'.
+    'topic', 'title', 'authors', 'data', and 'message_text'.
     """
     logger.debug(f'updating db with hermes alert {hermes_message}')
     logger.debug(f'metadata: {metadata}')
@@ -98,7 +99,8 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
             # all these fields must match for update...
             topic=hermes_message.content['topic'],
             title=hermes_message.content['title'],
-            author=hermes_message.content['author'],
+            submitter=hermes_message.content['submitter'],
+            authors=hermes_message.content['authors'],
             data=hermes_message.content['data'],
             message_text=hermes_message.content['message_text'],
             published=published_time,

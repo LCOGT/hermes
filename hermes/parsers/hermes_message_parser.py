@@ -45,7 +45,7 @@ class HermesMessageParser(BaseParser):
         ''' Attempt to link or create extra models to relate targets or nonlocalized events to this message
         '''
         data = message.data
-        if data:
+        if not data:
             return
         if 'event_id' in data:
             nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id=data['event_id'])

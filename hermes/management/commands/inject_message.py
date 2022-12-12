@@ -54,7 +54,8 @@ class Command(BaseCommand):
                 topic=options.get('type'),
                 message_text=message_text,
                 defaults={
-                    'author': options.get('author')
+                    'authors': options.get('author'),
+                    'submitter': 'inject_message command'
                 }
             )
             GCNLVCCounterpartNoticeParser().parse(message)
@@ -69,7 +70,8 @@ class Command(BaseCommand):
                 topic = options.get('type'),
                 message_text=message_text,
                 defaults={
-                    'author': options.get('author')
+                    'submitter': 'inject_message command',
+                    'authors': options.get('author')
                 }
             )
             GCNLVCNoticeParser().parse(message)
@@ -80,7 +82,8 @@ class Command(BaseCommand):
             header['from'] = header['from'].format(author=options.get('author'))
             message, _ = Message.objects.get_or_create(
                 topic=options.get('type'),
-                author=options.get('author'),
+                submitter='inject_message command',
+                authors=options.get('author'),
                 published=parse(options.get('published')),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],

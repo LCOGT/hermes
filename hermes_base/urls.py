@@ -30,6 +30,9 @@ router.register(r'nonlocalizedevents', views.NonLocalizedEventViewSet, 'events')
 router.register(r'nonlocalizedeventsequence', views.NonLocalizedEventSequenceViewSet, 'eventsequences')
 router.register(r'targets', views.TargetViewSet, 'targets')
 router.register(r'topics', views.TopicViewSet, basename='topic')
+router.register(r'submit_candidates', views.SubmitCandidatesViewSet, 'submit_candidates')
+router.register(r'submit_photometry', views.SubmitPhotometryViewSet, 'submit_photometry')
+router.register(f'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
 
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),

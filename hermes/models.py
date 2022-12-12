@@ -1,6 +1,5 @@
 from pydoc_data.topics import topics
 from django.db import models
-from django.db.models.fields.json import KeyTransform
 from django.contrib.gis.db import models as gis_models
 
 
@@ -11,7 +10,8 @@ class Message(models.Model):
 
     topic = models.TextField(blank=True, db_index=True)
     title = models.TextField(blank=True)
-    author = models.TextField(blank=True)
+    submitter = models.TextField(blank=True)
+    authors = models.TextField(blank=True)
     data = models.JSONField(null=True, blank=True)
     message_text = models.TextField(blank=True)
     published = models.DateTimeField(auto_now_add=True,
@@ -21,7 +21,7 @@ class Message(models.Model):
     modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
     def __str__(self):
-        return f'{self.topic}: {self.title} from {self.author}'
+        return f'{self.topic}: {self.title} from {self.authors}'
 
 
 class Target(models.Model):

@@ -1,8 +1,9 @@
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
 from rest_framework import serializers
-from astropy.coordinates import Angle
+from astropy.coordinates import Angle, SkyCoord
 from astropy import units
-
+from dateutil.parser import parse
+from datetime import datetime
 
 class BaseTargetSerializer(serializers.ModelSerializer):
     right_ascension = serializers.SerializerMethodField()
@@ -47,7 +48,8 @@ class BaseMessageSerializer(serializers.HyperlinkedModelSerializer):
             'id',
             'topic',
             'title',
-            'author',
+            'submitter',
+            'authors',
             'data',
             'message_text',
             'published',
@@ -103,3 +105,124 @@ class TargetSerializer(BaseTargetSerializer):
 
     class Meta(BaseTargetSerializer.Meta):
         fields = BaseTargetSerializer.Meta.fields + ['messages',]
+
+
+def validate_coordinates(ra, dec):
+    try:
+        # First see if the coordinates are simple float values
+        float_ra, float_dec = float(ra), float(dec)
+        SkyCoord(float_ra, float_dec, unit=(units.deg, units.deg))
+        return float_ra, float_dec
+    except Exception:
+        try:
+            coord = SkyCoord(ra, dec, unit=(units.hourangle, units.deg))
+            return coord.ra.deg, coord.dec.deg
+        except Exception as ex:
+            raise serializers.ValidationError("Failed to validate coordinates. Please submit ra/dec in either deg/deg or ha/deg formats")
+
+
+class HermesMessageSerializer(serializers.Serializer):
+    title = serializers.CharField(required=True)
+    topic = serializers.CharField(required=True)
+    message_text = serializers.CharField(required=True)
+    submitter = serializers.CharField(required=True)
+    authors = serializers.CharField(required=False, default='')
+
+
+class GenericHermesMessageSerializer(HermesMessageSerializer):
+    data = serializers.JSONField(required=False)
+
+
+class CandidateSerializer(serializers.Serializer):
+    target_name = serializers.CharField(required=True)
+    ra = serializers.CharField(required=True)
+    dec = serializers.CharField(required=True)
+    date = serializers.CharField(required=True)
+    date_format = serializers.CharField(required=False)
+    telescope = serializers.CharField(required=False)
+    instrument = serializers.CharField(required=False)
+    band = serializers.CharField(required=True)
+    brightness = serializers.FloatField(required=False)
+    brightness_error = serializers.FloatField(required=False)
+    brightness_unit = serializers.ChoiceField(required=False, choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
+
+    def validate(self, data):
+        validated_data = super().validate(data)
+        validated_data['ra'], validated_data['dec'] = validate_coordinates(validated_data['ra'], validated_data['dec'])
+
+        date_format = validated_data.get('date_format')
+        if date_format:
+            if 'jd' in date_format.lower():
+                try:
+                    float(validated_data['date'])
+                except ValueError:
+                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse. JD formatted dates must be a float value.")
+            else:
+                try:
+                    datetime.strptime(validated_data['date'], date_format)
+                except ValueError:
+                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse based on provided date format: {date_format}.")
+        else:
+            try:
+                parse(validated_data['date'])
+            except ValueError:
+                raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse with dateutil.parser.parse. Please specify a date_format or change your date.")
+        return validated_data
+
+
+class CandidateDataSerializer(serializers.Serializer):
+    event_id = serializers.CharField(required=True)
+    extra_data = serializers.JSONField(required=False)
+    candidates = CandidateSerializer(many=True)
+
+
+class HermesCandidateSerializer(HermesMessageSerializer):
+    data = CandidateDataSerializer()
+
+
+#TODO: Right now the Photometry and Candidate serializers are the same, but I expect they will become different later
+class PhotometrySerializer(serializers.Serializer):
+    target_name = serializers.CharField(required=True)
+    ra = serializers.CharField(required=True)
+    dec = serializers.CharField(required=True)
+    date = serializers.CharField(required=True)
+    date_format = serializers.CharField(required=False)
+    telescope = serializers.CharField(required=False)
+    instrument = serializers.CharField(required=False)
+    band = serializers.CharField(required=True)
+    brightness = serializers.FloatField(required=False)
+    brightness_error = serializers.FloatField(required=False)
+    brightness_unit = serializers.ChoiceField(required=False, choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
+
+    def validate(self, data):
+        validated_data = super().validate(data)
+        validated_data['ra'], validated_data['dec'] = validate_coordinates(validated_data['ra'], validated_data['dec'])
+
+        date_format = validated_data.get('date_format')
+        if date_format:
+            if 'jd' in date_format.lower():
+                try:
+                    float(validated_data['date'])
+                except ValueError:
+                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse. JD formatted dates must be a float value.")
+            else:
+                try:
+                    datetime.strptime(validated_data['date'], validated_data['date'])
+                except ValueError:
+                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse based on provided date format: {date_format}.")
+        else:
+            try:
+                parse(validated_data['date'])
+            except ValueError:
+                raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse with dateutil.parser.parse. Please specify a date_format or change your date.")
+        return validated_data
+
+
+class PhotometryDataSerializer(serializers.Serializer):
+    event_id = serializers.CharField(required=True)
+    extra_data = serializers.JSONField(required=False)
+    candidates = CandidateSerializer(many=True)
+
+
+class HermesPhotometrySerializer(HermesMessageSerializer):
+    data = PhotometryDataSerializer()

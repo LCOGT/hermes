@@ -123,10 +123,10 @@ class TestLVCCounterpartParser(TestCase):
             topic='test_topic',
             message_text=get_lvc_counterpart_text(type='LVC_COUNTERPART', event_id=self.event_id, author=author)
         )
-        self.assertEqual(message.author, "")
+        self.assertEqual(message.authors, "")
         self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message))
         message.refresh_from_db()
-        self.assertEqual(author, message.author)
+        self.assertEqual(author, message.authors)
 
     def test_target_created_and_linked(self):
         target_ra = 52.3
@@ -211,7 +211,7 @@ class TestGCNCircularParser(TestCase):
         header = get_gcn_circular_header(self.event_id, author=author, published=published)
         message, _ = Message.objects.get_or_create(
                 topic='Test Topic',
-                author=header['from'],
+                authors=header['from'],
                 published=parse(header['date']),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],
@@ -227,7 +227,7 @@ class TestGCNCircularParser(TestCase):
         header = get_gcn_circular_header(event_id)
         message, _ = Message.objects.get_or_create(
                 topic='Test Topic',
-                author=header['from'],
+                authors=header['from'],
                 published=parse(header['date']),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],
@@ -245,7 +245,7 @@ class TestGCNCircularParser(TestCase):
         header['subject'] = f'This circular relates to events {self.event_id} and {event_id2}.'
         message, _ = Message.objects.get_or_create(
                 topic='Test Topic',
-                author=header['from'],
+                authors=header['from'],
                 published=parse(header['date']),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],
@@ -261,7 +261,7 @@ class TestGCNCircularParser(TestCase):
         header['title'] = 'Bad Title'
         message, _ = Message.objects.get_or_create(
                 topic='Test Topic',
-                author=header['from'],
+                authors=header['from'],
                 published=parse(header['date']),
                 title=header['subject'],
                 message_text=BASE_GCN_CIRCULAR['body'],
