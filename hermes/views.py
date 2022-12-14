@@ -240,7 +240,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         """
         return Response({"message": message}, status.HTTP_200_OK)
 
-    def post(self, request, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data

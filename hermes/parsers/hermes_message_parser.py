@@ -27,7 +27,7 @@ class HermesMessageParser(BaseParser):
     def find_and_link_targets(self, structure, message):
         if isinstance(structure, dict):
             if 'target_name' in structure and 'ra' in structure and 'dec' in structure:
-                    target, _ = Target.objects.get_or_create(name=structure['target_name'], coordinates=Point(float(structure['ra']), float(structure['dec']), srid=4035))
+                    target, _ = Target.objects.get_or_create(name=structure['target_name'], coordinate=Point(float(structure['ra']), float(structure['dec']), srid=4035))
                     if not target.messages.contains(message):
                         target.messages.add(message)
                         target.save()
