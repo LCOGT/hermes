@@ -191,7 +191,7 @@ class TopicViewSet(viewsets.ViewSet):
             return JsonResponse(data=default_topics)
 
         credential_name = user_hop_auth.username
-        user_api_token = hopskotch.get_user_api_token(username)
+        user_api_token = request.session['user_api_token']  # maintained in middleware
 
         topics = hopskotch.get_user_topic_permissions(username, credential_name, user_api_token,
                                                       exclude_groups=['sys'])
