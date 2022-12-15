@@ -10,7 +10,7 @@ from mozilla_django_oidc import auth
 from hermes.brokers import hopskotch
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 class NotInKafkaUsers(PermissionDenied):
     """COManage maintains a kafkaUsers group that a User must
@@ -194,7 +194,9 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         """
         user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
 
-        hop_auth = hopskotch.authorize_user(user.get_username())
+        hermes_api_token = request.session['hermes_api_token']
+        hop_auth = hopskotch.authorize_user(user.get_username(), hermes_api_token)
+
         # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
         request.session['hop_user_auth_json'] = jsons.dump(hop_auth)
 
@@ -217,7 +219,8 @@ def hopskotch_logout(request):
     # hop_user_auth_json added to Session dict in AuthenticationBackend.authenticate
     try:
         hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
-        hopskotch.deauthorize_user(request.user.username, hop_user_auth)
+        user_api_token = request.session['user_api_token']
+        hopskotch.deauthorize_user(request.user.username, hop_user_auth, user_api_token)
     except KeyError as err:
         logger.error(f'No hop.auth.Auth instance in Session. Clean up SCiMMA Auth manually. session: {request.session}')
 
