@@ -254,9 +254,10 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         """
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
-            return Response({}, status.HTTP_200_OK)
+            errors = {}
         else:
-            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
+            errors = serializer.errors
+        return Response(errors, status.HTTP_200_OK)
 
 
 class SubmitCandidatesViewSet(SubmitHermesMessageViewSet):

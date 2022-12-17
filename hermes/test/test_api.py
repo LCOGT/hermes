@@ -145,7 +145,7 @@ class TestSubmitGenericMessageApi(TestCase):
         bad_message = deepcopy(self.generic_message)
         del bad_message['topic']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'field is required', status_code=400)
+        self.assertContains(result, 'field is required', status_code=200)
 
 
 class TestSubmitCandidatesApi(TestCase):
@@ -193,13 +193,14 @@ class TestSubmitCandidatesApi(TestCase):
         bad_candidate['data']['candidates'][0]['date'] = '2348532.241'
         bad_candidate['data']['candidates'][0]['date_format'] = 'geo'
         result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
-        self.assertContains(result, 'does not parse', status_code=400)
+        self.assertContains(result, 'does not parse', status_code=200)
 
     def test_candidate_ha_ra_format(self):
         good_candidate = deepcopy(self.good_candidate)
         good_candidate['data']['candidates'][0]['ra'] = '23:21:16'
         result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
         self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
 
         # Now check the ra is converted to decimal degrees within the validated data
         serializer = HermesCandidateSerializer(data=good_candidate)
@@ -211,7 +212,7 @@ class TestSubmitCandidatesApi(TestCase):
         bad_candidate = deepcopy(self.good_candidate)
         bad_candidate['data']['candidates'][0]['ra'] = 'Ra is 5.2'
         result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
-        self.assertContains(result, 'Failed to validate coordinates', status_code=400)
+        self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
 
     def test_only_required_fields_accepted(self):
         good_candidate = deepcopy(self.good_candidate)
@@ -231,4 +232,4 @@ class TestSubmitCandidatesApi(TestCase):
         del bad_candidate['topic']
 
         result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
-        self.assertContains(result, 'field is required', status_code=400)
+        self.assertContains(result, 'field is required', status_code=200)

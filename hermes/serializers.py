@@ -4,6 +4,8 @@ from astropy.coordinates import Angle, SkyCoord
 from astropy import units
 from dateutil.parser import parse
 from datetime import datetime
+from django.utils.translation import gettext as _
+
 
 class BaseTargetSerializer(serializers.ModelSerializer):
     right_ascension = serializers.SerializerMethodField()
@@ -107,18 +109,23 @@ class TargetSerializer(BaseTargetSerializer):
         fields = BaseTargetSerializer.Meta.fields + ['messages',]
 
 
-def validate_coordinates(ra, dec):
-    try:
-        # First see if the coordinates are simple float values
-        float_ra, float_dec = float(ra), float(dec)
-        SkyCoord(float_ra, float_dec, unit=(units.deg, units.deg))
-        return float_ra, float_dec
-    except Exception:
+def validate_date(date, date_format=None):
+    if date_format:
+        if 'jd' in date_format.lower():
+            try:
+                float(date)
+            except ValueError:
+                raise serializers.ValidationError({'date': _(f"Date: {date} does not parse. JD formatted dates must be a float value.")})
+        else:
+            try:
+                datetime.strptime(date, date_format)
+            except ValueError:
+                raise serializers.ValidationError({'date': _(f"Date: {date} does not parse based on provided date format: {date_format}.")})
+    else:
         try:
-            coord = SkyCoord(ra, dec, unit=(units.hourangle, units.deg))
-            return coord.ra.deg, coord.dec.deg
-        except Exception as ex:
-            raise serializers.ValidationError("Failed to validate coordinates. Please submit ra/dec in either deg/deg or ha/deg formats")
+            parse(date)
+        except ValueError:
+            raise serializers.ValidationError({'date': _(f"Date: {date} does not parse with dateutil.parser.parse. Please specify a date_format or change your date.")})
 
 
 class HermesMessageSerializer(serializers.Serializer):
@@ -148,32 +155,47 @@ class CandidateSerializer(serializers.Serializer):
 
     def validate(self, data):
         validated_data = super().validate(data)
-        validated_data['ra'], validated_data['dec'] = validate_coordinates(validated_data['ra'], validated_data['dec'])
-
-        date_format = validated_data.get('date_format')
-        if date_format:
-            if 'jd' in date_format.lower():
-                try:
-                    float(validated_data['date'])
-                except ValueError:
-                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse. JD formatted dates must be a float value.")
-            else:
-                try:
-                    datetime.strptime(validated_data['date'], date_format)
-                except ValueError:
-                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse based on provided date format: {date_format}.")
-        else:
-            try:
-                parse(validated_data['date'])
-            except ValueError:
-                raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse with dateutil.parser.parse. Please specify a date_format or change your date.")
+        validate_date(validated_data['date'], validated_data.get('date_format'))
         return validated_data
+
+    def validate_ra(self, value):
+        try:
+            float_ra = float(value)
+            ra_angle = Angle(float_ra * units.deg)
+        except:
+            try:
+                ra_angle = Angle(value, unit=units.hourangle)
+            except:
+                try:
+                    ra_angle = Angle(value)
+                except:
+                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
+        return ra_angle.deg
+
+    def validate_dec(self, value):
+        try:
+            float_dec = float(value)
+            dec_angle = Angle(float_dec * units.deg)
+        except:
+            try:
+                dec_angle = Angle(value, unit=units.hourangle)
+            except:
+                try:
+                    dec_angle = Angle(value)
+                except:
+                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
+        return dec_angle.deg
 
 
 class CandidateDataSerializer(serializers.Serializer):
     event_id = serializers.CharField(required=True)
     extra_data = serializers.JSONField(required=False)
-    candidates = CandidateSerializer(many=True)
+    candidates = CandidateSerializer(many=True, required=True)
+
+    def validate_candidates(self, value):
+        if len(value) < 1:
+            raise serializers.ValidationError(_('At least one candidate must be defined'))
+        return value
 
 
 class HermesCandidateSerializer(HermesMessageSerializer):
@@ -196,33 +218,47 @@ class PhotometrySerializer(serializers.Serializer):
 
     def validate(self, data):
         validated_data = super().validate(data)
-        validated_data['ra'], validated_data['dec'] = validate_coordinates(validated_data['ra'], validated_data['dec'])
-
-        date_format = validated_data.get('date_format')
-        if date_format:
-            if 'jd' in date_format.lower():
-                try:
-                    float(validated_data['date'])
-                except ValueError:
-                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse. JD formatted dates must be a float value.")
-            else:
-                try:
-                    datetime.strptime(validated_data['date'], validated_data['date'])
-                except ValueError:
-                    raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse based on provided date format: {date_format}.")
-        else:
-            try:
-                parse(validated_data['date'])
-            except ValueError:
-                raise serializers.ValidationError(f"Date: {validated_data['date']} does not parse with dateutil.parser.parse. Please specify a date_format or change your date.")
+        validate_date(validated_data['date'], validated_data.get('date_format'))
         return validated_data
+
+    def validate_ra(self, value):
+        try:
+            float_ra = float(value)
+            ra_angle = Angle(float_ra * units.deg)
+        except:
+            try:
+                ra_angle = Angle(value, unit=units.hourangle)
+            except:
+                try:
+                    ra_angle = Angle(value)
+                except:
+                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
+        return ra_angle.deg
+
+    def validate_dec(self, value):
+        try:
+            float_dec = float(value)
+            dec_angle = Angle(float_dec * units.deg)
+        except:
+            try:
+                dec_angle = Angle(value, unit=units.hourangle)
+            except:
+                try:
+                    dec_angle = Angle(value)
+                except:
+                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
+        return dec_angle.deg
 
 
 class PhotometryDataSerializer(serializers.Serializer):
     event_id = serializers.CharField(required=True)
     extra_data = serializers.JSONField(required=False)
-    candidates = CandidateSerializer(many=True)
+    photometry = PhotometrySerializer(many=True)
 
+    def validate_photometry(self, value):
+        if len(value) < 1:
+            raise serializers.ValidationError(_('At least one piece of photometry must be defined'))
+        return value
 
 class HermesPhotometrySerializer(HermesMessageSerializer):
     data = PhotometryDataSerializer()
