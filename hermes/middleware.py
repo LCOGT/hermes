@@ -6,12 +6,11 @@ from django.utils import dateparse
 from hermes.brokers import hopskotch
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class SCiMMAAuthSessionRefresh:
     def __init__(self, get_response):
         self.get_response = get_response
-        # One-time configuration and initialization.
 
     def _is_expired(self, expiration: datetime.datetime) -> bool:
         """Return True if expiration is in the past, or within the next 15 minutes.
@@ -38,6 +37,8 @@ class SCiMMAAuthSessionRefresh:
         since admin privilidges are required to get the User API token
         """
         logger.debug(f'Refreshing SCiMMA Auth API token for User.')
+
+        # get the hermes service account API token and check it's expiration status
         hermes_api_token_expiration_str: str = request.session.get('hermes_api_token_expiration', None)
         if hermes_api_token_expiration_str:
             hermes_api_token_expiration: datetime.datetime = dateparse.parse_datetime(hermes_api_token_expiration_str)
@@ -76,7 +77,7 @@ class SCiMMAAuthSessionRefresh:
         else:
             logger.debug(f'SCiMMA Auth API token for {request.user.username} up-to-date.')
 
-        response = self.get_response(request)
+        response = self.get_response(request)  # pass the request to the next Middleware in the list
 
         # Code to be executed for each request/response after
         # the view is called.
