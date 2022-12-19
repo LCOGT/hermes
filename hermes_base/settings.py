@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
+    'hermes.middleware.SCiMMAAuthSessionRefresh',  # refresh SCiMMA Auth API tokens if necessary
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
