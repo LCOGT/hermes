@@ -235,7 +235,7 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth: Auth = get_user_hop_authorization(username, user_api_token)
     logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
-    credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_pk=user_pk, user_api_token=user_api_token)
+    credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
 
     add_permissions_to_credential(username, user_pk, credential_pk, user_api_token=user_api_token)
 
