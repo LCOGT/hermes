@@ -128,8 +128,7 @@ spec:
           command:
             - python
             - manage.py
-            - hopingest
-            - --public
+            - readstreams
           env:
             {{ include "hermes.extraEnv" . | nindent 12 }}
             {{ include "hermes.backendEnv" . | nindent 12 }}
