@@ -2,7 +2,6 @@ from http.client import responses
 import json
 import logging
 
-
 from django.contrib.auth.models import User
 from django.conf import settings
 
@@ -27,6 +26,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
+from hermes.utils import get_all_public_topics
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, GenericHermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, HermesCandidateSerializer, HermesPhotometrySerializer)
@@ -134,8 +134,9 @@ class TopicViewSet(viewsets.ViewSet):
             # This means no SCRAM creds were saved in this request's Session dict
             # TODO: what to do for HERMES Guest (AnonymousUser)
             logger.error(f'TopicViewSet {err}')
+            all_topics = get_all_public_topics()
             default_topics = {
-                'read': ['hermes.test', 'gcn.circular'],
+                'read': all_topics,
                 'write': ['hermes.test'],
                 }
             logger.error(f'TopicViewSet returning default topics: {default_topics}')
