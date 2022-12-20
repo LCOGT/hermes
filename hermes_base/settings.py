@@ -232,7 +232,7 @@ ALERT_STREAMS = [
                 'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'hermes-perm.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
-                '*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
+                #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
             },
         },
     },
