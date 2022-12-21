@@ -83,10 +83,10 @@ postgresql:
   postgresqlUsername: "postgres"
   postgresqlPassword: "changeme"
   postgresqlDatabase: "postgres"
-  initdbScripts:
-      my_init_script.sh: |
-        #!/bin/sh
-        psql -U postgres -c "create extension if not exists postgis;"
+##  initdbScripts:
+##      my_init_script.sh: |
+##        #!/bin/sh
+##        psql -U postgres -c "create extension if not exists postgis;"
   service:
     port: "5432"
   resources:
