@@ -79,19 +79,14 @@ useDockerizedDatabase: true
 djangoDatabaseEngine: "django.db.backends.postgresql"
 postgresql:
   # see templates/_helpers.tpl for hostname generation
-  image:
-    tag: "10.10.0-r82" # match AWS RDS
   hostname: ""
   postgresqlUsername: "postgres"
   postgresqlPassword: "changeme"
   postgresqlDatabase: "postgres"
-  ## Specify the PostgreSQL username and password to execute the initdb scripts (for postgresql helm-chart)
-  initdbUser: "postgres"
-  initdbPassword: "changeme"
   initdbScripts:
-      my_init_script.sh: |
+      init_postgis.sh: |
         #!/bin/sh
-        psql -c "create extension if not exists postgis;"
+        PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c "create extension if not exists postgis;"
   service:
     port: "5432"
   resources:
