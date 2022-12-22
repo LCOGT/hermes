@@ -98,7 +98,8 @@ postgresql:
       cpu: 400m
       memory: 512Mi
 
-secretKey: "changeme"
+##secretKey: "changeme"
+secretKey: "postgres"
 
 loadInitialData:
   enabled: false
