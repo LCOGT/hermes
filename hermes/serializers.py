@@ -1,6 +1,6 @@
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
 from rest_framework import serializers
-from astropy.coordinates import Angle, SkyCoord
+from astropy.coordinates import Longitude, Latitude
 from astropy import units
 from dateutil.parser import parse
 from datetime import datetime
@@ -34,12 +34,12 @@ class BaseTargetSerializer(serializers.ModelSerializer):
 
     def get_right_ascension_sexagesimal(self, obj):
         if obj.coordinate:
-            a = Angle(obj.coordinate.x, unit=units.degree)
+            a = Longitude(obj.coordinate.x, unit=units.degree)
             return a.to_string(unit=units.hour, sep=':')
 
     def get_declination_sexagesimal(self, obj):
         if obj.coordinate:
-            a = Angle(obj.coordinate.y, unit=units.degree)
+            a = Latitude(obj.coordinate.y, unit=units.degree)
             return a.to_string(unit=units.degree, sep=':')
 
 
@@ -161,13 +161,13 @@ class CandidateSerializer(serializers.Serializer):
     def validate_ra(self, value):
         try:
             float_ra = float(value)
-            ra_angle = Angle(float_ra * units.deg)
+            ra_angle = Longitude(float_ra * units.deg)
         except:
             try:
-                ra_angle = Angle(value, unit=units.hourangle)
+                ra_angle = Longitude(value, unit=units.hourangle)
             except:
                 try:
-                    ra_angle = Angle(value)
+                    ra_angle = Longitude(value)
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return ra_angle.deg
@@ -175,13 +175,13 @@ class CandidateSerializer(serializers.Serializer):
     def validate_dec(self, value):
         try:
             float_dec = float(value)
-            dec_angle = Angle(float_dec * units.deg)
+            dec_angle = Latitude(float_dec * units.deg)
         except:
             try:
-                dec_angle = Angle(value, unit=units.hourangle)
+                dec_angle = Latitude(value, unit=units.hourangle)
             except:
                 try:
-                    dec_angle = Angle(value)
+                    dec_angle = Latitude(value)
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg
@@ -224,13 +224,13 @@ class PhotometrySerializer(serializers.Serializer):
     def validate_ra(self, value):
         try:
             float_ra = float(value)
-            ra_angle = Angle(float_ra * units.deg)
+            ra_angle = Longitude(float_ra * units.deg)
         except:
             try:
-                ra_angle = Angle(value, unit=units.hourangle)
+                ra_angle = Longitude(value, unit=units.hourangle)
             except:
                 try:
-                    ra_angle = Angle(value)
+                    ra_angle = Longitude(value)
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return ra_angle.deg
@@ -238,13 +238,13 @@ class PhotometrySerializer(serializers.Serializer):
     def validate_dec(self, value):
         try:
             float_dec = float(value)
-            dec_angle = Angle(float_dec * units.deg)
+            dec_angle = Latitude(float_dec * units.deg)
         except:
             try:
-                dec_angle = Angle(value, unit=units.hourangle)
+                dec_angle = Latitude(value, unit=units.hourangle)
             except:
                 try:
-                    dec_angle = Angle(value)
+                    dec_angle = Latitude(value)
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg

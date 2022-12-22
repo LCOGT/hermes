@@ -2,9 +2,10 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
+from datetime import timedelta
 from copy import deepcopy
 
-from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
+from hermes.models import Message, NonLocalizedEvent, Target
 from hermes.serializers import HermesCandidateSerializer
 
 class TestApiFiltering(TestCase):
@@ -37,6 +38,12 @@ class TestApiFiltering(TestCase):
         # Add a few gcn circular messages that relate to the event
         call_command('inject_message', event_id=cls.event1_id, type='GCN_CIRCULAR', author='Test Author 1 <testauthor1@mail.com>')
         call_command('inject_message', event_id=cls.event1_id, type='GCN_CIRCULAR', author='Test Author 2 <testauthor2@mail.com>')
+
+    def setUp(self):
+        # Set up the session for the middleware
+        session = self.client.session
+        session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
+        session.save()
 
     def test_models_are_created(self):
         self.assertEquals(Message.objects.all().count(), 10)
@@ -129,6 +136,10 @@ class TestSubmitGenericMessageApi(TestCase):
                 }]
             }
         }
+        # Set up the session for the middleware
+        session = self.client.session
+        session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
+        session.save()
     
     def test_good_message_submission_accepted(self):
         result = self.client.post(reverse('submit_message-validate'), self.generic_message, content_type="application/json")
@@ -176,6 +187,10 @@ class TestSubmitCandidatesApi(TestCase):
                 }
             }
         }
+        # Set up the session for the middleware
+        session = self.client.session
+        session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
+        session.save()
 
     def test_good_candidate_submission_accepted(self):
         result = self.client.post(reverse('submit_candidates-validate'), self.good_candidate, content_type="application/json")
@@ -211,6 +226,21 @@ class TestSubmitCandidatesApi(TestCase):
     def test_candidate_unknown_ra_format_rejected(self):
         bad_candidate = deepcopy(self.good_candidate)
         bad_candidate['data']['candidates'][0]['ra'] = 'Ra is 5.2'
+        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+        self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
+
+    def test_candidate_ra_out_of_bounds_loops(self):
+        good_candidate = deepcopy(self.good_candidate)
+        expected_ra = 930.3
+        good_candidate['data']['candidates'][0]['ra'] = f'{expected_ra}'
+        # Now check the ra is converted to decimal degrees and looped into valid range within the validated data
+        serializer = HermesCandidateSerializer(data=good_candidate)
+        self.assertTrue(serializer.is_valid())
+        self.assertAlmostEqual(serializer.validated_data['data']['candidates'][0]['ra'], expected_ra % 360.0)
+
+    def test_candidate_dec_out_of_bounds_rejected(self):
+        bad_candidate = deepcopy(self.good_candidate)
+        bad_candidate['data']['candidates'][0]['dec'] = '930.3'
         result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
         self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
 
