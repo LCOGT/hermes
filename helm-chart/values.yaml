@@ -85,10 +85,13 @@ postgresql:
   postgresqlUsername: "postgres"
   postgresqlPassword: "changeme"
   postgresqlDatabase: "postgres"
+  ## Specify the PostgreSQL username and password to execute the initdb scripts (for postgresql helm-chart)
+  initdbUser: "postgres"
+  initdbPassword: "changeme"
   initdbScripts:
       my_init_script.sh: |
         #!/bin/sh
-        psql -U postgres -c "create extension if not exists postgis;"
+        psql -c "create extension if not exists postgis;"
   service:
     port: "5432"
   resources:
