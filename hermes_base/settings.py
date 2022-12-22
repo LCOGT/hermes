@@ -215,7 +215,7 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 100,
 }
 
@@ -231,7 +231,6 @@ ALERT_STREAMS = [
             'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
             'TOPIC_HANDLERS': {
                 'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes-perm.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
                 #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
             },
@@ -247,8 +246,8 @@ ALERT_STREAMS = [
             'GCN_CLASSIC_CLIENT_SECRET': os.getenv('GCN_CLASSIC_CLIENT_SECRET', ''),
             'DOMAIN': 'gcn.nasa.gov',  # optional, defaults to 'gcn.nasa.gov'
             'CONFIG': {  # optional
-                # 'group.id': 'tom_alertstreams-my-custom-group-id',
-                'auto.offset.reset': 'earliest',
+                'group.id': os.getenv('GCN_CLASSIC_OVER_KAFKA_GROUP_ID', 'hermes-dev'),
+                # 'auto.offset.reset': 'earliest',
                 # 'enable.auto.commit': False
             },
             'TOPIC_HANDLERS': {
@@ -283,6 +282,13 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+     'default': {
+         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+         'LOCATION': os.getenv('CACHE_LOCATION', 'default-cache')
+     }
+}
 
 #
 # Logging
