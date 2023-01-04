@@ -1,10 +1,31 @@
-from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
+from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile
+from hermes.utils import extract_hop_auth
+from hermes.brokers.hopskotch import get_user_writable_topics
 from rest_framework import serializers
 from astropy.coordinates import Longitude, Latitude
 from astropy import units
 from dateutil.parser import parse
 from datetime import datetime
 from django.utils.translation import gettext as _
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    email = serializers.CharField(source='user.email', read_only=True)
+    writable_topics = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Profile
+        fields = (
+            'email', 'writable_topics'
+        )
+
+    def get_writable_topics(self, instance):
+        request = self.context.get('request')
+        hop_auth = extract_hop_auth(request)
+        credential_name = hop_auth.username
+        user_api_token = request.session['user_api_token']  # maintained in middleware
+
+        return get_user_writable_topics(instance.user.username, credential_name, user_api_token, exclude_groups=['sys'])
 
 
 class BaseTargetSerializer(serializers.ModelSerializer):

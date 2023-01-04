@@ -32,7 +32,7 @@ router.register(r'targets', views.TargetViewSet, 'targets')
 router.register(r'topics', views.TopicViewSet, basename='topic')
 router.register(r'submit_candidates', views.SubmitCandidatesViewSet, 'submit_candidates')
 router.register(r'submit_photometry', views.SubmitPhotometryViewSet, 'submit_photometry')
-router.register(f'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
+router.register(r'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
 
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
@@ -40,6 +40,7 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('api/v0/profile/', views.ProfileApiView.as_view(), name='profile')
 ]
 
 # mozilla_django_oidc.urls provides:

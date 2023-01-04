@@ -12,13 +12,12 @@ from django.middleware import csrf
 from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
-from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import RetrieveUpdateAPIView
 from django_filters.rest_framework import DjangoFilterBackend
-
-import jsons
 
 from hop import Stream
 from hop.auth import Auth
@@ -26,38 +25,14 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.utils import get_all_public_topics
+from hermes.utils import get_all_public_topics, extract_hop_auth
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, GenericHermesMessageSerializer,
-                                NonLocalizedEventSequenceSerializer, HermesCandidateSerializer, HermesPhotometrySerializer)
+                                NonLocalizedEventSequenceSerializer, HermesCandidateSerializer, HermesPhotometrySerializer,
+                                ProfileSerializer)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-def _extract_hop_auth(request) -> Auth:
-    """Return a hop.Auth instance from either the request.header or the request.session.
-
-    The reqeust.header takes precidence over the request.session.
-
-    If this the request is comming from the HERMES front-end, then a hop.auth.Auth instance was inserted
-    into the request's session dictionary upon logon in AuthenticationBackend.authenticate.
-    This method extracts it. (`jsons` is used (vs. json) because Auth is non-trivial to
-    serialize/deserialize, and the stdlib `json` package won't handle it correctly).
-
-    If this this request is coming via the API, then a SCiMMA Auth SCRAM credential must be
-    extracted from the request header and then used to instanciate the returned hop.Auth.
-    """
-    if 'SCIMMA-API-Auth-Username' in request.headers:
-        # A SCiMMA Auth SCRAM credential came in request.headers. Use it to get hop.auth.Auth instance.
-        username = request.headers['SCIMMA-API-Auth-Username']
-        password = request.headers['SCIMMA-API-Auth-Password']
-        hop_user_auth = Auth(username, password)
-    else:
-        # deserialize the hop.auth.Auth instance from the request.session
-        hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
-
-    return hop_user_auth
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -117,39 +92,11 @@ class NonLocalizedEventSequenceViewSet(viewsets.ModelViewSet):
 
 
 class TopicViewSet(viewsets.ViewSet):
-    """This ViewSet does not have a Model backing it. It uses the SCiMMA Auth (Hop Auth) API
-    to construct a response and return a dictionary:
-        {
-        'read': <topic list>,
-        'write': <topic-list>,
-        }
+    """This ViewSet does not have a Model backing it. It returns the cached list of (public) topics ingested in hermes.
     """
     def list(self, request, *args, **kwargs) -> JsonResponse:
-        """
-        """
-        username = request.user.username
-        try:
-            user_hop_auth: Auth = _extract_hop_auth(request)
-        except KeyError as err:
-            # This means no SCRAM creds were saved in this request's Session dict
-            # TODO: what to do for HERMES Guest (AnonymousUser)
-            logger.error(f'TopicViewSet {err}')
-            all_topics = get_all_public_topics()
-            default_topics = {
-                'read': all_topics,
-                'write': ['hermes.test'],
-                }
-            logger.error(f'TopicViewSet returning default topics: {default_topics}')
-            return JsonResponse(data=default_topics)
-
-        credential_name = user_hop_auth.username
-        user_api_token = request.session['user_api_token']  # maintained in middleware
-
-        topics = hopskotch.get_user_topic_permissions(username, credential_name, user_api_token,
-                                                      exclude_groups=['sys'])
-        logger.info(f'TopicViewSet.list topics for {username}: {topics}')
-
-        response = JsonResponse(data=topics)
+        all_topics = get_all_public_topics()
+        response = JsonResponse(data={'topics': all_topics})
         return response
 
 
@@ -196,7 +143,7 @@ def submit_to_hop(request, message):
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
     try:
-        hop_auth: Auth = _extract_hop_auth(request)
+        hop_auth: Auth = extract_hop_auth(request)
     except KeyError as err:
         logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
         # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
@@ -333,6 +280,19 @@ class SubmitPhotometryViewSet(SubmitHermesMessageViewSet):
         return Response({"message": message}, status.HTTP_200_OK)
 
 
+class ProfileApiView(RetrieveUpdateAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
+        """Once authenticated, retrieve profile data"""
+        qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
+            'profile'
+        )
+        return qs.first().profile
+
+
 class LoginRedirectView(RedirectView):
     pattern_name = 'login-redirect'
 
@@ -340,7 +300,7 @@ class LoginRedirectView(RedirectView):
 
         logger.debug(f'LoginRedirectView.get -- request.user: {request.user}')
 
-        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
+        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}'
         logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {login_redirect_url}')
         self.url = login_redirect_url
 
