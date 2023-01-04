@@ -193,7 +193,7 @@ SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 # TODO: set up helm chart for dev and prod environments; this default works for local development
-HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8080/')
+HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8001/')
 
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
 LOGIN_URL = '/'  # This is the default redirect URL for user authentication tests
@@ -273,6 +273,7 @@ ALERT_STREAMS = [
 #
 
 CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     # add custom headers here
 ]

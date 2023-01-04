@@ -1,6 +1,12 @@
 from pydoc_data.topics import topics
 from django.db import models
 from django.contrib.gis.db import models as gis_models
+from django.contrib.auth.models import User
+
+
+class Profile(models.Model):
+    # This model will be used to store user settings, such as topic sort/filter preferences
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
 
 
 class Message(models.Model):

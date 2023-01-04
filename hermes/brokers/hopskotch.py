@@ -741,9 +741,33 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
     logger.debug(f'_add_permission_to_credential credential_permission_response.text:   {credential_permission_response.text}')
 
 
+def get_user_writable_topics(username, credential_name, user_api_token, exclude_groups=None):
+    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
+    hop_cred_pk = _get_hop_credential_pk(username, credential_name, user_api_token=user_api_token)
+    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{hop_cred_pk}/permissions'
+    perm_response = requests.get(perm_url,
+                                 headers={'Authorization': user_api_token,
+                                          'Content-Type': 'application/json'})
+    permissions = perm_response.json()
+    topics = []
+    for permission in permissions:
+        # Check if permission is ALL or Write
+        if permission['operation'] in ['All', 'Write']:
+
+            # get the topic name for this this permission
+            topic_pk = permission['topic']
+            topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
+            # topic dictionaries looks like this:
+            # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
+            topics.append(topic['name'])
+    if exclude_groups:
+        for group in exclude_groups:
+            topics = [topic for topic in topics if not topic.startswith(group)]
+    return topics
+
 
 def get_user_topic_permissions(username, credential_name, user_api_token,
-                               exclude_groups=[], include_public_topics=True):
+                               exclude_groups=None, include_public_topics=True):
     """Get the Read/Write topic permissions for the given user.
 
     Returns a dictionary: {
@@ -765,11 +789,11 @@ def get_user_topic_permissions(username, credential_name, user_api_token,
         # add the publicly_readable topics to the list of readable topics fro the user
         public_topic_names = [topic['name'] for topic in get_topics(user_api_token, publicly_readable_only=True)]
         user_topic_permissions['read'] = list(set(user_topic_permissions['read'] + public_topic_names))
-
-    for group in exclude_groups:
-        # filter topics owned by groups in the exclude_groups list of group names
-        user_topic_permissions['write'] = [topic for topic in user_topic_permissions['write'] if not topic.startswith(group)]
-        user_topic_permissions['read'] = [topic for topic in user_topic_permissions['read'] if not topic.startswith(group)]
+    if exclude_groups:
+        for group in exclude_groups:
+            # filter topics owned by groups in the exclude_groups list of group names
+            user_topic_permissions['write'] = [topic for topic in user_topic_permissions['write'] if not topic.startswith(group)]
+            user_topic_permissions['read'] = [topic for topic in user_topic_permissions['read'] if not topic.startswith(group)]
 
     return user_topic_permissions
 

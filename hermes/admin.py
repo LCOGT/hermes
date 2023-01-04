@@ -1,7 +1,8 @@
 from django.contrib import admin
-from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
+from hermes.models import Profile, Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 
 
+admin.site.register(Profile)
 admin.site.register(Message)
 admin.site.register(Target)
 admin.site.register(NonLocalizedEvent)

@@ -8,6 +8,7 @@ import jsons
 from mozilla_django_oidc import auth
 
 from hermes.brokers import hopskotch
+from hermes.models import Profile
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -145,6 +146,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
             first_name=claims.get('given_name', ''),
             last_name=claims.get('family_name', ''),
         )
+        # Initialize a profile here for the new user account
+        Profile.objects.get_or_create(user=new_user)
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: new HERMES User: {new_user} with claims: {claims}')
         logger.debug(f'HopskotchOIDCAuthenticationBackend.create_user: UserModel: {self.UserModel}')
 
@@ -177,6 +180,9 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         user.email = self.get_email(claims)
         user.is_staff = is_member_of(claims, '/SCiMMA Developers')
         user.save()
+
+        # Check and create the profile here (if it hasn't been created before)
+        Profile.objects.get_or_create(user=user)
 
         return user
 
