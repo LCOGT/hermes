@@ -7,7 +7,7 @@ from astropy import units
 from dateutil.parser import parse
 from datetime import datetime
 from django.utils.translation import gettext as _
-
+import math
 
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
@@ -152,101 +152,44 @@ def validate_date(date, date_format=None):
 class HermesMessageSerializer(serializers.Serializer):
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
-    message_text = serializers.CharField(required=True)
+    message_text = serializers.CharField(required=False, default='', allow_blank=True)
     submitter = serializers.CharField(required=True)
-    authors = serializers.CharField(required=False, default='')
+    authors = serializers.CharField(required=False, default='', allow_blank=True)
 
 
 class GenericHermesMessageSerializer(HermesMessageSerializer):
     data = serializers.JSONField(required=False)
 
 
-class CandidateSerializer(serializers.Serializer):
-    target_name = serializers.CharField(required=True)
-    ra = serializers.CharField(required=True)
-    dec = serializers.CharField(required=True)
-    date = serializers.CharField(required=True)
-    date_format = serializers.CharField(required=False)
-    telescope = serializers.CharField(required=False)
-    instrument = serializers.CharField(required=False)
-    band = serializers.CharField(required=True)
-    brightness = serializers.FloatField(required=False)
-    brightness_error = serializers.FloatField(required=False)
-    brightness_unit = serializers.ChoiceField(required=False, choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
-
-    def validate(self, data):
-        validated_data = super().validate(data)
-        validate_date(validated_data['date'], validated_data.get('date_format'))
-        return validated_data
-
-    def validate_ra(self, value):
-        try:
-            float_ra = float(value)
-            ra_angle = Longitude(float_ra * units.deg)
-        except:
-            try:
-                ra_angle = Longitude(value, unit=units.hourangle)
-            except:
-                try:
-                    ra_angle = Longitude(value)
-                except:
-                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
-        return ra_angle.deg
-
-    def validate_dec(self, value):
-        try:
-            float_dec = float(value)
-            dec_angle = Latitude(float_dec * units.deg)
-        except:
-            try:
-                dec_angle = Latitude(value, unit=units.hourangle)
-            except:
-                try:
-                    dec_angle = Latitude(value)
-                except:
-                    raise serializers.ValidationError(_("Must be in a format astropy understands"))
-        return dec_angle.deg
-
-
-class CandidateDataSerializer(serializers.Serializer):
-    event_id = serializers.CharField(required=True)
-    extra_data = serializers.JSONField(required=False)
-    candidates = CandidateSerializer(many=True, required=True)
-
-    def validate_candidates(self, value):
-        if len(value) < 1:
-            raise serializers.ValidationError(_('At least one candidate must be defined'))
-        return value
-
-
-class HermesCandidateSerializer(HermesMessageSerializer):
-    data = CandidateDataSerializer()
-
-
-#TODO: Right now the Photometry and Candidate serializers are the same, but I expect they will become different later
 class PhotometrySerializer(serializers.Serializer):
     target_name = serializers.CharField(required=True)
     ra = serializers.CharField(required=True)
     dec = serializers.CharField(required=True)
     date = serializers.CharField(required=True)
     date_format = serializers.CharField(required=False)
-    telescope = serializers.CharField(required=False)
-    instrument = serializers.CharField(required=False)
+    telescope = serializers.CharField(required=False, default='', allow_blank=True)
+    instrument = serializers.CharField(required=False, default='', allow_blank=True)
     band = serializers.CharField(required=True)
-    brightness = serializers.FloatField(required=False)
+    brightness = serializers.FloatField(required=True)
+    nondetection = serializers.BooleanField(required=False, default=False)
     brightness_error = serializers.FloatField(required=False)
     brightness_unit = serializers.ChoiceField(required=False, choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
 
     def validate(self, data):
         validated_data = super().validate(data)
         validate_date(validated_data['date'], validated_data.get('date_format'))
+        if not (validated_data.get('instrument') or validated_data.get('telescope')):
+            error_msg = _("Must have at least one of telescope or instrument set")
+            raise serializers.ValidationError({'telescope': error_msg, 'instrument': error_msg})
         return validated_data
 
     def validate_ra(self, value):
         try:
             float_ra = float(value)
+            if not math.isfinite(float_ra):
+                raise serializers.ValidationError(_("Value must be finite"))
             ra_angle = Longitude(float_ra * units.deg)
-        except:
+        except (ValueError, units.UnitsError, TypeError):
             try:
                 ra_angle = Longitude(value, unit=units.hourangle)
             except:
@@ -259,8 +202,10 @@ class PhotometrySerializer(serializers.Serializer):
     def validate_dec(self, value):
         try:
             float_dec = float(value)
+            if not math.isfinite(float_dec):
+                raise serializers.ValidationError(_("Dec value must be finite"))
             dec_angle = Latitude(float_dec * units.deg)
-        except:
+        except (ValueError, units.UnitsError, TypeError):
             try:
                 dec_angle = Latitude(value, unit=units.hourangle)
             except:
@@ -272,7 +217,7 @@ class PhotometrySerializer(serializers.Serializer):
 
 
 class PhotometryDataSerializer(serializers.Serializer):
-    event_id = serializers.CharField(required=True)
+    event_id = serializers.CharField(required=False)
     extra_data = serializers.JSONField(required=False)
     photometry = PhotometrySerializer(many=True)
 
@@ -281,5 +226,15 @@ class PhotometryDataSerializer(serializers.Serializer):
             raise serializers.ValidationError(_('At least one piece of photometry must be defined'))
         return value
 
+
 class HermesPhotometrySerializer(HermesMessageSerializer):
     data = PhotometryDataSerializer()
+
+
+class DiscoveryDataSerializer(PhotometryDataSerializer):
+    # TODO: Set up choices, maybe from the fink portal classes
+    type = serializers.CharField(required=False, default='', allow_blank=True)
+
+
+class HermesDiscoverySerializer(HermesMessageSerializer):
+    data = DiscoveryDataSerializer()
