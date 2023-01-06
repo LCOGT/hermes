@@ -28,7 +28,7 @@ from hermes.forms import MessageForm
 from hermes.utils import get_all_public_topics, extract_hop_auth
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, GenericHermesMessageSerializer,
-                                NonLocalizedEventSequenceSerializer, HermesCandidateSerializer, HermesPhotometrySerializer,
+                                NonLocalizedEventSequenceSerializer, HermesDiscoverySerializer, HermesPhotometrySerializer,
                                 ProfileSerializer)
 
 logger = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'])
     def validate(self, request):
-        """ Validate a RequestGrouo
+        """ Validate a Message Schema
         """
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -208,11 +208,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response(errors, status.HTTP_200_OK)
 
 
-class SubmitCandidatesViewSet(SubmitHermesMessageViewSet):
-    serializer_class = HermesCandidateSerializer
+class SubmitDiscoveriesViewSet(SubmitHermesMessageViewSet):
+    serializer_class = HermesDiscoverySerializer
 
     def get(self, request, *args, **kwargs):
-        message = """This endpoint is used to send a message with a list of potential candidates corresponding to a 
+        message = """This endpoint is used to send a message with a list of potential Discoveries corresponding to a 
         non-localized event.
         
         Requests should be structured as below:
@@ -223,18 +223,20 @@ class SubmitCandidatesViewSet(SubmitHermesMessageViewSet):
          authors: <Text full list of authors on a message>
          message_text: <Text of the message to send>,
          data: {
-            event_id:  <ID of the non-localized event for these candidates>,
+            event_id:  <ID of the non-localized event for these discoveries if applicable>,
+            type: <The type of this discovery, i.e. GRB or SN, etc.>,
             extra_data: {<dict of key/value pairs of extra unparsed data>},
-            candidates: [{target_name: <ID of the candidate target>,
+            photometry: [{target_name: <ID of the discovery target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
                   dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  date: <Date/time of the candidate discovery>,
+                  date: <Date/time of the discovery discovery>,
                   date_format: <Python strptime format string or "mjd" or "jd">,
                   telescope: <Discovery telescope>,
                   instrument: <Discovery instrument>,
                   band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the candidate at discovery>,
-                  brightness_error: <Brightness error of the candidate at discovery>,
+                  brightness: <Brightness of the discovery>,
+                  nondetection: <Boolean of if this observation corresponds to a nondetection or not>,
+                  brightness_error: <Brightness error of the discovery>,
                   brightness_unit: <Brightness units for the discovery, 
                                    current supported values: [AB mag, Vega mag]>
                            }, ...]
@@ -257,9 +259,8 @@ class SubmitPhotometryViewSet(SubmitHermesMessageViewSet):
          submitter: <submitter of the message>,
          authors: <Text full list of authors on a message>
          message_text: <Text of the message to send>,
-         event_id: <ID of the non-localized event for these candidates>,
          data: {
-            event_id: <ID of the non-localized event for these candidates>,
+            event_id: <ID of the non-localized event for these observation if applicable>,
             extra_data: {<dict of key/value pairs of extra unparsed data>},
             photometry: [{target_name: <Name of the observed target>,
                   ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
@@ -269,8 +270,9 @@ class SubmitPhotometryViewSet(SubmitHermesMessageViewSet):
                   telescope: <Discovery telescope>,
                   instrument: <Discovery instrument>,
                   band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the candidate at discovery>,
-                  brightness_error: <Brightness error of the candidate at discovery>,
+                  brightness: <Brightness of the observation>,
+                  nondetection: <Boolean of if this observation corresponds to a nondetection or not>,
+                  brightness_error: <Brightness error of the observation>,
                   brightness_unit: <Brightness units for the discovery, 
                                    current supported values: [AB mag, Vega mag, mJy, and erg / s / cm² / Å]>
                            }, ...]

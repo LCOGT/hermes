@@ -4,9 +4,10 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 from copy import deepcopy
+import math
 
 from hermes.models import Message, NonLocalizedEvent, Target
-from hermes.serializers import HermesCandidateSerializer
+from hermes.serializers import HermesDiscoverySerializer
 
 class TestApiFiltering(TestCase):
     @classmethod
@@ -159,10 +160,10 @@ class TestSubmitGenericMessageApi(TestCase):
         self.assertContains(result, 'field is required', status_code=200)
 
 
-class TestSubmitCandidatesApi(TestCase):
+class TestSubmitDiscoveriesApi(TestCase):
     def setUp(self):
         super().setUp()
-        self.good_candidate = {
+        self.good_discovery = {
             'title': 'Candidate message',
             'topic': 'hermes.candidates',
             'message_text': 'This is a candidate message.',
@@ -170,7 +171,7 @@ class TestSubmitCandidatesApi(TestCase):
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
             'data': {
                 'event_id': 'S123456',
-                'candidates': [{
+                'photometry': [{
                     'target_name': 'm44',
                     'ra': '33.2',
                     'dec': '42.2',
@@ -192,74 +193,99 @@ class TestSubmitCandidatesApi(TestCase):
         session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
         session.save()
 
-    def test_good_candidate_submission_accepted(self):
-        result = self.client.post(reverse('submit_candidates-validate'), self.good_candidate, content_type="application/json")
+    def test_good_discovery_submission_accepted(self):
+        result = self.client.post(reverse('submit_discoveries-validate'), self.good_discovery, content_type="application/json")
         self.assertEqual(result.status_code, 200)
 
-    def test_candidate_time_mjd_submission_accepted(self):
-        good_candidate = deepcopy(self.good_candidate)
-        good_candidate['data']['candidates'][0]['date'] = '2348532.241'
-        good_candidate['data']['candidates'][0]['date_format'] = 'mjd'
-        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+    def test_discovery_time_mjd_submission_accepted(self):
+        good_discovery = deepcopy(self.good_discovery)
+        good_discovery['data']['photometry'][0]['date'] = '2348532.241'
+        good_discovery['data']['photometry'][0]['date_format'] = 'mjd'
+        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
         self.assertEqual(result.status_code, 200)
 
-    def test_candidate_unknown_time_format_rejected(self):
-        bad_candidate = deepcopy(self.good_candidate)
-        bad_candidate['data']['candidates'][0]['date'] = '2348532.241'
-        bad_candidate['data']['candidates'][0]['date_format'] = 'geo'
-        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+    def test_discovery_unknown_time_format_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['date'] = '2348532.241'
+        bad_discovery['data']['photometry'][0]['date_format'] = 'geo'
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
         self.assertContains(result, 'does not parse', status_code=200)
 
-    def test_candidate_ha_ra_format(self):
-        good_candidate = deepcopy(self.good_candidate)
-        good_candidate['data']['candidates'][0]['ra'] = '23:21:16'
-        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+    def test_discovery_ha_ra_format(self):
+        good_discovery = deepcopy(self.good_discovery)
+        good_discovery['data']['photometry'][0]['ra'] = '23:21:16'
+        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
 
         # Now check the ra is converted to decimal degrees within the validated data
-        serializer = HermesCandidateSerializer(data=good_candidate)
+        serializer = HermesDiscoverySerializer(data=good_discovery)
         self.assertTrue(serializer.is_valid())
         expected_ra_deg = 350.316666666666
-        self.assertAlmostEqual(serializer.validated_data['data']['candidates'][0]['ra'], expected_ra_deg)
+        self.assertAlmostEqual(serializer.validated_data['data']['photometry'][0]['ra'], expected_ra_deg)
 
-    def test_candidate_unknown_ra_format_rejected(self):
-        bad_candidate = deepcopy(self.good_candidate)
-        bad_candidate['data']['candidates'][0]['ra'] = 'Ra is 5.2'
-        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+    def test_discovery_unknown_ra_format_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['ra'] = 'Ra is 5.2'
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
         self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
 
-    def test_candidate_ra_out_of_bounds_loops(self):
-        good_candidate = deepcopy(self.good_candidate)
+    def test_discovery_ra_out_of_bounds_loops(self):
+        good_discovery = deepcopy(self.good_discovery)
         expected_ra = 930.3
-        good_candidate['data']['candidates'][0]['ra'] = f'{expected_ra}'
+        good_discovery['data']['photometry'][0]['ra'] = f'{expected_ra}'
         # Now check the ra is converted to decimal degrees and looped into valid range within the validated data
-        serializer = HermesCandidateSerializer(data=good_candidate)
+        serializer = HermesDiscoverySerializer(data=good_discovery)
         self.assertTrue(serializer.is_valid())
-        self.assertAlmostEqual(serializer.validated_data['data']['candidates'][0]['ra'], expected_ra % 360.0)
+        self.assertAlmostEqual(serializer.validated_data['data']['photometry'][0]['ra'], expected_ra % 360.0)
 
-    def test_candidate_dec_out_of_bounds_rejected(self):
-        bad_candidate = deepcopy(self.good_candidate)
-        bad_candidate['data']['candidates'][0]['dec'] = '930.3'
-        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+    def test_discovery_dec_out_of_bounds_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['dec'] = '930.3'
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
         self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
+
+    def test_discovery_ra_nan_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['ra'] = 'NaN'
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+        self.assertContains(result, 'Value must be finite', status_code=200)
+
+    def test_discovery_brightness_inf_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['brightness'] = math.inf
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+        self.assertContains(result, 'JSON parse error', status_code=400)
+
+    def test_discovery_brightness_error_nan_rejected(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        bad_discovery['data']['photometry'][0]['brightness'] = math.nan
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+        self.assertContains(result, 'JSON parse error', status_code=400)
+
+    def test_discovery_telescope_or_instrument_required(self):
+        bad_discovery = deepcopy(self.good_discovery)
+        del bad_discovery['data']['photometry'][0]['telescope']
+        bad_discovery['data']['photometry'][0]['instrument'] = ''
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+        self.assertContains(result, 'Must have at least one of telescope or instrument set', status_code=200)
 
     def test_only_required_fields_accepted(self):
-        good_candidate = deepcopy(self.good_candidate)
-        del good_candidate['authors']
-        del good_candidate['data']['extra_data']
-        del good_candidate['data']['candidates'][0]['brightness']
-        del good_candidate['data']['candidates'][0]['brightness_error']
-        del good_candidate['data']['candidates'][0]['brightness_unit']
-        del good_candidate['data']['candidates'][0]['telescope']
-        del good_candidate['data']['candidates'][0]['instrument']
+        good_discovery = deepcopy(self.good_discovery)
+        del good_discovery['authors']
+        del good_discovery['data']['extra_data']
+        del good_discovery['data']['photometry'][0]['brightness']
+        del good_discovery['data']['photometry'][0]['brightness_error']
+        del good_discovery['data']['photometry'][0]['brightness_unit']
+        del good_discovery['data']['photometry'][0]['telescope']
+        del good_discovery['data']['photometry'][0]['instrument']
 
-        result = self.client.post(reverse('submit_candidates-validate'), good_candidate, content_type="application/json")
+        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
         self.assertEqual(result.status_code, 200)
     
     def test_missing_a_required_field_rejected(self):
-        bad_candidate = deepcopy(self.good_candidate)
-        del bad_candidate['topic']
+        bad_discovery = deepcopy(self.good_discovery)
+        del bad_discovery['topic']
 
-        result = self.client.post(reverse('submit_candidates-validate'), bad_candidate, content_type="application/json")
+        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
         self.assertContains(result, 'field is required', status_code=200)
