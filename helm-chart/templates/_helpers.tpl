@@ -105,13 +105,13 @@ Define shared database environment variables
 - name: DB_HOST
   value: {{ include "hermes.dbhost" . | quote }}
 - name: DB_NAME
-  value: {{ .Values.postgresql.postgresqlDatabase | quote }}
+  value: {{ .Values.postgresql.auth.database | quote }}
 - name: DB_PASS
-  value: {{ .Values.postgresql.postgresqlPassword | quote }}
+  value: {{ .Values.postgresql.auth.password | quote }}
 - name: DB_USER
-  value: {{ .Values.postgresql.postgresqlUsername | quote }}
+  value: {{ .Values.postgresql.auth.username | quote }}
 - name: DB_PORT
-  value: {{ .Values.postgresql.service.port | quote }}
+  value: {{ .Values.postgresql.primary.service.port.postgresql | quote }}
 - name: SECRET_KEY
   value: {{ .Values.secretKey | quote }}
 {{- end -}}
