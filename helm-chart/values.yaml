@@ -23,6 +23,10 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+brokers:
+  gcnClassicOverKafka:
+    groupId: 'hermes-dev'
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true

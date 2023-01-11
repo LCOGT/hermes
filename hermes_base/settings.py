@@ -231,6 +231,7 @@ ALERT_STREAMS = [
             'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
             'TOPIC_HANDLERS': {
                 'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
                 #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
             },
