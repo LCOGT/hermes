@@ -70,6 +70,7 @@ class BaseMessageSerializer(serializers.HyperlinkedModelSerializer):
         fields = [
             'id',
             'topic',
+            'uuid',
             'title',
             'submitter',
             'authors',

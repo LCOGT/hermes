@@ -7,7 +7,7 @@ django-bootstrap4==22.1
 fastavro>=1.7
 whitenoise==6.0.0
 lcogt-logging==0.3.2
-hop-client~=0.7
+hop-client~=0.8
 healpy>=1.16
 tom_alertstreams~=0.5
 django-cors-headers==3.11.0
