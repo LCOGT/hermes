@@ -26,6 +26,21 @@ def should_ingest_topic(topic):
             return False
     return True
 
+
+def get_or_create_uuid_for_message(metadata: Metadata) -> uuid.UUID:
+    """Extract the UUID from the message metadata, or generate a UUID if none present in metadata.
+
+    The headers property of the metadata is a list of tuples of the form [('key', value), ...].
+    """
+    # get the tuple with the uuid: key is '_id'
+    message_uuid_tuple = next((item for item in metadata.headers if item[0] == '_id'), None)
+    if message_uuid_tuple:
+        message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
+    else:
+        # this message header metadata didn't have UUID, so make one
+        message_uuid = uuid.uuid4()
+    return message_uuid
+
 def handle_generic_message(message: JSONBlob, metadata: Metadata):
     """Ingest a generic  alert from a topic we have no a priori knowledge of.
     """
