@@ -229,6 +229,8 @@ ALERT_STREAMS = [
             'URL': 'kafka://kafka.scimma.org/',
             'USERNAME': os.getenv('SCIMMA_AUTH_USERNAME', ''),
             'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
+            # Group ID must be prefixed with SCiMMA SCRAM credential username to open the SCiMMA kafka stream
+            'GROUP_ID': os.getenv('SCIMMA_AUTH_USERNAME', '') + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
             'TOPIC_HANDLERS': {
                 'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
