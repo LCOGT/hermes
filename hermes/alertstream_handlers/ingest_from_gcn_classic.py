@@ -24,8 +24,12 @@ def handle_message(message):
     topic = message.topic()
     message_text = message.value().decode('utf-8')
 
+    # GCNClassicOverKafka does not yet provide message UUIDs (so get one now)
+    message_uuid: uuid.UUID = uuid.uuid4()
+
     message, created = Message.objects.get_or_create(
         topic=topic,
+        uuid=message_uuid,
         message_text=message_text,
         defaults={
             'submitter':'GCN Classic Over Kafka',
