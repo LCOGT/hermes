@@ -1,3 +1,4 @@
+import uuid
 from pydoc_data.topics import topics
 from django.db import models
 from django.contrib.gis.db import models as gis_models
@@ -15,6 +16,7 @@ class Message(models.Model):
         ordering = ['-created']  # to avoid DRF pagination UnorderedObjectListWarning
 
     topic = models.TextField(blank=True, db_index=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
     title = models.TextField(blank=True)
     submitter = models.TextField(blank=True)
     authors = models.TextField(blank=True)
@@ -27,7 +29,7 @@ class Message(models.Model):
     modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
     def __str__(self):
-        return f'{self.topic}: {self.title} from {self.authors}'
+        return f'{self.uuid} on {self.topic}: {self.title} from {self.authors}'
 
 
 class Target(models.Model):
