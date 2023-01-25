@@ -1,9 +1,11 @@
 ''' This class defines a message handler for a tom_alertstreams connection to GCN over kafka
     text formatted streams.
 '''
+import logging
+import uuid
+
 from hermes.models import Message
 from hermes import parsers
-import logging
 
 logger = logging.getLogger(__name__)
 

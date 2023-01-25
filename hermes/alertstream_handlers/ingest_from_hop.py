@@ -1,14 +1,15 @@
 ''' This class defines a message handler for a tom_alertstreams connection to hop streams.
 '''
-from hermes.models import Message
-from hermes import parsers
-import logging
 from datetime import datetime, timezone
 from dateutil.parser import parse, parserinfo
+import logging
+import uuid
 
 from hop.io import Metadata
 from hop.models import GCNCircular, JSONBlob
 
+from hermes.models import Message
+from hermes import parsers
 logger = logging.getLogger(__name__)
 
 GCN_CIRCULAR_PARSER = parsers.GCNCircularParser()
