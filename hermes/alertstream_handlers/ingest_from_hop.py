@@ -10,6 +10,7 @@ from hop.models import GCNCircular, JSONBlob
 
 from hermes.models import Message
 from hermes import parsers
+
 logger = logging.getLogger(__name__)
 
 GCN_CIRCULAR_PARSER = parsers.GCNCircularParser()
@@ -52,6 +53,7 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
         message, created = Message.objects.update_or_create(
             # these fields must match for update...
             topic=topic,
+            uuid=get_or_create_uuid_for_message(metadata),
             published=published_time,
             data=message.content,
             defaults={
@@ -84,6 +86,7 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     message, created = Message.objects.get_or_create(
         # fields to be compared to find existing Message (if any)
         topic=metadata.topic,
+        uuid=get_or_create_uuid_for_message(metadata),
         message_text=gcn_circular.body,
         published=published_time,
         title=gcn_circular.header['subject'],
@@ -114,6 +117,7 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
         message, created = Message.objects.update_or_create(
             # all these fields must match for update...
             topic=hermes_message.content['topic'],
+            uuid=get_or_create_uuid_for_message(metadata),
             title=hermes_message.content['title'],
             submitter=hermes_message.content['submitter'],
             authors=hermes_message.content['authors'],
