@@ -61,9 +61,9 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
             }
         )
         if created:
-            logger.debug(f'created new Message with id: {message.id}')
+            logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
         else:
-            logger.debug(f'found existing Message with id: {message.id}')
+            logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
 
 def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     """Add GNC Circular to Message db table (unless it already exists)
@@ -97,9 +97,9 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     GCN_CIRCULAR_PARSER.parse(message)
 
     if created:
-        logger.debug(f'created new Message with id: {message.id}')
+        logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
     else:
-        logger.debug(f'found existing Message with id: {message.id}')
+        logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
 
 def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     """Ingest a Hermes-published alert.
@@ -132,7 +132,7 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     HERMES_PARSER.parse(message)
 
     if created:
-        logger.info(f'created new Message with id: {message.id}')
+        logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
     else:
-        logger.info(f'found existing Message with id: {message.id}')
+        logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
 
