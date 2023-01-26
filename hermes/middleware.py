@@ -36,7 +36,7 @@ class SCiMMAAuthSessionRefresh:
         We might need to refresh the Hermes service account SCiMMA Auth API token along the way,
         since admin privilidges are required to get the User API token
         """
-        logger.debug(f'Refreshing SCiMMA Auth API token for User.')
+        logger.debug(f'Refreshing SCiMMA Auth API token for User {request.user} ({request.user.username})')
 
         # get the hermes service account API token and check it's expiration status
         hermes_api_token_expiration_str: str = request.session.get('hermes_api_token_expiration', None)
@@ -52,11 +52,13 @@ class SCiMMAAuthSessionRefresh:
         else:
             logger.debug(f'SCiMMA Auth API token for Hermes service account up-to-date.')
         
-        username = request.user.username
-        hermes_api_token = request.session['hermes_api_token']
-        user_api_token, user_api_token_expiration = hopskotch.get_user_api_token(username, hermes_api_token)
-        request.session['user_api_token'] = user_api_token
-        request.session['user_api_token_expiration'] = user_api_token_expiration
+        if request.user.username:
+            hermes_api_token = request.session['hermes_api_token']
+            user_api_token, user_api_token_expiration = hopskotch.get_user_api_token(request.user.username, hermes_api_token)
+            request.session['user_api_token'] = user_api_token
+            request.session['user_api_token_expiration'] = user_api_token_expiration
+        else:
+            logger.debug(f'SCiMMA Auth API token for {request.user} not applicable (no-op).')    
 
 
     def __call__(self, request):
