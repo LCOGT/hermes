@@ -233,7 +233,7 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
         logger.info(f'authorize_user User {username} already a member of group {group_name}')
 
     # create user SCRAM credential (hop.auth.Auth instance)
-    user_hop_auth: Auth = get_user_hop_authorization(username, user_api_token)
+    user_hop_auth: Auth = get_user_hop_authorization(hop_user, user_api_token)
     logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
 
@@ -427,11 +427,14 @@ def _get_hop_credential_pk(username, credential_name, user_api_token: str, user_
 
 
 
-def get_user_hop_authorization(username, user_api_token) -> Auth:
+def get_user_hop_authorization(hop_user: dict, user_api_token) -> Auth:
     """Return the hop.auth.Auth instance for the user with the given username.
     """
+    # extract values from hop_user dict
+    hop_user_pk = hop_user['pk']
+    username = hop_user['username']
+
     # Construct URL to create Hop Auth SCRAM credentials for this user
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
     user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
 
     logger.info(f'get_user_hop_authorization Creating SCRAM credentials for user {username}')
