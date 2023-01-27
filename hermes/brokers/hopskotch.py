@@ -212,7 +212,7 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
     group_pk = _get_hop_group_pk(group_name, user_api_token=user_api_token)
 
     # if user is already in hermes group, don't add
-    user_groups = get_user_groups(username, user_api_token=user_api_token)
+    user_groups = get_user_groups(user_pk, user_api_token=user_api_token)
 
     if not group_name in [group['name'] for group in user_groups]:
         # add the user
@@ -237,12 +237,12 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
     logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
 
-    add_permissions_to_credential(username, user_pk, credential_pk, user_api_token=user_api_token)
+    add_permissions_to_credential(user_pk, credential_pk, user_api_token=user_api_token)
 
     return user_hop_auth
 
 
-def add_permissions_to_credential(username,  user_pk, credential_pk, user_api_token):
+def add_permissions_to_credential(user_pk, credential_pk, user_api_token):
     """Via SCiMMA Auth API, add a CredentialKafkaPermisson to the given credential_pk for every applicable Topic.
 
     Applicable Topics is determined by
@@ -253,7 +253,7 @@ def add_permissions_to_credential(username,  user_pk, credential_pk, user_api_to
     This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
     _add_permission_to_credential_for_user().
     """
-    user_group_pks = [group['pk'] for group in get_user_groups(username, user_api_token)]
+    user_group_pks = [group['pk'] for group in get_user_groups(user_pk, user_api_token)]
 
     for group_pk in user_group_pks:
         for group_permission in get_group_permissions_received(group_pk, user_api_token):
@@ -568,7 +568,7 @@ def get_user_api_token(username: str, hermes_api_token):
     return user_api_token, user_api_token_expiration_date_as_str
 
 
-def get_user_groups(username, user_api_token):
+def get_user_groups(user_pk: int, user_api_token):
     """Return a list of Hop Auth Groups that the user with username is a member of
 
     First get the User's Groups with /api/v0/users/<PK>/memberships then
@@ -581,14 +581,12 @@ def get_user_groups(username, user_api_token):
     "description": "TOM Toolkit Integration testing"
     }
     """
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
-
     # limit the API query to the specific users (whose pk we just found)
-    user_memberships_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/memberships'
+    user_memberships_url = get_hop_auth_api_url() + f'/users/{user_pk}/memberships'
 
     user_memberships_response = requests.get(user_memberships_url,
-                                        headers={'Authorization': user_api_token,
-                                                 'Content-Type': 'application/json'})
+                                             headers={'Authorization': user_api_token,
+                                                      'Content-Type': 'application/json'})
     # from the response, extract the list of user groups
     # GroupMembership: {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
     user_memberships = user_memberships_response.json()
