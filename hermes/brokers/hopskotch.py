@@ -89,22 +89,22 @@ def _get_hermes_api_token(scram_username, scram_password) -> str:
     # Peform the first round of the SCRAM handshake:
     client = scramp.ScramClient(["SCRAM-SHA-512"], scram_username, scram_password)
     client_first = client.get_client_first()
-    logger.debug(f'SCRAM client first request: {client_first}')
+    logger.debug(f'_get_hermes_api_token: SCRAM client first request: {client_first}')
 
     scram_resp1 = requests.post(hop_auth_api_url + '/scram/first',
                                 json={"client_first": client_first},
                                 headers={"Content-Type":"application/json"})
-    logger.debug(f'SCRAM server first response: {scram_resp1.json()}')
+    logger.debug(f'_get_hermes_api_token: SCRAM server first response: {scram_resp1.json()}')
 
     # Peform the second round of the SCRAM handshake:
     client.set_server_first(scram_resp1.json()["server_first"])
     client_final = client.get_client_final()
-    logger.debug(f'SCRAM client final request: {client_final}')
+    logger.debug(f'_get_hermes_api_token: SCRAM client final request: {client_final}')
 
     scram_resp2 = requests.post(hop_auth_api_url + '/scram/final',
                                 json={"client_final": client_final},
                                 headers={"Content-Type":"application/json"})
-    logger.debug(f'SCRAM server final response: {scram_resp2.json()}')
+    logger.debug(f'_get_hermes_api_token: SCRAM server final response: {scram_resp2.json()}')
 
     client.set_server_final(scram_resp2.json()["server_final"])
 
@@ -113,7 +113,7 @@ def _get_hermes_api_token(scram_username, scram_password) -> str:
     hermes_api_token = response_json["token"]
     hermes_api_token_expiration = response_json['token_expires']
     hermes_api_token = f'Token {hermes_api_token}'  # Django wants this (Token<space>) prefix
-    logger.debug(f'get_hermes_api_token: Token issued: {hermes_api_token} expiration: {hermes_api_token_expiration}')
+    logger.debug(f'_get_hermes_api_token: Token issued: {hermes_api_token} expiration: {hermes_api_token_expiration}')
 
     return hermes_api_token, hermes_api_token_expiration
 
