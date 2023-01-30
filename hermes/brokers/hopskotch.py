@@ -457,17 +457,19 @@ def get_user_hop_authorization(hop_user: dict, user_api_token) -> Auth:
     username = hop_user['username']
 
     # Construct URL to create Hop Auth SCRAM credentials for this user
-    user_credentials_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
 
     logger.info(f'get_user_hop_authorization Creating SCRAM credentials for user {username}')
-    user_credentials_response = requests.post(user_credentials_url,
+    response = requests.post(url,
                                               data=json.dumps({'description': 'Created by HERMES'}),
                                               headers={'Authorization': user_api_token,
                                                        'Content-Type': 'application/json'})
-    logger.debug(f'get_user_hop_authroization user_credentials_response.json(): {user_credentials_response.json()}')
+    # for example, {'username': 'llindstrom-93fee00b', 'password': 'asdlkjfsadkjf'}
+    logger.debug(f'get_user_hop_authorization user_credentials_response.json(): {response.json()}')
 
-    user_hop_username = user_credentials_response.json()['username']
-    user_hop_password = user_credentials_response.json()['password']
+    # TODO: extract and return credential_pk from response when available (ChrisW working on it)
+    user_hop_username = response.json()['username']
+    user_hop_password = response.json()['password']
 
     # you can never again get this SCRAM credential, so save it somewhere (like the Session)
     user_hop_authorization: Auth = Auth(user_hop_username, user_hop_password)
