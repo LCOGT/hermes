@@ -425,7 +425,7 @@ def _get_hop_credential_pk(username, credential_name, user_api_token: str, user_
         user_pk = _get_hop_user_pk(username, user_api_token)
 
     # get the list of credentials for the user
-    hop_credentials = get_user_hop_credentials(username, user_api_token)
+    hop_credentials = get_user_hop_credentials(user_pk, user_api_token)
 
     # extract the one that matches the Auth user.username
     # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
@@ -471,7 +471,7 @@ def get_user_hop_authorization(hop_user: dict, user_api_token) -> Auth:
     return user_hop_authorization
 
 
-def get_user_hop_credentials(username, user_api_token):
+def get_user_hop_credentials(user_pk, user_api_token):
     """return a list of credential dictionaries for the user with the given username
 
     The dictionaries look like this:
@@ -490,10 +490,9 @@ def get_user_hop_credentials(username, user_api_token):
       * the username key in the returned credential dict is the SCRAM credential name
 
     """
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
 
-    # limit the API query to the specific users (whose pk we just found)
-    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    # limit the API query to the specific user
+    url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials'
 
     response = requests.get(url,
                             headers={'Authorization': user_api_token,
