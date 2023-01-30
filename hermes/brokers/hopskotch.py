@@ -35,6 +35,14 @@ from rest_framework.response import Response
 
 import scramp
 
+## # this is a (printf-)debugging utility:
+## import sys
+## # for current func name, specify 0 or no argument.
+## # for name of caller of current func, specify 1.
+## # for name of caller of caller of current func, specify 2. etc.
+## currentFuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name
+## # then, after a function def:
+##     logger.debug(f'in {currentFuncName()} called by {currentFuncName(1)}')
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -160,7 +168,7 @@ def get_or_create_user(claims: dict):
         "email": "llindstrom@lco.global"
     }
     """
-    logger.info(f'get_or_create_user claims: {claims}')
+    logger.debug(f'get_or_create_user claims: {claims}')
 
     # check to see if the user already exists in SCiMMA Auth
     hermes_api_token, _ = get_hermes_api_token()
@@ -227,8 +235,6 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
     This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
     _add_permission_to_credential_for_user().
     """
-    logger.debug(f'in {currentFuncName()} called by {currentFuncName(1)}')
-
     user_groups = get_user_groups(user_pk, user_api_token)
     user_group_pks = [group['pk'] for group in user_groups]
 
@@ -490,7 +496,6 @@ def get_user_hop_credentials(user_pk, user_api_token):
       * the username key in the returned credential dict is the SCRAM credential name
 
     """
-
     # limit the API query to the specific user
     url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials'
 
@@ -694,7 +699,6 @@ def get_group_permissions_received(group_pk, user_api_token):
     }
     """
     url = get_hop_auth_api_url() + f'/groups/{group_pk}/permissions_received'
-    logger.debug(f'get_group_permissions_recieved url: {url}')
     response =  requests.get(url,
                              headers={'Authorization': user_api_token,
                                       'Content-Type': 'application/json'})
