@@ -253,10 +253,6 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
             _add_permission_to_credential_for_user(user_pk, credential_pk, group_permission['topic'],
                                                    group_permission['operation'], user_api_token)
 
-    # This is just to check what topic permissions are reported back to the UI (just for testing)
-    logger.debug(f'add_permissions_to_credential: {_get_user_topic_permissions(user_pk, credential_pk, user_api_token )}')
-
-
 def deauthorize_user(username: str, user_hop_auth: Auth, user_api_token):
     """Remove from Hop Auth the SCRAM credentials (user_hop_auth) that were created
     for this session.
