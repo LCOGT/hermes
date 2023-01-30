@@ -543,7 +543,9 @@ def delete_user_hop_credentials(username, credential_name, user_api_token):
 
 def get_user_api_token(username: str, hermes_api_token):
     """return a Hop Auth API token for the given user.
-    
+
+    The tuple returned is the API token, and the expiration date as a string.
+
     You need an API token to get the user API token and that's what the
     HERMES service account is for. Use the hermes_api_token (the API token
     for the HERMES service account), to get the API token for the user with
@@ -587,7 +589,7 @@ def get_user_api_token(username: str, hermes_api_token):
 
 
 def get_user_groups(user_pk: int, user_api_token):
-    """Return a list of Hop Auth Groups that the user with username is a member of
+    """Return a list of Hop Auth Groups that the user with user_pk is a member of
 
     First get the User's Groups with /api/v0/users/<PK>/memberships then
     for each membership, get the Group details with /api/v0/groups/<PK>.
@@ -743,18 +745,27 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
     else:
         operation_code = 2 # Read is least permissive
 
-    credential_permission_url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
-    credential_permission_request_data = {
+    url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
+    request_data = {
         'principal':  credential_pk,
         'topic': topic_pk,
         'operation': operation_code,
     }
     # this requires admin priviledge so use HERMES service account API token
-    credential_permission_response = requests.post(credential_permission_url,
-                                                   json=credential_permission_request_data,
-                                                   headers={'Authorization': api_token,
-                                                            'Content-Type': 'application/json'})
-    logger.debug(f'_add_permission_to_credential credential_permission_response.text:   {credential_permission_response.text}')
+    response = requests.post(url,
+                             json=request_data,
+                             headers={'Authorization': api_token,
+                                      'Content-Type': 'application/json'})
+    if response.status_code == 500:
+        logger.error((f'_add_permission_to_credential_for_user ({response.status_code}) Failed to add {operation} '
+                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
+        logger.error(f'_add_permission_to_credential_for_user response.text {response.text}')
+    elif response.status_code == 200 or response.status_code == 201:
+        logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Added {operation} '
+                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
+    else:
+        logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Attempted {operation} '
+                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
 
 
 def get_user_writable_topics(username, credential_name, user_api_token, exclude_groups=None):
