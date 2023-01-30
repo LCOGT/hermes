@@ -206,43 +206,17 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
     hop_user = get_hop_user(username, user_api_token)
     user_pk = hop_user['pk']
 
-    # TODO: this should probably be factored out into it's own function
-    # Add the user to the hermes group
-    group_name = 'hermes'
-    group_pk = _get_hop_group_pk(group_name, user_api_token=user_api_token)
-
-    # if user is already in hermes group, don't add
-    user_groups = get_user_groups(user_pk, user_api_token=user_api_token)
-
-    if not group_name in [group['name'] for group in user_groups]:
-        # add the user
-        group_add_url = get_hop_auth_api_url() +  f'/groups/{group_pk}/members'
-        logger.debug(f'authorize_user group_add_url: {group_add_url}')
-        group_add_request_data = {
-            'user':  user_pk,
-            'group': group_pk,
-            'status': 1,  # Member=1, Owner=2
-        }
-        # this requires admin priviledge so use HERMES service account API token
-        group_add_response = requests.post(group_add_url,
-                                           json=group_add_request_data,
-                                           headers={'Authorization': hermes_api_token,
-                                                    'Content-Type': 'application/json'})
-        logger.debug(f'authorize_user group_add_response.text: {group_add_response.text}')
-    else:
-        logger.info(f'authorize_user User {username} already a member of group {group_name}')
-
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth: Auth = get_user_hop_authorization(hop_user, user_api_token)
     logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
 
-    add_permissions_to_credential(user_pk, credential_pk, user_api_token=user_api_token)
+    add_permissions_to_credential(user_pk, credential_pk, user_api_token=user_api_token, hermes_api_token=hermes_api_token)
 
     return user_hop_auth
 
 
-def add_permissions_to_credential(user_pk, credential_pk, user_api_token):
+def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes_api_token):
     """Via SCiMMA Auth API, add a CredentialKafkaPermisson to the given credential_pk for every applicable Topic.
 
     Applicable Topics is determined by
@@ -253,7 +227,20 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token):
     This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
     _add_permission_to_credential_for_user().
     """
-    user_group_pks = [group['pk'] for group in get_user_groups(user_pk, user_api_token)]
+    logger.debug(f'in {currentFuncName()} called by {currentFuncName(1)}')
+
+    user_groups = get_user_groups(user_pk, user_api_token)
+    user_group_pks = [group['pk'] for group in user_groups]
+
+    # add User to hermes group if not already in the hermes group
+    hermes_group_name = 'hermes'
+    if not hermes_group_name in [group['name'] for group in user_groups]:
+        # must get the hermes_group_pk from ALL the groups, not just the user_groups
+        hermes_group_pk = _get_hop_group_pk(hermes_group_name, user_api_token=user_api_token)
+        add_user_to_group(user_pk, hermes_group_pk, hermes_api_token)
+    else:
+        logger.info(f'add_permissions_to_credentials User (pk={user_pk}) already a member of group {hermes_group_name}')
+
 
     for group_pk in user_group_pks:
         for group_permission in get_group_permissions_received(group_pk, user_api_token):
@@ -272,6 +259,35 @@ def deauthorize_user(username: str, user_hop_auth: Auth, user_api_token):
     """
     logger.info(f'deauthorize_user Deauthorizing for Hopskotch, user: {username} auth: {user_hop_auth.username}')
     delete_user_hop_credentials(username, user_hop_auth.username, user_api_token)
+
+
+def add_user_to_group(user_pk, group_pk, hermes_api_token):
+    """Add the User with user_pk to the Group with group_pk as Member.
+
+    Requires Admin privilege, so hermes_api_token is needed.
+
+    Typically used to add User to hermes group.
+    """
+    url = get_hop_auth_api_url() +  f'/groups/{group_pk}/members'
+    request_data = {
+        'user':  user_pk,
+        'group': group_pk,
+        'status': 1,  # Member=1, Owner=2
+    }
+    # this requires admin priviledge so use HERMES service account API token
+    # SCiMMA Auth returns  400 Bad Request if the user is already a member of the group
+    response = requests.post(url,
+                             json=request_data,
+                             headers={'Authorization': hermes_api_token,
+                                      'Content-Type': 'application/json'})
+
+    if response.status_code == 400:
+        logger.error(f'add_user_to_group ({response.status_code}) request_data: {request_data}')
+    elif response.status_code == 201:
+        logger.info(f'add_user_to_group ({response.status_code}) User added to Group. request_data: {request_data}')
+    else:
+        logger.warning(f'add_user_to_group response.status_code: {response.status_code} request_data: {request_data}')
+        logger.debug(f'add_user_to_group response.text: {response.text}')
 
 
 def get_hop_user(username, api_token) -> dict:
@@ -300,7 +316,7 @@ def get_hop_user(username, api_token) -> dict:
         # find the user dict whose username matches our username
         # this is the idiom for searchng a list of dictionaries for certain key-value (username)
         hop_user = next((item for item in hop_users if item['username'] == username), None)
-        logger.debug(f'get_hop_user hop_user: {hop_user}')
+        logger.info(f'get_hop_user hop_user: {hop_user}')
     else:
         logger.debug(f'get_hop_user: response.json(): {response.json()}')
         hop_user = None
