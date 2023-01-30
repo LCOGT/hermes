@@ -253,6 +253,8 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
 
     for group_pk in user_group_pks:
         for group_permission in get_group_permissions_received(group_pk, user_api_token):
+            logger.info((f'add_permissions_to_credential Adding {group_permission["operation"]} permission to '
+                         f'topic {group_permission["topic"]} for user(cred): {user_pk}({credential_pk})'))
             _add_permission_to_credential_for_user(user_pk, credential_pk, group_permission['topic'],
                                                    group_permission['operation'], user_api_token)
 
@@ -764,13 +766,13 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
     if response.status_code == 500:
         logger.error((f'_add_permission_to_credential_for_user ({response.status_code}) Failed to add {operation} '
                       f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
-        logger.error(f'_add_permission_to_credential_for_user response.text {response.text}')
+        logger.debug(f'_add_permission_to_credential_for_user response.text {response.text}')
     elif response.status_code == 200 or response.status_code == 201:
         logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Added {operation} '
-                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
+                      f'permission to {request_data}'))
     else:
-        logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Attempted {operation} '
-                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
+        logger.warning((f'_add_permission_to_credential_for_user ({response.status_code}) 201 expected for {operation} '
+                        f'permission to {request_data}'))
 
 
 def get_user_writable_topics(username, credential_name, user_api_token, exclude_groups=None):
