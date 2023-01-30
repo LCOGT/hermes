@@ -45,11 +45,13 @@ import scramp
 ##     logger.debug(f'in {currentFuncName()} called by {currentFuncName(1)}')
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
-# TODO: the idea is that SCIMMA_ADMIN_BASE_URL is the only configuration
-#   needed in settings.py, but consider moving the service account creds
-#   there as well
+#  The idea is that SCIMMA_ADMIN_BASE_URL is the only configuration
+#  needed in settings.py
+#  That's why the Hermes Service Account SCiMMA Auth SCRAM Cred is
+#  read from the envirionment here. (It might be confusing that they're
+#  not in settings.py
 
 #  from the environment, get the HERMES service account credentials for SCiMMA Auth (scimma-admin).
 HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
@@ -234,6 +236,8 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
 
     This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
     _add_permission_to_credential_for_user().
+
+    This method also adds the User to the hermes group if not already a Member.
     """
     user_groups = get_user_groups(user_pk, user_api_token)
     user_group_pks = [group['pk'] for group in user_groups]
@@ -245,8 +249,7 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
         hermes_group_pk = _get_hop_group_pk(hermes_group_name, user_api_token=user_api_token)
         add_user_to_group(user_pk, hermes_group_pk, hermes_api_token)
     else:
-        logger.info(f'add_permissions_to_credentials User (pk={user_pk}) already a member of group {hermes_group_name}')
-
+        logger.info(f'add_permissions_to_credential User (pk={user_pk}) already a member of group {hermes_group_name}')
 
     for group_pk in user_group_pks:
         for group_permission in get_group_permissions_received(group_pk, user_api_token):

@@ -11,7 +11,7 @@ from hermes.brokers import hopskotch
 from hermes.models import Profile
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class NotInKafkaUsers(PermissionDenied):
     """COManage maintains a kafkaUsers group that a User must
