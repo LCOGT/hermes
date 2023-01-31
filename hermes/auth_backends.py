@@ -11,7 +11,7 @@ from hermes.brokers import hopskotch
 from hermes.models import Profile
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+#logger.setLevel(logging.DEBUG)
 
 class NotInKafkaUsers(PermissionDenied):
     """COManage maintains a kafkaUsers group that a User must
@@ -168,9 +168,9 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         # make sure the User exists in SCiMMA Auth
         scimma_auth_user, created = hopskotch.get_or_create_user(claims)
         if created:
-            logger.info(f'create_user - Created SCiMMA Auth User {scimma_auth_user}')
+            logger.info(f'update_user - Created SCiMMA Auth User {scimma_auth_user}')
         else:
-            logger.info(f'create_user - Found existing SCiMMA Auth User {scimma_auth_user}')
+            logger.info(f'update_user - Found existing SCiMMA Auth User {scimma_auth_user}')
 
         # NOTE: if we ever wanted to save the claims in the session, this (and create_user) would
         #   be the place to do it.

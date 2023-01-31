@@ -36,7 +36,7 @@ class SCiMMAAuthSessionRefresh:
         We might need to refresh the Hermes service account SCiMMA Auth API token along the way,
         since admin privilidges are required to get the User API token
         """
-        logger.debug(f'Refreshing SCiMMA Auth API token for User.')
+        logger.debug(f'Refreshing SCiMMA Auth API token for User {request.user} ({request.user.username})')
 
         # get the hermes service account API token and check it's expiration status
         hermes_api_token_expiration_str: str = request.session.get('hermes_api_token_expiration', None)
@@ -52,11 +52,13 @@ class SCiMMAAuthSessionRefresh:
         else:
             logger.debug(f'SCiMMA Auth API token for Hermes service account up-to-date.')
         
-        username = request.user.username
-        hermes_api_token = request.session['hermes_api_token']
-        user_api_token, user_api_token_expiration = hopskotch.get_user_api_token(username, hermes_api_token)
-        request.session['user_api_token'] = user_api_token
-        request.session['user_api_token_expiration'] = user_api_token_expiration
+        if request.user.username:
+            hermes_api_token = request.session['hermes_api_token']
+            user_api_token, user_api_token_expiration = hopskotch.get_user_api_token(request.user.username, hermes_api_token)
+            request.session['user_api_token'] = user_api_token
+            request.session['user_api_token_expiration'] = user_api_token_expiration
+        else:
+            logger.debug(f'SCiMMA Auth API token for {request.user} not applicable (no-op).')    
 
 
     def __call__(self, request):
@@ -64,18 +66,22 @@ class SCiMMAAuthSessionRefresh:
         # the view (and later middleware) are called.
         logger.debug(f'maintaining SCiMMA Auth API tokens in Session...')
 
+        # IMPORTANT: we only check the user api token here, but that might trigger a hermes_api_token
+        # get/refresh, and we need that to authenticate users in auth_backends.
+
         user_api_token_expiration_str: str = request.session.get('user_api_token_expiration', None)
         if user_api_token_expiration_str:
             user_api_token_expiration: datetime.datetime = dateparse.parse_datetime(user_api_token_expiration_str)
             need_new_user_api_token = self._is_expired(user_api_token_expiration)
         else:
-            need_new_user_api_token = True
+            need_new_user_api_token = True  # even if it's the AnonmymousUser, to trigger hermes_api_token get/refresh
         
         if need_new_user_api_token:
-            logger.debug(f'New SCiMMA Auth API user token needed.')
+            logger.debug(f'New SCiMMA Auth API user token needed for {request.user} ({request.user.username})')
             self.refresh_user_token(request)
         else:
-            logger.debug(f'SCiMMA Auth API token for {request.user.username} up-to-date.')
+            # the api_token is either not expired or non-existent (for the AnonymousUser)
+            logger.debug(f'SCiMMA Auth API token for {request.user} ({request.user.username}): refresh not needed.')
 
         response = self.get_response(request)  # pass the request to the next Middleware in the list
 
