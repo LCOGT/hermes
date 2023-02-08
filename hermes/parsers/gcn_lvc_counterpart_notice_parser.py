@@ -35,7 +35,7 @@ class GCNLVCCounterpartNoticeParser(BaseParser):
     INTENSITY:        1.00e-11 +/- 2.00e-12 [erg/cm2/sec]
     ENERGY:           0.3-10 [keV]
     TELESCOPE:        Swift-XRT
-    SOURSE_SERNUM:    2
+    SOURCE_SERNUM:    2
     RANK:             2
     WARN_FLAG:        0
     SUBMITTER:        Phil_Evans
@@ -65,7 +65,7 @@ class GCNLVCCounterpartNoticeParser(BaseParser):
         """
         try:
             event_trigger_number = parsed_fields['event_trig_num']
-            source_sernum = parsed_fields['sourse_sernum']
+            source_sernum = parsed_fields['source_sernum']
             return f'{event_trigger_number}_X{source_sernum}'
         except Exception as e:
             logger.warn(f'Unable to parse target name for lvc counterpart: {e}')
