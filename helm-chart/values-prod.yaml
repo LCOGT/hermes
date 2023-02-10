@@ -12,6 +12,10 @@ resources:
     cpu: 1000m
     memory: 1024Mi
 
+brokers:
+  gcnClassicOverKafka:
+    groupId: 'hermes'
+
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
 ingress:
@@ -22,8 +26,8 @@ ingress:
     - host: hermes.lco.global
       paths:
         - "/messages"
+        - "/admin"
         - "/api"
-        - "/submit"
         - "/auth"
         - "/get-csrf-token"
         - "/login-redirect"

@@ -99,6 +99,13 @@ class MessageSerializer(BaseMessageSerializer):
         fields = BaseMessageSerializer.Meta.fields + ['nonlocalizedevents', 'targets']
 
 
+class ReferenceMessageSerializer(BaseMessageSerializer):
+    targets = BaseTargetSerializer(many=True)
+
+    class Meta(BaseMessageSerializer.Meta):
+        fields = BaseMessageSerializer.Meta.fields + ['targets']
+
+
 class NonLocalizedEventSequenceSerializer(serializers.ModelSerializer):
     message = BaseMessageSerializer()
 
@@ -113,7 +120,7 @@ class NonLocalizedEventSequenceSerializer(serializers.ModelSerializer):
 
 
 class NonLocalizedEventSerializer(BaseNonLocalizedEventSerializer):
-    references = BaseMessageSerializer(many=True)
+    references = ReferenceMessageSerializer(many=True)
     sequences = serializers.SerializerMethodField()
 
     class Meta(BaseNonLocalizedEventSerializer.Meta):

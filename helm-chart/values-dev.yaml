@@ -10,6 +10,10 @@ resources:
     cpu: 1000m
     memory: 1024Mi
 
+brokers:
+  gcnClassicOverKafka:
+    groupId: 'hermes-dev'
+
 hermesFrontEndBaseUrl: http://hermes-dev.lco.gtn/
 
 ingress:
@@ -21,7 +25,7 @@ ingress:
       paths:
         - "/messages"
         - "/api"
-        - "/submit"
+        - "/admin"
         - "/auth"
         - "/get-csrf-token"
         - "/login-redirect"
