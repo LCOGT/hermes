@@ -45,7 +45,7 @@ class GCNLVCNoticeParser(BaseParser):
 
     def __repr__(self):
         return 'GCN/LVC Notice Parser v1'
-    
+
     def add_extra_fields(self, parsed_fields):
         ''' Add and modify some of the parsed fields
             Changes skymap fits url to be the multiorder version if it is not
@@ -71,7 +71,7 @@ class GCNLVCNoticeParser(BaseParser):
                         parsed_fields[entry[0].strip().lower()] = entry[1].strip()
         except Exception as e:
             logger.warn(f'parse_message failed for lvc notice Message {message.id}: {e}')
-        
+
         if parsed_fields and all(x.lower() in parsed_fields['title'].lower() for x in ['GCN', 'LVC', 'NOTICE']):
             parsed_fields = self.add_extra_fields(parsed_fields)
             message.data = parsed_fields
