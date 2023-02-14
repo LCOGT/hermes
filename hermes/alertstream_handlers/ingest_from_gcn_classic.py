@@ -36,11 +36,17 @@ def handle_message(message):
         }
     )
 
+    if topic in TOPICS_TO_PARSERS:
+        # parse message_text into data JSONField, add extra fields, models, and links
+        parser = TOPICS_TO_PARSERS[topic]
+        parser.parse(message)
+
     if created:
-        logger.info(f"Ingested new Message {message.id} on topic {message.topic}")
+        event_id = message.data.get('trigger_num', None)
+        seq_num = message.data.get('sequence_num', None)
+        logger.info((f'Ingested new Message {message.id} Topic: {message.topic} '
+                     f'Event: {event_id} Sequence Number: {seq_num}'))
     else:
         logger.info(f"Ignoring duplicate Message {message.id} on topic {message.topic}")
 
-    if topic in TOPICS_TO_PARSERS:
-        parser = TOPICS_TO_PARSERS[topic]
-        parser.parse(message)
+
