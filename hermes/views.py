@@ -27,9 +27,8 @@ from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventS
 from hermes.forms import MessageForm
 from hermes.utils import get_all_public_topics, extract_hop_auth
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
-from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, GenericHermesMessageSerializer,
-                                NonLocalizedEventSequenceSerializer, HermesDiscoverySerializer, HermesPhotometrySerializer,
-                                ProfileSerializer)
+from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
+                                NonLocalizedEventSequenceSerializer, ProfileSerializer)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -171,7 +170,7 @@ def submit_to_hop(request, message):
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
-    serializer_class = GenericHermesMessageSerializer
+    serializer_class = HermesMessageSerializer
     
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
@@ -181,9 +180,137 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
          submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>
+         authors: <Text full list of authors on a message>,
          message_text: <Text of the message to send>,
-         data: {<Unparsed json data dict>}
+         data: {
+            references: [
+                {
+                    source:
+                    citation:
+                    url:
+                },
+                ...
+            ],
+            extra_data: {
+                key1: value1,
+                key2: value2,
+                ...
+            },
+            event_id: <Nonlocalized event_id this message relates to>,
+            targets: [
+                {
+                    name: <Target name>,
+                    ra: <Target ra in decimal or sexigesimal format>,
+                    dec: <Target dec in decimal or sexigesimal format>,
+                    ra_error: <Error of ra>,
+                    dec_error: <Error of dec>,
+                    ra_error_units: <Units for ra error>,
+                    dec_error_units: <Units for dec error>,
+                    pm_ra: <RA proper motion in arcsec/year>,
+                    pm_dec: <Dec proper motion in arcsec/year>,
+                    epoch: <Epoch in MJD>,
+                    orbital_elements: {
+                        epoch_of_elements: <>,
+                        orbinc: <>,
+                        longascnode: <>,
+                        argofperih: <>,
+                        eccentricity: <>,
+                        meandist: <>,
+                        meananom: <>,
+                        perihdist: <>,
+                        epochofperih: <>
+                    },
+                    discovery_info: {
+                        reporting_group: <>,
+                        discovery_source: <>,
+                        transient_type: <Type of source, one of PSN, nuc, PNV, AGN, or Other>,
+                        proprietary_period: <Duration that this discovery should be kept private>,
+                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>
+                    },
+                    redshift: <>,
+                    host_name: <Host galaxy name>,
+                    host_redshift: <>,
+                    aliases: [
+                        'alias1',
+                        'alias2',
+                        ...
+                    ],
+                    group_associations: <String of group associations for this target>
+                }
+            ],
+            photometry: [
+                {
+                    target_index: <Index of target list that this photometry relates to. Can be left out if there is only one target>,
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <Discovery telescope>,
+                    instrument: <Discovery instrument>,
+                    bandpass: <Wavelength band of the discovery observation>,
+                    brightness: <Brightness of the discovery>,
+                    brightness_error: <Brightness error of the discovery>,
+                    brightness_unit: <Brightness units for the discovery,
+                                      current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
+                    new_discovery: <Boolean if this photometry is for a new discovery or not>
+                    exposure_time: <Exposure time in seconds for this photometry>,
+                    observer: <The entity that observed this photometry data>,
+                    comments: <String of comments for the photometry>,
+                    limiting_brightness: <The minimum brightness at which the target is visible>,
+                    limiting_brightness_unit: <Unit for the limiting brightness>
+                    group_associations: <>
+                }
+            ],
+            spectroscopy: [
+                {
+                    target_index: <Index of target list that this specotroscopic data relates to. Can be left out if there is only one target>,
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <specotroscopic data telescope>,
+                    instrument: <specotroscopic data instrument>,
+                    setup: <>,
+                    flux: {
+                        value: <Flux value of the specotroscopic data>,
+                        error: <Flux error of the specotroscopic data>,
+                        unit: <Flux units for the specotroscopic data,
+                               current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
+                        wavelength: <Wavelength for this spectroscopic data>,
+                        wavelength_unit: <Units for the wavelength>
+                    },
+                    classification: <TNS classification for this specotroscopic data>,
+                    proprietary_period: <>,
+                    proprietary_period_units: <>,
+                    exposure_time: <Exposure time in seconds for this spectroscopic data>,
+                    observer: <The entity that observed this spectroscopic data>,
+                    reducer: <The entity that reduced this spectroscopic data>,
+                    comments: <String of comments for the spectroscopic data>,
+                    group_associations: <>,
+                    spec_type: <>
+                }
+            ],
+            astrometry: [
+                {
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <Astrometry telescope>,
+                    instrument: <Astrometry instrument>,
+                    ra: <Target ra in decimal or sexigesimal format>,
+                    dec: <Target dec in decimal or sexigesimal format>,
+                    ra_error: <Error of ra>,
+                    dec_error: <Error of dec>,
+                    ra_error_units: <Units for ra error>,
+                    dec_error_units: <Units for dec error>,
+                    mpc_sitecode: <MPC Site code for this data>,
+                    bandpass: <Wavelength band of the Astrometry observation>,
+                    brightness: <Brightness of the Astrometry>,
+                    brightness_error: <Brightness error of the Astrometry>,
+                    brightness_unit: <Brightness units for the Astrometry,
+                                      current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
+                    astrometric_catalog: <Astrometric catalog this belongs to>,
+                    photometric_catalog: <Photometric catalog this belongs to>,
+                    flags: {
+                        key1: value1,
+                        ...
+                    }
+                }
+            ],
+            submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
+         }
         }
         """
         return Response({"message": message}, status.HTTP_200_OK)
@@ -206,80 +333,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         else:
             errors = serializer.errors
         return Response(errors, status.HTTP_200_OK)
-
-
-class SubmitDiscoveriesViewSet(SubmitHermesMessageViewSet):
-    serializer_class = HermesDiscoverySerializer
-
-    def get(self, request, *args, **kwargs):
-        message = """This endpoint is used to send a message with a list of potential Discoveries corresponding to a 
-        non-localized event.
-        
-        Requests should be structured as below:
-        
-        {title: <Title of the message>,
-         topic: <kafka topic to post message to>, 
-         submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>
-         message_text: <Text of the message to send>,
-         data: {
-            event_id:  <ID of the non-localized event for these discoveries if applicable>,
-            type: <The type of this discovery, i.e. GRB or SN, etc.>,
-            extra_data: {<dict of key/value pairs of extra unparsed data>},
-            photometry: [{target_name: <ID of the discovery target>,
-                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
-                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  date: <Date/time of the discovery discovery>,
-                  date_format: <Python strptime format string or "mjd" or "jd">,
-                  telescope: <Discovery telescope>,
-                  instrument: <Discovery instrument>,
-                  band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the discovery>,
-                  nondetection: <Boolean of if this observation corresponds to a nondetection or not>,
-                  brightness_error: <Brightness error of the discovery>,
-                  brightness_unit: <Brightness units for the discovery, 
-                                   current supported values: [AB mag, Vega mag]>
-                           }, ...]
-            }
-        }
-        """
-        return Response({"message": message}, status.HTTP_200_OK)
-
-
-class SubmitPhotometryViewSet(SubmitHermesMessageViewSet):
-    serializer_class = HermesPhotometrySerializer
-
-    def get(self, request, *args, **kwargs):
-        message = """This endpoint is used to send a message to report photometry of one or more targets.
-         
-        Requests should be structured as below:
-
-        {title: <Title of the message>,
-         topic: <kafka topic to post message to>, 
-         submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>
-         message_text: <Text of the message to send>,
-         data: {
-            event_id: <ID of the non-localized event for these observation if applicable>,
-            extra_data: {<dict of key/value pairs of extra unparsed data>},
-            photometry: [{target_name: <Name of the observed target>,
-                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
-                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  date: <Date/time of the observation>,
-                  date_format: <Python strptime format string or "mjd" or "jd">,
-                  telescope: <Discovery telescope>,
-                  instrument: <Discovery instrument>,
-                  band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the observation>,
-                  nondetection: <Boolean of if this observation corresponds to a nondetection or not>,
-                  brightness_error: <Brightness error of the observation>,
-                  brightness_unit: <Brightness units for the discovery, 
-                                   current supported values: [AB mag, Vega mag, mJy, and erg / s / cm² / Å]>
-                           }, ...]
-            }
-        }
-        """
-        return Response({"message": message}, status.HTTP_200_OK)
 
 
 class ProfileApiView(RetrieveUpdateAPIView):

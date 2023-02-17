@@ -7,7 +7,7 @@ from copy import deepcopy
 import math
 
 from hermes.models import Message, NonLocalizedEvent, Target
-from hermes.serializers import HermesDiscoverySerializer
+from hermes.serializers import HermesMessageSerializer
 
 class TestApiFiltering(TestCase):
     @classmethod
@@ -119,7 +119,7 @@ class TestApiFiltering(TestCase):
         self.assertContains(result, self.target2_dec)
 
 
-class TestSubmitGenericMessageApi(TestCase):
+class TestSubmitBasicMessageApi(TestCase):
     def setUp(self):
         super().setUp()
         self.generic_message = {
@@ -128,14 +128,7 @@ class TestSubmitGenericMessageApi(TestCase):
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
-            'data': {
-                'anything': 'goes',
-                'in': [{
-                    'here': 'or',
-                    'ra': '33.2',
-                    'dec': '42.2'
-                }]
-            }
+            'data': {}
         }
         # Set up the session for the middleware
         session = self.client.session
@@ -160,10 +153,87 @@ class TestSubmitGenericMessageApi(TestCase):
         self.assertContains(result, 'field is required', status_code=200)
 
 
-class TestSubmitDiscoveriesApi(TestCase):
+class TestBaseMessageApi(TestCase):
     def setUp(self):
         super().setUp()
-        self.good_discovery = {
+        self.ra_target1 = {
+            'name': 'test target 1',
+            'ra': '33.2',
+            'dec': '42.2',
+        }
+        self.ra_target2 = {
+            'name': 'test target 2',
+            'ra':  '23:21:16',
+            'dec': '68.7',
+        }
+        self.orb_el_target1 = {
+            'name': 'test orbel 1',
+            'orbital_elements': {
+                'epoch_of_elements': 57660.0,
+                'orbinc': 9.7942900,
+                'longascnode': 122.8943400,
+                'argofperih': 78.3278300,
+                'meandist': 0.7701170,
+                'meananom': 165.6860400,
+                'eccentricity': 0.5391962,
+            }
+        }
+        self.orb_el_target2 = {
+            'name': 'test orbel 2',
+            'orbital_elements': {
+                'epoch_of_elements': 57660.0,
+                'orbinc': 9.7942900,
+                'longascnode': 122.8943400,
+                'argofperih': 78.3278300,
+                'perihdist': 1.0,
+                'eccentricity': 0.5391962,
+                'epochofperih': 57400.0
+            }
+        }
+        self.photometry = {
+            'target_name': 'test target 1',
+            'date_obs': timezone.now().isoformat(),
+            'telescope': '1m0a.doma.elp.lco',
+            'instrument': 'fa16',
+            'bandpass': 'g',
+            'brightness': 22.5,
+            'brightness_error': 1.5,
+            'brightness_unit': 'AB mag'
+        }
+        self.spectroscopy = {
+            'target_name': 'test target 1',
+            'date_obs': timezone.now().isoformat(),
+            'telescope': '1m0a.doma.elp.lco',
+            'instrument': 'fa16',
+            'flux': [{
+                'value': 2348.34,
+                'error': 20.6,
+                'wavelength': 725.25,
+                'wavelength_unit': 'nm'
+            }]
+        }
+        self.atsrometry = {
+            'target_name': 'test target 1',
+            'date_obs': timezone.now().isoformat(),
+            'telescope': '1m0a.doma.elp.lco',
+            'instrument': 'fa16',
+            'ra': '23.8',
+            'dec': '31.4',
+            'ra_error': 0.2,
+            'ra_error_units': 'degrees',
+            'dec_error': 12,
+            'dec_error_units': 'arcsec'
+        }
+        # Set up the session for the middleware
+        session = self.client.session
+        session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
+        session.save()
+
+
+class TestSubmitReferencesMessageApi(TestBaseMessageApi):
+    def setUp(self):
+        super().setUp()
+        self.good_message = {
             'title': 'Candidate message',
             'topic': 'hermes.candidates',
             'message_text': 'This is a candidate message.',
@@ -171,121 +241,357 @@ class TestSubmitDiscoveriesApi(TestCase):
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
             'data': {
                 'event_id': 'S123456',
-                'photometry': [{
-                    'target_name': 'm44',
-                    'ra': '33.2',
-                    'dec': '42.2',
-                    'date': timezone.now().isoformat(),
-                    'telescope': '1m0a.doma.elp.lco',
-                    'instrument': 'fa16',
-                    'band': 'g',
-                    'brightness': 22.5,
-                    'brightness_error': 1.5,
-                    'brightness_unit': 'AB mag'
-            }],
+                'references': [{
+                    'source': 'GCN',
+                    'citation': 'S123456'
+                }],
                 'extra_data': {
                     'test_key': 'test_value'
                 }
             }
         }
-        # Set up the session for the middleware
-        session = self.client.session
-        session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
-        session.save()
 
-    def test_good_discovery_submission_accepted(self):
-        result = self.client.post(reverse('submit_discoveries-validate'), self.good_discovery, content_type="application/json")
+    def test_good_reference_submits_successfully(self):
+        good_message = deepcopy(self.good_message)
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
 
-    def test_discovery_time_mjd_submission_accepted(self):
-        good_discovery = deepcopy(self.good_discovery)
-        good_discovery['data']['photometry'][0]['date'] = '2348532.241'
-        good_discovery['data']['photometry'][0]['date_format'] = 'mjd'
-        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
+    def test_reference_with_citation_requires_source(self):
+        bad_message = deepcopy(self.good_message)
+        bad_reference = {
+            'citation': 'S12345',
+        }
+        bad_message['data']['references'] = [bad_reference]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set source with citation', status_code=200)
+
+    def test_empty_reference_fails(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['references'] = [{}]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set source/citation or url', status_code=200)
+
+
+class TestSubmitTargetMessageApi(TestBaseMessageApi):
+    def setUp(self):
+        super().setUp()
+        self.good_message = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'event_id': 'S123456',
+                'references': [],
+                'targets': [self.ra_target1],
+                'extra_data': {
+                    'test_key': 'test_value'
+                }
+            }
+        }
+
+    def test_good_targets_submit_successfully(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['targets'] = [
+            self.ra_target1, self.ra_target2, self.orb_el_target1, self.orb_el_target2
+        ]
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
 
-    def test_discovery_unknown_time_format_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['date'] = '2348532.241'
-        bad_discovery['data']['photometry'][0]['date_format'] = 'geo'
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
-        self.assertContains(result, 'does not parse', status_code=200)
+    def test_target_requires_dec_if_ra_is_set(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+            'ra': '12.2'
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set dec if ra is set', status_code=200)
 
-    def test_discovery_ha_ra_format(self):
-        good_discovery = deepcopy(self.good_discovery)
-        good_discovery['data']['photometry'][0]['ra'] = '23:21:16'
-        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
+    def test_target_requires_ra_if_dec_is_set(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+            'dec': '12.2'
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set ra if dec is set', status_code=200)
+
+    def test_target_requires_ra_dec_or_orbital_elements(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'ra/dec or orbital elements are required', status_code=200)
+
+    def test_orbital_element_target_requires_means_or_peris(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+            'orbital_elements': {
+                'epoch_of_elements': 57660.0,
+                'orbinc': 9.7942900,
+                'longascnode': 122.8943400,
+                'argofperih': 78.3278300,
+                'eccentricity': 0.5391962,
+            }
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set meananom/meandist or epochofperih/perihdist', status_code=200)
+
+    def test_orbital_element_target_meandist_requires_meananom(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+            'orbital_elements': {
+                'epoch_of_elements': 57660.0,
+                'orbinc': 9.7942900,
+                'longascnode': 122.8943400,
+                'argofperih': 78.3278300,
+                'eccentricity': 0.5391962,
+                'meandist': 100.0
+            }
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set meananom when meandist is set', status_code=200)
+
+    def test_orbital_element_target_perihdist_requires_epochofperih(self):
+        bad_message = deepcopy(self.good_message)
+        bad_target = {
+            'name': 'test target',
+            'orbital_elements': {
+                'epoch_of_elements': 57660.0,
+                'orbinc': 9.7942900,
+                'longascnode': 122.8943400,
+                'argofperih': 78.3278300,
+                'eccentricity': 0.5391962,
+                'perihdist': 100.0
+            }
+        }
+        bad_message['data']['targets'] = [bad_target]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must set epochofperih when perihdist is set', status_code=200)
+
+    def test_orbital_elements_requires_a_set_of_fields(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['targets'][0]['orbital_elements'] = {}
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertContains(result, 'This field is required', status_code=200)
+        missing_fields = result.json()['data']['targets'][0]['orbital_elements'].keys()
+        required_fields = ['epoch_of_elements', 'orbinc', 'longascnode',
+                           'argofperih', 'eccentricity']
+        for field in required_fields:
+            self.assertIn(field, missing_fields)
+
+    def test_message_ha_ra_format(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['targets'][0]['ra'] = '23:21:16'
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
 
         # Now check the ra is converted to decimal degrees within the validated data
-        serializer = HermesDiscoverySerializer(data=good_discovery)
+        serializer = HermesMessageSerializer(data=good_message)
         self.assertTrue(serializer.is_valid())
         expected_ra_deg = 350.316666666666
-        self.assertAlmostEqual(serializer.validated_data['data']['photometry'][0]['ra'], expected_ra_deg)
+        self.assertAlmostEqual(serializer.validated_data['data']['targets'][0]['ra'], expected_ra_deg)
 
-    def test_discovery_unknown_ra_format_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['ra'] = 'Ra is 5.2'
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+    def test_message_unknown_ra_format_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['targets'][0]['ra'] = 'Ra is 5.2'
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
 
-    def test_discovery_ra_out_of_bounds_loops(self):
-        good_discovery = deepcopy(self.good_discovery)
+    def test_message_ra_out_of_bounds_loops(self):
+        good_message = deepcopy(self.good_message)
         expected_ra = 930.3
-        good_discovery['data']['photometry'][0]['ra'] = f'{expected_ra}'
+        good_message['data']['targets'][0]['ra'] = f'{expected_ra}'
         # Now check the ra is converted to decimal degrees and looped into valid range within the validated data
-        serializer = HermesDiscoverySerializer(data=good_discovery)
+        serializer = HermesMessageSerializer(data=good_message)
         self.assertTrue(serializer.is_valid())
-        self.assertAlmostEqual(serializer.validated_data['data']['photometry'][0]['ra'], expected_ra % 360.0)
+        self.assertAlmostEqual(serializer.validated_data['data']['targets'][0]['ra'], expected_ra % 360.0)
 
-    def test_discovery_dec_out_of_bounds_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['dec'] = '930.3'
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+    def test_message_dec_out_of_bounds_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['targets'][0]['dec'] = '930.3'
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must be in a format astropy understands', status_code=200)
 
-    def test_discovery_ra_nan_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['ra'] = 'NaN'
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+    def test_message_ra_nan_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['targets'][0]['ra'] = 'NaN'
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Value must be finite', status_code=200)
 
-    def test_discovery_brightness_inf_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['brightness'] = math.inf
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+
+class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
+    def setUp(self):
+        super().setUp()
+        self.good_message = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'event_id': 'S123456',
+                'references': [],
+                'targets': [self.ra_target1],
+                'photometry': [self.photometry],
+                'extra_data': {
+                    'test_key': 'test_value'
+                }
+            }
+        }
+
+    def test_good_message_submission_accepted(self):
+        result = self.client.post(reverse('submit_message-validate'), self.good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
+    def test_message_time_mjd_submission_accepted(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['photometry'][0]['date_obs'] = '2348532.241'
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
+    def test_message_unknown_time_format_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['date_obs'] = '23-not-valid-date:22.2'
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'does not parse', status_code=200)
+
+    def test_message_brightness_error_nan_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['brightness'] = math.nan
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'JSON parse error', status_code=400)
 
-    def test_discovery_brightness_error_nan_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        bad_discovery['data']['photometry'][0]['brightness'] = math.nan
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+    def test_message_brightness_inf_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['brightness'] = math.inf
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'JSON parse error', status_code=400)
 
-    def test_discovery_telescope_or_instrument_required(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        del bad_discovery['data']['photometry'][0]['telescope']
-        bad_discovery['data']['photometry'][0]['instrument'] = ''
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
+    def test_message_telescope_or_instrument_required(self):
+        bad_message = deepcopy(self.good_message)
+        del bad_message['data']['photometry'][0]['telescope']
+        bad_message['data']['photometry'][0]['instrument'] = ''
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must have at least one of telescope or instrument set', status_code=200)
 
-    def test_only_required_fields_accepted(self):
-        good_discovery = deepcopy(self.good_discovery)
-        del good_discovery['authors']
-        del good_discovery['data']['extra_data']
-        del good_discovery['data']['photometry'][0]['brightness']
-        del good_discovery['data']['photometry'][0]['brightness_error']
-        del good_discovery['data']['photometry'][0]['brightness_unit']
-        del good_discovery['data']['photometry'][0]['telescope']
-        del good_discovery['data']['photometry'][0]['instrument']
+    def test_only_required_photometry_fields_accepted(self):
+        good_message = deepcopy(self.good_message)
+        del good_message['authors']
+        del good_message['data']['extra_data']
+        del good_message['data']['photometry'][0]['brightness_error']
+        del good_message['data']['photometry'][0]['brightness_unit']
+        del good_message['data']['photometry'][0]['instrument']
 
-        result = self.client.post(reverse('submit_discoveries-validate'), good_discovery, content_type="application/json")
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
-    
-    def test_missing_a_required_field_rejected(self):
-        bad_discovery = deepcopy(self.good_discovery)
-        del bad_discovery['topic']
+        self.assertEqual(result.json(), {})
 
-        result = self.client.post(reverse('submit_discoveries-validate'), bad_discovery, content_type="application/json")
-        self.assertContains(result, 'field is required', status_code=200)
+    def test_target_name_doesnt_match_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['target_name'] = 'not-present'
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'The target_name must reference a name in your target table', status_code=200)
+
+    def test_no_target_table_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        del bad_message['data']['targets']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'The target_name must reference a name in your target table', status_code=200)
+
+    def test_multiple_targets_present(self):
+        good_message = deepcopy(self.good_message)
+        target2 = deepcopy(good_message['data']['targets'][0])
+        target2['ra'] = '36.7'
+        target2['name'] = 'm55'
+        target2['dec'] = '67.8'
+        good_message['data']['targets'].append(target2)
+        good_message['data']['photometry'].append(deepcopy(good_message['data']['photometry'][0]))
+        good_message['data']['photometry'][1]['target_name'] = 'm55'
+
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
+    def test_basic_fields_are_required(self):
+        required_fields = ['bandpass', 'target_name']
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0] = {}
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'This field is required', status_code=200)
+        missing_fields = result.json()['data']['photometry'][0].keys()
+        for field in required_fields:
+            self.assertIn(field, missing_fields)
+
+    def test_requires_brightness_or_limiting_brightness(self):
+        bad_message = deepcopy(self.good_message)
+        del bad_message['data']['photometry'][0]['brightness']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'brightness or limiting_brightness are required', status_code=200)
+
+    def test_limiting_brightness_only_succeeds(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['photometry'][0]['limiting_brightness'] = 33.3
+        good_message['data']['photometry'][0]['limiting_brightness_unit'] = "erg / s / cm² / Å"
+        del good_message['data']['photometry'][0]['brightness_error']
+        del good_message['data']['photometry'][0]['brightness_unit']
+        del good_message['data']['photometry'][0]['brightness']
+
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
+
+class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
+    def setUp(self):
+        super().setUp()
+        self.good_message = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'event_id': 'S123456',
+                'references': [],
+                'targets': [self.ra_target1],
+                'spectroscopy': [self.spectroscopy],
+                'extra_data': {
+                    'test_key': 'test_value'
+                }
+            }
+        }
+
+    def test_good_spectroscopy_section_submits_ok(self):
+        result = self.client.post(reverse('submit_message-validate'), self.good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
+    def test_spectroscopy_requires_flux_section(self):
+        bad_message = deepcopy(self.good_message)
+        del bad_message['data']['spectroscopy'][0]['flux']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'flux', status_code=200)
+
+    def test_spectroscopy_flux_section_requires_value_and_wavelength(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['spectroscopy'][0]['flux'][0] = {}
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'This field is required', status_code=200)
+        missing_fields = result.json()['data']['spectroscopy'][0]['flux'][0].keys()
+        self.assertIn('value', missing_fields)
+        self.assertIn('wavelength', missing_fields)
