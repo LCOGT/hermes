@@ -225,10 +225,14 @@ class TargetDataSerializer(serializers.Serializer):
     name = serializers.CharField(required=True)
     ra = serializers.CharField(required=False)
     dec = serializers.CharField(required=False)
-    ra_error = serializers.CharField(required=False)
-    dec_error = serializers.CharField(required=False)
-    ra_error_units = serializers.CharField(required=False)
-    dec_error_units = serializers.CharField(required=False)
+    ra_error = serializers.FloatField(required=False)
+    dec_error = serializers.FloatField(required=False)
+    ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
+        'degrees', 'marcsec', 'arcsec', 'arcmin'
+    ])
+    dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
+        'degrees', 'marcsec', 'arcsec', 'arcmin'
+    ])
     pm_ra = serializers.FloatField(required=False)
     pm_dec = serializers.FloatField(required=False)
     epoch = serializers.CharField(required=False, default='J2000')
@@ -415,8 +419,6 @@ class GenericHermesDataSerializer(serializers.Serializer):
     photometry = PhotometryDataSerializer(many=True, required=False)
     spectroscopy = SpectroscopyDataSerialzier(many=True, required=False)
     astrometry = AstrometryDataSerializer(many=True, required=False)
-    submit_to_tns = serializers.BooleanField(default=False, required=False, write_only=True)
-    submit_to_mpc = serializers.BooleanField(default=False, required=False, write_only=True)
 
     def validate(self, data):
         # TODO: Add validation if submit_to_tns is set that required fields are set
@@ -470,3 +472,5 @@ class HermesMessageSerializer(serializers.Serializer):
     submitter = serializers.CharField(required=True)
     authors = serializers.CharField(required=False, default='', allow_blank=True)
     data = GenericHermesDataSerializer(required=False)
+    submit_to_tns = serializers.BooleanField(default=False, required=False, write_only=True)
+    submit_to_mpc = serializers.BooleanField(default=False, required=False, write_only=True)
