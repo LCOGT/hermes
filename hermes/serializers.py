@@ -174,14 +174,14 @@ class ReferenceDataSerializer(serializers.Serializer):
 
 class OrbitalElementsSerializer(serializers.Serializer):
     epoch_of_elements = serializers.CharField(required=True)
-    orbinc = serializers.FloatField(required=True)
-    longascnode = serializers.FloatField(required=True)
-    argofperih = serializers.FloatField(required=True)
-    eccentricity = serializers.FloatField(required=True)
+    orbinc = serializers.FloatField(required=True, min_value=0.0, max_value=180.0)
+    longascnode = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
+    argofperih = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
+    eccentricity = serializers.FloatField(required=True, min_value=0.0, max_value=1.0)
     meandist = serializers.FloatField(required=False)
-    meananom = serializers.FloatField(required=False)
+    meananom = serializers.FloatField(required=False, min_value=0.0, max_value=360.0)
     perihdist = serializers.FloatField(required=False)
-    epochofperih = serializers.FloatField(required=False)
+    epochofperih = serializers.FloatField(required=False, min_value=10000.0, max_value=100000.0)
 
     def validate(self, data):
         validated_data = super().validate(data)
@@ -235,7 +235,7 @@ class TargetDataSerializer(serializers.Serializer):
     ])
     pm_ra = serializers.FloatField(required=False)
     pm_dec = serializers.FloatField(required=False)
-    epoch = serializers.CharField(required=False, default='J2000')
+    epoch = serializers.FloatField(required=False, default=2000.0)
     orbital_elements = OrbitalElementsSerializer(required=False)
     discovery_info = DiscoveryInfoSerializer(required=False)
     redshift = serializers.FloatField(required=False)
@@ -322,6 +322,7 @@ class PhotometryDataSerializer(CommonDataSerializer):
     observer = serializers.CharField(required=False)
     comments = serializers.CharField(required=False)
     limiting_brightness = serializers.FloatField(required=False)
+    limiting_brightness_error = serializers.FloatField(required=False)
     limiting_brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
     group_associations = serializers.CharField(required=False)
 
@@ -341,7 +342,7 @@ class FluxDataSerializer(serializers.Serializer):
     error = serializers.FloatField(required=False)
     unit = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
     wavelength = serializers.FloatField(required=True)
-    wavelength_unit = serializers.ChoiceField(required=False, choices=['Å', 'nm'])
+    wavelength_unit = serializers.ChoiceField(required=False, choices=['Å', 'nm', 'µm'])
 
 
 class SpectroscopyDataSerialzier(CommonDataSerializer):

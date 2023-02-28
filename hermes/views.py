@@ -180,8 +180,10 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
          submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>,
+         authors: <Full list of authors on a message>,
          message_text: <Text of the message to send>,
+         submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
+         submit_to_mpc: <Boolean of whether or not to submit this message to MPC along with hop>
          data: {
             references: [
                 {
@@ -204,21 +206,21 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     dec: <Target dec in decimal or sexigesimal format>,
                     ra_error: <Error of ra>,
                     dec_error: <Error of dec>,
-                    ra_error_units: <Units for ra error>,
-                    dec_error_units: <Units for dec error>,
+                    ra_error_units: <Units for ra_error>,
+                    dec_error_units: <Units for dec_error>,
                     pm_ra: <RA proper motion in arcsec/year>,
                     pm_dec: <Dec proper motion in arcsec/year>,
-                    epoch: <Epoch in MJD>,
+                    epoch: <Epoch of reference frame>,
                     orbital_elements: {
-                        epoch_of_elements: <>,
-                        orbinc: <>,
-                        longascnode: <>,
-                        argofperih: <>,
-                        eccentricity: <>,
-                        meandist: <>,
-                        meananom: <>,
-                        perihdist: <>,
-                        epochofperih: <>
+                        epoch_of_elements: <Epoch of Elements in MJD>,
+                        orbinc: <Orbital Inclination (i) in Degrees>,
+                        longascnode: <Longitude of the Ascending Node (Ω) in Degrees>,
+                        argofperih: <Argument of Periapsis (ω) in Degrees>,
+                        eccentricity: <Orbital Eccentricity (e)>,
+                        meandist: <Semimajor Axis (a) in AU>,
+                        meananom: <Mean Anomaly (M) in Degrees>,
+                        perihdist: <Distance to the Perihelion (q) in AU>,
+                        epochofperih: <Epoch of Perihelion passage (tp) in MJD>
                     },
                     discovery_info: {
                         reporting_group: <>,
@@ -229,7 +231,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     },
                     redshift: <>,
                     host_name: <Host galaxy name>,
-                    host_redshift: <>,
+                    host_redshift: <Redshift (z) of Host Galaxy>,
                     aliases: [
                         'alias1',
                         'alias2',
@@ -242,12 +244,12 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 {
                     target_index: <Index of target list that this photometry relates to. Can be left out if there is only one target>,
                     date_obs: <Date of the observation, in a parseable format or JD>,
-                    telescope: <Discovery telescope>,
-                    instrument: <Discovery instrument>,
-                    bandpass: <Wavelength band of the discovery observation>,
-                    brightness: <Brightness of the discovery>,
-                    brightness_error: <Brightness error of the discovery>,
-                    brightness_unit: <Brightness units for the discovery,
+                    telescope: <Observation telescope>,
+                    instrument: <Observation instrument>,
+                    bandpass: <Wavelength band of the observation>,
+                    brightness: <Brightness of the observation>,
+                    brightness_error: <Brightness error of the observation>,
+                    brightness_unit: <Brightness units for the observation,
                                       current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
                     new_discovery: <Boolean if this photometry is for a new discovery or not>
                     exposure_time: <Exposure time in seconds for this photometry>,
@@ -260,26 +262,26 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             ],
             spectroscopy: [
                 {
-                    target_index: <Index of target list that this specotroscopic data relates to. Can be left out if there is only one target>,
+                    target_index: <Index of target list that this specotroscopic datum relates to. Can be left out if there is only one target>,
                     date_obs: <Date of the observation, in a parseable format or JD>,
-                    telescope: <specotroscopic data telescope>,
-                    instrument: <specotroscopic data instrument>,
+                    telescope: <specotroscopic datum telescope>,
+                    instrument: <specotroscopic datum instrument>,
                     setup: <>,
-                    flux: {
-                        value: <Flux value of the specotroscopic data>,
-                        error: <Flux error of the specotroscopic data>,
-                        unit: <Flux units for the specotroscopic data,
+                    flux: [{
+                        value: <Flux value of the specotroscopic datum>,
+                        error: <Flux error of the specotroscopic datum>,
+                        unit: <Flux units for the specotroscopic datum,
                                current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
-                        wavelength: <Wavelength for this spectroscopic data>,
+                        wavelength: <Wavelength for this spectroscopic datum>,
                         wavelength_unit: <Units for the wavelength>
-                    },
-                    classification: <TNS classification for this specotroscopic data>,
+                    }],
+                    classification: <TNS classification for this specotroscopic datum>,
                     proprietary_period: <>,
                     proprietary_period_units: <>,
-                    exposure_time: <Exposure time in seconds for this spectroscopic data>,
-                    observer: <The entity that observed this spectroscopic data>,
-                    reducer: <The entity that reduced this spectroscopic data>,
-                    comments: <String of comments for the spectroscopic data>,
+                    exposure_time: <Exposure time in seconds for this spectroscopic datum>,
+                    observer: <The entity that observed this spectroscopic datum>,
+                    reducer: <The entity that reduced this spectroscopic datum>,
+                    comments: <String of comments for the spectroscopic datum>,
                     group_associations: <>,
                     spec_type: <>
                 }
@@ -301,15 +303,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     brightness_error: <Brightness error of the Astrometry>,
                     brightness_unit: <Brightness units for the Astrometry,
                                       current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
-                    astrometric_catalog: <Astrometric catalog this belongs to>,
-                    photometric_catalog: <Photometric catalog this belongs to>,
-                    flags: {
-                        key1: value1,
-                        ...
-                    }
+                    astrometric_catalog: <Astrometric catalog used to reduce this data>,
+                    photometric_catalog: <Photometric catalog used to reduce this data>,
+                    comments: <String of comments for the spectroscopic datum>
                 }
             ],
-            submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
          }
         }
         """
