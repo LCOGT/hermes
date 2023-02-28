@@ -177,7 +177,7 @@ class OrbitalElementsSerializer(serializers.Serializer):
     orbinc = serializers.FloatField(required=True, min_value=0.0, max_value=180.0)
     longascnode = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
     argofperih = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
-    eccentricity = serializers.FloatField(required=True, min_value=0.0, max_value=1.0)
+    eccentricity = serializers.FloatField(required=True, min_value=0.0)
     meandist = serializers.FloatField(required=False)
     meananom = serializers.FloatField(required=False, min_value=0.0, max_value=360.0)
     perihdist = serializers.FloatField(required=False)

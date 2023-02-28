@@ -305,7 +305,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                                       current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
                     astrometric_catalog: <Astrometric catalog used to reduce this data>,
                     photometric_catalog: <Photometric catalog used to reduce this data>,
-                    comments: <String of comments for the spectroscopic datum>
+                    comments: <String of comments for the astrometric datum>
                 }
             ],
          }
