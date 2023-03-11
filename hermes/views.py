@@ -211,16 +211,17 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     pm_ra: <RA proper motion in arcsec/year>,
                     pm_dec: <Dec proper motion in arcsec/year>,
                     epoch: <Epoch of reference frame>,
+                    new_discovery: <Boolean if this target is for a new discovery or not>
                     orbital_elements: {
                         epoch_of_elements: <Epoch of Elements in MJD>,
-                        orbinc: <Orbital Inclination (i) in Degrees>,
-                        longascnode: <Longitude of the Ascending Node (Ω) in Degrees>,
-                        argofperih: <Argument of Periapsis (ω) in Degrees>,
+                        orbital_inclination: <Orbital Inclination (i) in Degrees>,
+                        longitude_of_the_ascending_node: <Longitude of the Ascending Node (Ω) in Degrees>,
+                        argument_of_the_perihelion: <Argument of Periapsis (ω) in Degrees>,
                         eccentricity: <Orbital Eccentricity (e)>,
-                        meandist: <Semimajor Axis (a) in AU>,
-                        meananom: <Mean Anomaly (M) in Degrees>,
-                        perihdist: <Distance to the Perihelion (q) in AU>,
-                        epochofperih: <Epoch of Perihelion passage (tp) in MJD>
+                        semimajor_axis: <Semimajor Axis (a) in AU>,
+                        mean_anomaly: <Mean Anomaly (M) in Degrees>,
+                        perihperihelion_distancedist: <Distance to the Perihelion (q) in AU>,
+                        epoch_of_perihelion: <Epoch of Perihelion passage (tp) in MJD>
                     },
                     discovery_info: {
                         reporting_group: <>,
@@ -251,12 +252,12 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     brightness_error: <Brightness error of the observation>,
                     brightness_unit: <Brightness units for the observation,
                                       current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
-                    new_discovery: <Boolean if this photometry is for a new discovery or not>
                     exposure_time: <Exposure time in seconds for this photometry>,
                     observer: <The entity that observed this photometry data>,
                     comments: <String of comments for the photometry>,
                     limiting_brightness: <The minimum brightness at which the target is visible>,
                     limiting_brightness_unit: <Unit for the limiting brightness>
+                    catalog: <Photometric catalog used to reduce this data>,
                     group_associations: <>
                 }
             ],
@@ -267,14 +268,12 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     telescope: <specotroscopic datum telescope>,
                     instrument: <specotroscopic datum instrument>,
                     setup: <>,
-                    flux: [{
-                        value: <Flux value of the specotroscopic datum>,
-                        error: <Flux error of the specotroscopic datum>,
-                        unit: <Flux units for the specotroscopic datum,
+                    flux: [<Flux values of the specotroscopic datum>],
+                    flux_error: [ <Flux error values of the specotroscopic datum>],
+                    flux_units: <Flux units for the specotroscopic datum,
                                current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
-                        wavelength: <Wavelength for this spectroscopic datum>,
-                        wavelength_unit: <Units for the wavelength>
-                    }],
+                    wavelength: [<Wavelength values for this spectroscopic datum>],
+                    wavelength_units: <Units for the wavelength>,
                     classification: <TNS classification for this specotroscopic datum>,
                     proprietary_period: <>,
                     proprietary_period_units: <>,
@@ -298,13 +297,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     ra_error_units: <Units for ra error>,
                     dec_error_units: <Units for dec error>,
                     mpc_sitecode: <MPC Site code for this data>,
-                    bandpass: <Wavelength band of the Astrometry observation>,
-                    brightness: <Brightness of the Astrometry>,
-                    brightness_error: <Brightness error of the Astrometry>,
-                    brightness_unit: <Brightness units for the Astrometry,
-                                      current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
-                    astrometric_catalog: <Astrometric catalog used to reduce this data>,
-                    photometric_catalog: <Photometric catalog used to reduce this data>,
+                    catalog: <Astrometric catalog used to reduce this data>,
                     comments: <String of comments for the astrometric datum>
                 }
             ],

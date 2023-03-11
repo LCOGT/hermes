@@ -169,25 +169,25 @@ class TestBaseMessageApi(TestCase):
         self.orb_el_target1 = {
             'name': 'test orbel 1',
             'orbital_elements': {
-                'epoch_of_elements': 57660.0,
-                'orbinc': 9.7942900,
-                'longascnode': 122.8943400,
-                'argofperih': 78.3278300,
-                'meandist': 0.7701170,
-                'meananom': 165.6860400,
+                'epoch_of_elements': '57660.0',
+                'orbital_inclination': 9.7942900,
+                'longitude_of_the_ascending_node': 122.8943400,
+                'argument_of_the_perihelion': 78.3278300,
+                'semimajor_axis': 0.7701170,
+                'mean_anomaly': 165.6860400,
                 'eccentricity': 0.5391962,
             }
         }
         self.orb_el_target2 = {
             'name': 'test orbel 2',
             'orbital_elements': {
-                'epoch_of_elements': 57660.0,
-                'orbinc': 9.7942900,
-                'longascnode': 122.8943400,
-                'argofperih': 78.3278300,
-                'perihdist': 1.0,
+                'epoch_of_elements': '57660.0',
+                'orbital_inclination': 9.7942900,
+                'longitude_of_the_ascending_node': 122.8943400,
+                'argument_of_the_perihelion': 78.3278300,
+                'perihelion_distance': 1.0,
                 'eccentricity': 0.5391962,
-                'epochofperih': 57400.0
+                'epoch_of_perihelion': '57400.0'
             }
         }
         self.photometry = {
@@ -205,14 +205,13 @@ class TestBaseMessageApi(TestCase):
             'date_obs': timezone.now().isoformat(),
             'telescope': '1m0a.doma.elp.lco',
             'instrument': 'fa16',
-            'flux': [{
-                'value': 2348.34,
-                'error': 20.6,
-                'wavelength': 725.25,
-                'wavelength_unit': 'nm'
-            }]
+            'flux': [2348.34],
+            'flux_error': [20.6],
+            'wavelength': [725.25],
+            'wavelength_units': 'nm'
+            
         }
-        self.atsrometry = {
+        self.astrometry = {
             'target_name': 'test target 1',
             'date_obs': timezone.now().isoformat(),
             'telescope': '1m0a.doma.elp.lco',
@@ -335,50 +334,50 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         bad_target = {
             'name': 'test target',
             'orbital_elements': {
-                'epoch_of_elements': 57660.0,
-                'orbinc': 9.7942900,
-                'longascnode': 122.8943400,
-                'argofperih': 78.3278300,
+                'epoch_of_elements': '57660.0',
+                'orbital_inclination': 9.7942900,
+                'longitude_of_the_ascending_node': 122.8943400,
+                'argument_of_the_perihelion': 78.3278300,
                 'eccentricity': 0.5391962,
             }
         }
         bad_message['data']['targets'] = [bad_target]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Must set meananom/meandist or epochofperih/perihdist', status_code=200)
+        self.assertContains(result, 'Must set mean_anomaly/semimajor_axis or epoch_of_perihelion/perihelion_distance', status_code=200)
 
-    def test_orbital_element_target_meandist_requires_meananom(self):
+    def test_orbital_element_target_semimajor_axis_requires_mean_anomaly(self):
         bad_message = deepcopy(self.good_message)
         bad_target = {
             'name': 'test target',
             'orbital_elements': {
-                'epoch_of_elements': 57660.0,
-                'orbinc': 9.7942900,
-                'longascnode': 122.8943400,
-                'argofperih': 78.3278300,
+                'epoch_of_elements': '57660.0',
+                'orbital_inclination': 9.7942900,
+                'longitude_of_the_ascending_node': 122.8943400,
+                'argument_of_the_perihelion': 78.3278300,
                 'eccentricity': 0.5391962,
-                'meandist': 100.0
+                'semimajor_axis': 100.0
             }
         }
         bad_message['data']['targets'] = [bad_target]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Must set meananom when meandist is set', status_code=200)
+        self.assertContains(result, 'Must set mean_anomaly when semimajor_axis is set', status_code=200)
 
-    def test_orbital_element_target_perihdist_requires_epochofperih(self):
+    def test_orbital_element_target_perihelion_distance_requires_epoch_of_perihelion(self):
         bad_message = deepcopy(self.good_message)
         bad_target = {
             'name': 'test target',
             'orbital_elements': {
-                'epoch_of_elements': 57660.0,
-                'orbinc': 9.7942900,
-                'longascnode': 122.8943400,
-                'argofperih': 78.3278300,
+                'epoch_of_elements': '57660.0',
+                'orbital_inclination': 9.7942900,
+                'longitude_of_the_ascending_node': 122.8943400,
+                'argument_of_the_perihelion': 78.3278300,
                 'eccentricity': 0.5391962,
-                'perihdist': 100.0
+                'perihelion_distance': 100.0
             }
         }
         bad_message['data']['targets'] = [bad_target]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Must set epochofperih when perihdist is set', status_code=200)
+        self.assertContains(result, 'Must set epoch_of_perihelion when perihelion_distance is set', status_code=200)
 
     def test_orbital_elements_requires_a_set_of_fields(self):
         good_message = deepcopy(self.good_message)
@@ -386,8 +385,8 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertContains(result, 'This field is required', status_code=200)
         missing_fields = result.json()['data']['targets'][0]['orbital_elements'].keys()
-        required_fields = ['epoch_of_elements', 'orbinc', 'longascnode',
-                           'argofperih', 'eccentricity']
+        required_fields = ['epoch_of_elements', 'orbital_inclination', 'longitude_of_the_ascending_node',
+                           'argument_of_the_perihelion', 'eccentricity']
         for field in required_fields:
             self.assertIn(field, missing_fields)
 
@@ -436,7 +435,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
     def setUp(self):
         super().setUp()
         self.good_message = {
-            'title': 'Candidate message',
+            'title': 'Candidate FloatField',
             'topic': 'hermes.candidates',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
@@ -581,17 +580,16 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
 
-    def test_spectroscopy_requires_flux_section(self):
+    def test_spectroscopy_requires_flux_and_wavelength(self):
         bad_message = deepcopy(self.good_message)
         del bad_message['data']['spectroscopy'][0]['flux']
+        del bad_message['data']['spectroscopy'][0]['wavelength']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'flux', status_code=200)
+        self.assertContains(result, 'wavelength', status_code=200)
 
-    def test_spectroscopy_flux_section_requires_value_and_wavelength(self):
+    def test_spectroscopy_flux_and_wavelength_list_sizes_must_match(self):
         bad_message = deepcopy(self.good_message)
-        bad_message['data']['spectroscopy'][0]['flux'][0] = {}
+        bad_message['data']['spectroscopy'][0]['flux'] = [1, 2, 3]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'This field is required', status_code=200)
-        missing_fields = result.json()['data']['spectroscopy'][0]['flux'][0].keys()
-        self.assertIn('value', missing_fields)
-        self.assertIn('wavelength', missing_fields)
+        self.assertContains(result, 'Must have same number of datapoints for flux and flux_error', status_code=200)

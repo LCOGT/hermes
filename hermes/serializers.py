@@ -9,6 +9,7 @@ from datetime import datetime
 from django.utils.translation import gettext as _
 import math
 
+
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
     writable_topics = serializers.SerializerMethodField()
@@ -145,7 +146,7 @@ def validate_date(date):
         try:
             parse(date)
         except ValueError:
-            raise serializers.ValidationError({'date': _(f"Date: {date} does not parse with dateutil.parser.parse. Please specify the date in a standard format or as a JD.")})
+            raise serializers.ValidationError(f"{date} does not parse with dateutil.parser.parse. Please specify the date in a standard format or as a JD.")
 
 
 class ReferenceDataSerializer(serializers.Serializer):
@@ -174,40 +175,48 @@ class ReferenceDataSerializer(serializers.Serializer):
 
 class OrbitalElementsSerializer(serializers.Serializer):
     epoch_of_elements = serializers.CharField(required=True)
-    orbinc = serializers.FloatField(required=True, min_value=0.0, max_value=180.0)
-    longascnode = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
-    argofperih = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
+    orbital_inclination = serializers.FloatField(required=True, min_value=0.0, max_value=180.0)
+    longitude_of_the_ascending_node = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
+    argument_of_the_perihelion = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
     eccentricity = serializers.FloatField(required=True, min_value=0.0)
-    meandist = serializers.FloatField(required=False)
-    meananom = serializers.FloatField(required=False, min_value=0.0, max_value=360.0)
-    perihdist = serializers.FloatField(required=False)
-    epochofperih = serializers.FloatField(required=False, min_value=10000.0, max_value=100000.0)
+    semimajor_axis = serializers.FloatField(required=False)
+    mean_anomaly = serializers.FloatField(required=False, min_value=0.0, max_value=360.0)
+    perihelion_distance = serializers.FloatField(required=False)
+    epoch_of_perihelion = serializers.CharField(required=False)
+
+    def validate_epoch_of_elements(self, value):
+        validate_date(value)
+        return value
+
+    def validate_epoch_of_perihelion(self, value):
+        validate_date(value)
+        return value
 
     def validate(self, data):
         validated_data = super().validate(data)
-        if not ((validated_data.get('meandist') and validated_data.get('meananom')) or (
-            validated_data.get('perihdist') and validated_data.get('epochofperih'))):
-            if validated_data.get('meandist'):
+        if not ((validated_data.get('semimajor_axis') and validated_data.get('mean_anomaly')) or (
+            validated_data.get('perihelion_distance') and validated_data.get('epoch_of_perihelion'))):
+            if validated_data.get('semimajor_axis'):
                 raise serializers.ValidationError({
-                    'meananom': 'Must set meananom when meandist is set'
+                    'mean_anomaly': ['Must set mean_anomaly when semimajor_axis is set']
                 })
-            if validated_data.get('meananom'):
+            if validated_data.get('mean_anomaly'):
                 raise serializers.ValidationError({
-                    'meandist': 'Must set meandist when meananom is set'
+                    'semimajor_axis': ['Must set semimajor_axis when mean_anomaly is set']
                 })
-            if validated_data.get('perihdist'):
+            if validated_data.get('perihelion_distance'):
                 raise serializers.ValidationError({
-                    'epochofperih': 'Must set epochofperih when perihdist is set'
+                    'epoch_of_perihelion': ['Must set epoch_of_perihelion when perihelion_distance is set']
                 })
-            if validated_data.get('epochofperih'):
+            if validated_data.get('epoch_of_perihelion'):
                 raise serializers.ValidationError({
-                    'perihdist': 'Must set perihdist when epochofperih is set'
+                    'perihelion_distance': ['Must set perihelion_distance when epoch_of_perihelion is set']
                 })
             raise serializers.ValidationError({
-                'meananom': "Must set meananom/meandist or epochofperih/perihdist",
-                'meandist': "Must set meananom/meandist or epochofperih/perihdist",
-                'epochofperih': "Must set meananom/meandist or epochofperih/perihdist",
-                'perihdist': "Must set meananom/meandist or epochofperih/perihdist",
+                'mean_anomaly': ["Must set mean_anomaly/semimajor_axis or epoch_of_perihelion/perihelion_distance"],
+                'semimajor_axis': ["Must set mean_anomaly/semimajor_axis or epoch_of_perihelion/perihelion_distance"],
+                'epoch_of_perihelion': ["Must set mean_anomaly/semimajor_axis or epoch_of_perihelion/perihelion_distance"],
+                'perihelion_distance': ["Must set mean_anomaly/semimajor_axis or epoch_of_perihelion/perihelion_distance"],
             })
 
         return validated_data
@@ -235,7 +244,8 @@ class TargetDataSerializer(serializers.Serializer):
     ])
     pm_ra = serializers.FloatField(required=False)
     pm_dec = serializers.FloatField(required=False)
-    epoch = serializers.FloatField(required=False, default=2000.0)
+    epoch = serializers.CharField(required=False, default='2000.0')
+    new_discovery = serializers.BooleanField(default=False, required=False)
     orbital_elements = OrbitalElementsSerializer(required=False)
     discovery_info = DiscoveryInfoSerializer(required=False)
     redshift = serializers.FloatField(required=False)
@@ -244,22 +254,26 @@ class TargetDataSerializer(serializers.Serializer):
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
     group_associations = serializers.CharField(required=False)
 
+    def validate_epoch(self, value):
+        validate_date(value)
+        return value
+
     def validate(self, data):
         validated_data = super().validate(data)
         if not (validated_data.get('ra') and validated_data.get('dec')):
             if validated_data.get('ra'):
                 raise serializers.ValidationError({
-                    'dec': 'Must set dec if ra is set'
+                    'dec': ['Must set dec if ra is set']
                 })
             elif validated_data.get('dec'):
                 raise serializers.ValidationError({
-                    'ra': 'Must set ra if dec is set'
+                    'ra': ['Must set ra if dec is set']
                 })
             if not validated_data.get('orbital_elements'):
                 raise serializers.ValidationError({
-                    'ra': 'ra/dec or orbital elements are required',
-                    'dec': 'ra/dec or orbital elements are required',
-                    'orbital_elements': 'ra/dec or orbital elements are required'
+                    'ra': ['ra/dec or orbital elements are required'],
+                    'dec': ['ra/dec or orbital elements are required'],
+                    'orbital_elements': {'non_field_errors': ['ra/dec or orbital elements are required']}
                 })
 
         return validated_data
@@ -299,16 +313,19 @@ class TargetDataSerializer(serializers.Serializer):
 
 class CommonDataSerializer(serializers.Serializer):
     target_name = serializers.CharField(required=True)
-    date_obs = serializers.CharField(required=False)
+    date_obs = serializers.CharField(required=True)
     telescope = serializers.CharField(required=False, default='', allow_blank=True)
     instrument = serializers.CharField(required=False, default='', allow_blank=True)
 
+    def validate_date_obs(self, value):
+        validate_date(value)
+        return value
+
     def validate(self, data):
         validated_data = super().validate(data)
-        validate_date(validated_data['date_obs'])
         if not (validated_data.get('instrument') or validated_data.get('telescope')):
             error_msg = _("Must have at least one of telescope or instrument set")
-            raise serializers.ValidationError({'telescope': error_msg, 'instrument': error_msg})
+            raise serializers.ValidationError({'telescope': [error_msg], 'instrument': [error_msg]})
         return validated_data
 
 
@@ -317,7 +334,6 @@ class PhotometryDataSerializer(CommonDataSerializer):
     brightness = serializers.FloatField(required=False)
     brightness_error = serializers.FloatField(required=False)
     brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
-    new_discovery = serializers.BooleanField(default=False, required=False)
     exposure_time = serializers.FloatField(required=False)
     observer = serializers.CharField(required=False)
     comments = serializers.CharField(required=False)
@@ -330,25 +346,22 @@ class PhotometryDataSerializer(CommonDataSerializer):
         validated_data = super().validate(data)
         if not (validated_data.get('brightness') or validated_data.get('limiting_brightness')):
             raise serializers.ValidationError({
-                'brightness': 'brightness or limiting_brightness are required',
-                'limiting_brightness': 'brightness or limiting_brightness are required'
+                'brightness': ['brightness or limiting_brightness are required'],
+                'limiting_brightness': ['brightness or limiting_brightness are required']
             })
 
         return validated_data
 
 
-class FluxDataSerializer(serializers.Serializer):
-    value = serializers.FloatField(required=True)
-    error = serializers.FloatField(required=False)
-    unit = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
-    wavelength = serializers.FloatField(required=True)
-    wavelength_unit = serializers.ChoiceField(required=False, choices=['Å', 'nm', 'µm'])
-
-
-class SpectroscopyDataSerialzier(CommonDataSerializer):
+class SpectroscopyDataSerializer(CommonDataSerializer):
     setup = serializers.CharField(required=False)
     exposure_time = serializers.FloatField(required=False)
-    flux = FluxDataSerializer(many=True, required=True)
+    flux = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
+    flux_error = serializers.ListField(child=serializers.FloatField(), required=False)
+    flux_units = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
+    wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
+    wavelength_units = serializers.ChoiceField(required=False, default='nm', choices=['Å', 'nm', 'µm'])
+    flux_type = serializers.ChoiceField(required=False, default='Fλ', choices=['Fλ', 'Flambda', 'Fν', 'Fnu'])
     classification = serializers.ChoiceField(required=False, default=TNS_TYPES[-1], choices=TNS_TYPES)
     proprietary_period = serializers.FloatField(required=False)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
@@ -358,6 +371,16 @@ class SpectroscopyDataSerialzier(CommonDataSerializer):
     reducer = serializers.CharField(required=False)
     spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
 
+    def validate(self, data):
+        validated_data = super().validate(data)
+        if 'flux_error' in validated_data:
+            if len(validated_data['flux_error']) != len(validated_data['flux']):
+                raise serializers.ValidationError(_('Must have same number of datapoints for flux and flux_error'))
+        if len(validated_data['flux']) != len(validated_data['wavelength']):
+            raise serializers.ValidationError(_('Must have same number of datapoints for flux and wavelength'))
+
+        return validated_data
+
 
 class AstrometryDataSerializer(CommonDataSerializer):
     ra = serializers.CharField(required=True)
@@ -365,10 +388,10 @@ class AstrometryDataSerializer(CommonDataSerializer):
     ra_error = serializers.FloatField(required=False)
     dec_error = serializers.FloatField(required=False)
     ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'arcsec', 'arcmin'
+        'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
     dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'arcsec', 'arcmin'
+        'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
     mpc_sitecode = serializers.CharField(required=False)
     brightness = serializers.FloatField(required=False)
@@ -418,7 +441,7 @@ class GenericHermesDataSerializer(serializers.Serializer):
     event_id = serializers.CharField(required=False)
     targets = TargetDataSerializer(many=True, required=False)
     photometry = PhotometryDataSerializer(many=True, required=False)
-    spectroscopy = SpectroscopyDataSerialzier(many=True, required=False)
+    spectroscopy = SpectroscopyDataSerializer(many=True, required=False)
     astrometry = AstrometryDataSerializer(many=True, required=False)
 
     def validate(self, data):
@@ -427,11 +450,23 @@ class GenericHermesDataSerializer(serializers.Serializer):
         validated_data = super().validate(data)
         target_names = [target.get('name') for target in validated_data.get('targets', [])]
         full_error = {}
+        
+        target_errors = []
+        for target_name in target_names:
+            if target_names.count(target_name) > 1:
+                target_errors.append(
+                    {'name': ['The target name must be unique within the submission']}
+                )
+            else:
+                target_errors.append({})
+        if any(target_errors):
+            full_error['targets'] = target_errors
+        
         photometry_errors = []
         for photometry in validated_data.get('photometry', []):
             if photometry.get('target_name') not in target_names:
                 photometry_errors.append(
-                    {'target_name': 'The target_name must reference a name in your target table'}
+                    {'target_name': ['The target_name must reference a name in your target table']}
                 )
             else:
                 photometry_errors.append({})
@@ -442,7 +477,7 @@ class GenericHermesDataSerializer(serializers.Serializer):
         for spectroscopy in validated_data.get('spectroscopy', []):
             if spectroscopy.get('target_name') not in target_names:
                 spectroscopy_errors.append(
-                    {'target_name': 'The target_name must reference a name in your target table'}
+                    {'target_name': ['The target_name must reference a name in your target table']}
                 )
             else:
                 spectroscopy_errors.append({})
@@ -453,7 +488,7 @@ class GenericHermesDataSerializer(serializers.Serializer):
         for astrometry in validated_data.get('astrometry', []):
             if astrometry.get('target_name') not in target_names:
                 astrometry_errors.append(
-                    {'target_name': 'The target_name must reference a name in your target table'}
+                    {'target_name': ['The target_name must reference a name in your target table']}
                 )
             else:
                 astrometry_errors.append({})
