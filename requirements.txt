@@ -12,7 +12,7 @@ healpy>=1.16
 tom_alertstreams~=0.6
 django-cors-headers==3.11.0
 mozilla-django-oidc==2.0.0
-astropy==5.1
+astropy>=5.2
 django-extensions # for shell_plus debugging
 requests==2.27.1
 scramp==1.4.1
