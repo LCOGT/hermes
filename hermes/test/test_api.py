@@ -593,3 +593,55 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         bad_message['data']['spectroscopy'][0]['flux'] = [1, 2, 3]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must have same number of datapoints for flux and flux_error', status_code=200)
+
+
+class TestTNSSubmission(TestBaseMessageApi):
+    def setUp(self):
+        super().setUp()
+        self.basic_message = {
+            'title': 'Candidate message',
+            'topic': 'hermes.candidates',
+            'message_text': 'This is a candidate message.',
+            'submitter': 'Hermes Guest',
+            'submit_to_tns': True,
+            'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
+            'data': {
+                'event_id': 'S123456',
+                'references': [],
+                'targets': [self.ra_target1],
+                'extra_data': {
+                    'test_key': 'test_value'
+                }
+            }
+        }
+    
+    def test_submission_requires_discovery_info(self):
+        bad_message = deepcopy(self.basic_message)
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Target must have discovery info', status_code=200)
+
+    def test_good_tns_submission(self):
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds'
+        }
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.json(), {})
+
+    def test_submission_requires_at_least_one_target(self):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['targets']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Must fill in at least one target for TNS submission', status_code=200)
+
+    def test_submission_requires_ra_dec_targets_only(self):
+        bad_message = deepcopy(self.basic_message)
+        bad_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds'
+        }
+        bad_message['data']['targets'].append(self.orb_el_target1)
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Target ra must be present for TNS submission', status_code=200)
+        self.assertContains(result, 'Target dec must be present for TNS submission', status_code=200)

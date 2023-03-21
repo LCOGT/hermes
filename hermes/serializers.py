@@ -340,6 +340,7 @@ class PhotometryDataSerializer(CommonDataSerializer):
     limiting_brightness = serializers.FloatField(required=False)
     limiting_brightness_error = serializers.FloatField(required=False)
     limiting_brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
+    catalog = serializers.CharField(required=False)
     group_associations = serializers.CharField(required=False)
 
     def validate(self, data):
@@ -362,7 +363,7 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
     wavelength_units = serializers.ChoiceField(required=False, default='nm', choices=['Å', 'nm', 'µm'])
     flux_type = serializers.ChoiceField(required=False, default='Fλ', choices=['Fλ', 'Flambda', 'Fν', 'Fnu'])
-    classification = serializers.ChoiceField(required=False, default=TNS_TYPES[-1], choices=TNS_TYPES)
+    classification = serializers.CharField(required=False)
     proprietary_period = serializers.FloatField(required=False)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
     comments = serializers.CharField(required=False)
@@ -394,12 +395,7 @@ class AstrometryDataSerializer(CommonDataSerializer):
         'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
     mpc_sitecode = serializers.CharField(required=False)
-    brightness = serializers.FloatField(required=False)
-    brightness_error = serializers.FloatField(required=False)
-    brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
-    bandpass = serializers.CharField(required=False)
-    astrometric_catalog = serializers.CharField(required=False)
-    photometry_catalog = serializers.CharField(required=False)
+    catalog = serializers.CharField(required=False)
     comments = serializers.CharField(required=False)
 
     def validate_ra(self, value):
@@ -510,3 +506,48 @@ class HermesMessageSerializer(serializers.Serializer):
     data = GenericHermesDataSerializer(required=False)
     submit_to_tns = serializers.BooleanField(default=False, required=False, write_only=True)
     submit_to_mpc = serializers.BooleanField(default=False, required=False, write_only=True)
+
+    def validate(self, data):
+        validated_data = super().validate(data)
+        if validated_data.get('submit_to_tns'):
+            # Do extra TNS submission validation here
+            targets = validated_data.get('data', {}).get('targets', [])
+            if len(targets) == 0:
+                raise serializers.ValidationError('Must fill in at least one target for TNS submission')
+
+            full_error = {}
+            targets_errors = []
+            for target in targets:
+                target_error = {}
+                if not target.get('ra'):
+                    target_error['ra'] = _("Target ra must be present for TNS submission")
+                if not target.get('dec'):
+                    target_error['dec'] = _("Target dec must be present for TNS submission")
+                discovery_info = target.get('discovery_info', {})
+                discovery_error = {}
+                if not discovery_info or not discovery_info.get('reporting_group'):
+                    discovery_error['reporting_group'] = _("Target must have discovery info reporting group for TNS submission")
+                if not discovery_info or not discovery_info.get('discovery_source'):
+                    discovery_error['discovery_source'] = _("Target must have discovery info discovery source for TNS submission")
+                if discovery_error:
+                    target_error['discovery_info'] = discovery_error
+                targets_errors.append(target_error)
+            if any(targets_errors):
+                full_error['targets'] = targets_errors
+
+            spectroscopy_errors = []
+            for spectroscopy in validated_data.get('data', {}).get('spectroscopy', []):
+                classification = spectroscopy.get('classification')
+                if classification and classification not in TNS_TYPES:
+                    spectroscopy_errors.append(
+                        {'classification': 'Must be one of the TNS classification types for TNS submission'}
+                    )
+                else:
+                    spectroscopy_errors.append({})
+            if any(spectroscopy_errors):
+                full_error['spectroscopy'] = spectroscopy_errors
+
+            if full_error:
+                raise serializers.ValidationError(full_error)
+
+        return validated_data
