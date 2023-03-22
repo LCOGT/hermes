@@ -8,6 +8,17 @@ from dateutil.parser import parse
 from datetime import datetime
 from django.utils.translation import gettext as _
 import math
+from collections import OrderedDict
+
+
+class RemoveNullSerializer(serializers.Serializer):
+    def to_internal_value(self, data):
+        data = super().to_internal_value(data)
+        return OrderedDict([(key, data[key]) for key in data if data[key]])
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        return OrderedDict([(key, data[key]) for key in data if data[key]])
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -149,10 +160,10 @@ def validate_date(date):
             raise serializers.ValidationError(f"{date} does not parse with dateutil.parser.parse. Please specify the date in a standard format or as a JD.")
 
 
-class ReferenceDataSerializer(serializers.Serializer):
-    source = serializers.CharField(required=False)
-    citation = serializers.CharField(required=False)
-    url = serializers.URLField(required=False)
+class ReferenceDataSerializer(RemoveNullSerializer):
+    source = serializers.CharField(required=False, allow_null=True)
+    citation = serializers.CharField(required=False, allow_null=True)
+    url = serializers.URLField(required=False, allow_null=True)
 
     def validate(self, data):
         validated_data = super().validate(data)
@@ -173,16 +184,16 @@ class ReferenceDataSerializer(serializers.Serializer):
                 })
         return validated_data
 
-class OrbitalElementsSerializer(serializers.Serializer):
+class OrbitalElementsSerializer(RemoveNullSerializer):
     epoch_of_elements = serializers.CharField(required=True)
     orbital_inclination = serializers.FloatField(required=True, min_value=0.0, max_value=180.0)
     longitude_of_the_ascending_node = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
     argument_of_the_perihelion = serializers.FloatField(required=True, min_value=0.0, max_value=360.0)
     eccentricity = serializers.FloatField(required=True, min_value=0.0)
-    semimajor_axis = serializers.FloatField(required=False)
-    mean_anomaly = serializers.FloatField(required=False, min_value=0.0, max_value=360.0)
-    perihelion_distance = serializers.FloatField(required=False)
-    epoch_of_perihelion = serializers.CharField(required=False)
+    semimajor_axis = serializers.FloatField(required=False, allow_null=True)
+    mean_anomaly = serializers.FloatField(required=False, min_value=0.0, max_value=360.0, allow_null=True)
+    perihelion_distance = serializers.FloatField(required=False, allow_null=True)
+    epoch_of_perihelion = serializers.CharField(required=False, allow_null=True)
 
     def validate_epoch_of_elements(self, value):
         validate_date(value)
@@ -222,37 +233,37 @@ class OrbitalElementsSerializer(serializers.Serializer):
         return validated_data
 
 
-class DiscoveryInfoSerializer(serializers.Serializer):
-    reporting_group = serializers.CharField(required=False)
-    discovery_source = serializers.CharField(required=False)
-    transient_type = serializers.ChoiceField(required=False, choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
-    proprietary_period = serializers.FloatField(required=False)
+class DiscoveryInfoSerializer(RemoveNullSerializer):
+    reporting_group = serializers.CharField(required=False, allow_null=True)
+    discovery_source = serializers.CharField(required=False, allow_null=True)
+    transient_type = serializers.ChoiceField(required=False, default='Other', choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
+    proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
 
 
-class TargetDataSerializer(serializers.Serializer):
+class TargetDataSerializer(RemoveNullSerializer):
     name = serializers.CharField(required=True)
-    ra = serializers.CharField(required=False)
-    dec = serializers.CharField(required=False)
-    ra_error = serializers.FloatField(required=False)
-    dec_error = serializers.FloatField(required=False)
+    ra = serializers.CharField(required=False, allow_null=True)
+    dec = serializers.CharField(required=False, allow_null=True)
+    ra_error = serializers.FloatField(required=False, allow_null=True)
+    dec_error = serializers.FloatField(required=False, allow_null=True)
     ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
         'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
     dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
         'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
-    pm_ra = serializers.FloatField(required=False)
-    pm_dec = serializers.FloatField(required=False)
+    pm_ra = serializers.FloatField(required=False, allow_null=True)
+    pm_dec = serializers.FloatField(required=False, allow_null=True)
     epoch = serializers.CharField(required=False, default='2000.0')
     new_discovery = serializers.BooleanField(default=False, required=False)
     orbital_elements = OrbitalElementsSerializer(required=False)
     discovery_info = DiscoveryInfoSerializer(required=False)
-    redshift = serializers.FloatField(required=False)
-    host_name = serializers.CharField(required=False)
-    host_redshift = serializers.FloatField(required=False)
+    redshift = serializers.FloatField(required=False, allow_null=True)
+    host_name = serializers.CharField(required=False, allow_null=True)
+    host_redshift = serializers.FloatField(required=False, allow_null=True)
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
-    group_associations = serializers.CharField(required=False)
+    group_associations = serializers.CharField(required=False, allow_null=True)
 
     def validate_epoch(self, value):
         validate_date(value)
@@ -311,11 +322,11 @@ class TargetDataSerializer(serializers.Serializer):
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg
 
-class CommonDataSerializer(serializers.Serializer):
+class CommonDataSerializer(RemoveNullSerializer):
     target_name = serializers.CharField(required=True)
     date_obs = serializers.CharField(required=True)
-    telescope = serializers.CharField(required=False, default='', allow_blank=True)
-    instrument = serializers.CharField(required=False, default='', allow_blank=True)
+    telescope = serializers.CharField(required=False, default='', allow_blank=True, allow_null=True)
+    instrument = serializers.CharField(required=False, default='', allow_blank=True, allow_null=True)
 
     def validate_date_obs(self, value):
         validate_date(value)
@@ -331,17 +342,17 @@ class CommonDataSerializer(serializers.Serializer):
 
 class PhotometryDataSerializer(CommonDataSerializer):
     bandpass = serializers.CharField(required=True)
-    brightness = serializers.FloatField(required=False)
-    brightness_error = serializers.FloatField(required=False)
+    brightness = serializers.FloatField(required=False, allow_null=True)
+    brightness_error = serializers.FloatField(required=False, allow_null=True)
     brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
-    exposure_time = serializers.FloatField(required=False)
-    observer = serializers.CharField(required=False)
-    comments = serializers.CharField(required=False)
-    limiting_brightness = serializers.FloatField(required=False)
-    limiting_brightness_error = serializers.FloatField(required=False)
+    exposure_time = serializers.FloatField(required=False, allow_null=True)
+    observer = serializers.CharField(required=False, allow_null=True)
+    comments = serializers.CharField(required=False, allow_null=True)
+    limiting_brightness = serializers.FloatField(required=False, allow_null=True)
+    limiting_brightness_error = serializers.FloatField(required=False, allow_null=True)
     limiting_brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
-    catalog = serializers.CharField(required=False)
-    group_associations = serializers.CharField(required=False)
+    catalog = serializers.CharField(required=False, allow_null=True)
+    group_associations = serializers.CharField(required=False, allow_null=True)
 
     def validate(self, data):
         validated_data = super().validate(data)
@@ -355,21 +366,21 @@ class PhotometryDataSerializer(CommonDataSerializer):
 
 
 class SpectroscopyDataSerializer(CommonDataSerializer):
-    setup = serializers.CharField(required=False)
-    exposure_time = serializers.FloatField(required=False)
+    setup = serializers.CharField(required=False, allow_null=True)
+    exposure_time = serializers.FloatField(required=False, allow_null=True)
     flux = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
     flux_error = serializers.ListField(child=serializers.FloatField(), required=False)
     flux_units = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
     wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
     wavelength_units = serializers.ChoiceField(required=False, default='nm', choices=['Å', 'nm', 'µm'])
     flux_type = serializers.ChoiceField(required=False, default='Fλ', choices=['Fλ', 'Flambda', 'Fν', 'Fnu'])
-    classification = serializers.CharField(required=False)
-    proprietary_period = serializers.FloatField(required=False)
+    classification = serializers.CharField(required=False, allow_null=True)
+    proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
-    comments = serializers.CharField(required=False)
-    group_associations = serializers.CharField(required=False)
-    observer = serializers.CharField(required=False)
-    reducer = serializers.CharField(required=False)
+    comments = serializers.CharField(required=False, allow_null=True)
+    group_associations = serializers.CharField(required=False, allow_null=True)
+    observer = serializers.CharField(required=False, allow_null=True)
+    reducer = serializers.CharField(required=False, allow_null=True)
     spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
 
     def validate(self, data):
@@ -386,17 +397,17 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
 class AstrometryDataSerializer(CommonDataSerializer):
     ra = serializers.CharField(required=True)
     dec = serializers.CharField(required=True)
-    ra_error = serializers.FloatField(required=False)
-    dec_error = serializers.FloatField(required=False)
+    ra_error = serializers.FloatField(required=False, allow_null=True)
+    dec_error = serializers.FloatField(required=False, allow_null=True)
     ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
         'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
     dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
         'degrees', 'marcsec', 'arcsec', 'arcmin'
     ])
-    mpc_sitecode = serializers.CharField(required=False)
-    catalog = serializers.CharField(required=False)
-    comments = serializers.CharField(required=False)
+    mpc_sitecode = serializers.CharField(required=False, allow_null=True)
+    catalog = serializers.CharField(required=False, allow_null=True)
+    comments = serializers.CharField(required=False, allow_null=True)
 
     def validate_ra(self, value):
         try:
@@ -431,10 +442,10 @@ class AstrometryDataSerializer(CommonDataSerializer):
         return dec_angle.deg
 
 
-class GenericHermesDataSerializer(serializers.Serializer):
+class GenericHermesDataSerializer(RemoveNullSerializer):
     references = ReferenceDataSerializer(many=True, required=False)
     extra_data = serializers.JSONField(required=False)
-    event_id = serializers.CharField(required=False)
+    event_id = serializers.CharField(required=False, allow_null=True)
     targets = TargetDataSerializer(many=True, required=False)
     photometry = PhotometryDataSerializer(many=True, required=False)
     spectroscopy = SpectroscopyDataSerializer(many=True, required=False)

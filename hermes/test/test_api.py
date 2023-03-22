@@ -430,6 +430,13 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Value must be finite', status_code=200)
 
+    def test_none_optional_field_accepted(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['targets'][0]['pm_ra'] = None
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
 
 class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
     def setUp(self):
