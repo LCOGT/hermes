@@ -452,8 +452,6 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
     astrometry = AstrometryDataSerializer(many=True, required=False)
 
     def validate(self, data):
-        # TODO: Add validation if submit_to_tns is set that required fields are set
-        # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
         target_names = [target.get('name') for target in validated_data.get('targets', [])]
         full_error = {}
@@ -519,27 +517,28 @@ class HermesMessageSerializer(serializers.Serializer):
     submit_to_mpc = serializers.BooleanField(default=False, required=False, write_only=True)
 
     def validate(self, data):
+        # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
         if validated_data.get('submit_to_tns'):
             # Do extra TNS submission validation here
             targets = validated_data.get('data', {}).get('targets', [])
             if len(targets) == 0:
-                raise serializers.ValidationError('Must fill in at least one target for TNS submission')
+                raise serializers.ValidationError(_('Must fill in at least one target for TNS submission'))
 
             full_error = {}
             targets_errors = []
             for target in targets:
                 target_error = {}
                 if not target.get('ra'):
-                    target_error['ra'] = _("Target ra must be present for TNS submission")
+                    target_error['ra'] = [_("Target ra must be present for TNS submission")]
                 if not target.get('dec'):
-                    target_error['dec'] = _("Target dec must be present for TNS submission")
+                    target_error['dec'] = [_("Target dec must be present for TNS submission")]
                 discovery_info = target.get('discovery_info', {})
                 discovery_error = {}
                 if not discovery_info or not discovery_info.get('reporting_group'):
-                    discovery_error['reporting_group'] = _("Target must have discovery info reporting group for TNS submission")
+                    discovery_error['reporting_group'] = [_("Target must have discovery info reporting group for TNS submission")]
                 if not discovery_info or not discovery_info.get('discovery_source'):
-                    discovery_error['discovery_source'] = _("Target must have discovery info discovery source for TNS submission")
+                    discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS submission")]
                 if discovery_error:
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
@@ -551,7 +550,7 @@ class HermesMessageSerializer(serializers.Serializer):
                 classification = spectroscopy.get('classification')
                 if classification and classification not in TNS_TYPES:
                     spectroscopy_errors.append(
-                        {'classification': 'Must be one of the TNS classification types for TNS submission'}
+                        {'classification': [_('Must be one of the TNS classification types for TNS submission')]}
                     )
                 else:
                     spectroscopy_errors.append({})
@@ -559,6 +558,8 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['spectroscopy'] = spectroscopy_errors
 
             if full_error:
-                raise serializers.ValidationError(full_error)
+                raise serializers.ValidationError({
+                    'data': full_error
+                })
 
         return validated_data
