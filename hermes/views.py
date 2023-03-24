@@ -45,6 +45,14 @@ class MessageViewSet(viewsets.ModelViewSet):
     )
     ordering = ('-id',)
 
+    def retrieve(self, request, pk=None):
+        try:
+            instance = Message.objects.get(uuid__startswith=pk)
+        except:
+            instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
 
 class TargetViewSet(viewsets.ModelViewSet):
     queryset = Target.objects.all()

@@ -5,10 +5,12 @@ from django.contrib.gis.measure import D
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
 
 import math
+import uuid
 EARTH_RADIUS_METERS = 6371008.77141506
 
 
 class MessageFilter(filters.FilterSet):
+    uuid = filters.CharFilter(method='filter_uuid', label='UUID', help_text='Full or partial UUID search')
     cone_search = filters.CharFilter(method='filter_cone_search', label='Cone Search',
                                      help_text='RA, Dec, Radius (degrees)')
     polygon_search = filters.CharFilter(method='filter_polygon_search', label='Polygon Search',
@@ -27,7 +29,7 @@ class MessageFilter(filters.FilterSet):
         model = Message
         fields = (
             'topic', 'title', 'published', 'authors', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter'
+            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid'
         )
 
 
@@ -47,6 +49,9 @@ class MessageFilter(filters.FilterSet):
         vertices = tuple((float(v.split(' ')[0]), float(v.split(' ')[1])) for v in value.split(', '))  # TODO: explain!
         polygon = Polygon(vertices, srid=4035)
         return queryset.filter(targets__coordinate__within=polygon)
+
+    def filter_uuid(self, queryset, name, value):
+        return queryset.filter(uuid__startswith=value)
 
 
 class NonLocalizedEventFilter(filters.FilterSet):
