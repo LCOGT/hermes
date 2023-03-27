@@ -12,6 +12,7 @@ from django.middleware import csrf
 from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
+from django.http import Http404
 from rest_framework.decorators import action
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
@@ -49,7 +50,7 @@ class MessageViewSet(viewsets.ModelViewSet):
         try:
             instance = Message.objects.get(uuid__startswith=pk)
         except:
-            instance = self.get_object()
+            raise Http404
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
