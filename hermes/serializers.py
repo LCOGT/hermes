@@ -8,7 +8,7 @@ from dateutil.parser import parse
 from datetime import datetime
 from django.utils.translation import gettext as _
 import math
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 
 class RemoveNullSerializer(serializers.Serializer):
@@ -259,6 +259,11 @@ class TargetDataSerializer(RemoveNullSerializer):
     new_discovery = serializers.BooleanField(default=False, required=False)
     orbital_elements = OrbitalElementsSerializer(required=False)
     discovery_info = DiscoveryInfoSerializer(required=False)
+    distance = serializers.FloatField(required=False, allow_null=True)
+    distance_error = serializers.FloatField(required=False, allow_null=True)
+    distance_units = serializers.ChoiceField(required=False, allow_null=True, choices=[
+        'cm', 'm', 'km', 'pc', 'kpc', 'Mpc', 'Gpc', 'ly', 'au'
+    ])
     redshift = serializers.FloatField(required=False, allow_null=True)
     host_name = serializers.CharField(required=False, allow_null=True)
     host_redshift = serializers.FloatField(required=False, allow_null=True)
@@ -444,7 +449,6 @@ class AstrometryDataSerializer(CommonDataSerializer):
 
 class GenericHermesDataSerializer(RemoveNullSerializer):
     references = ReferenceDataSerializer(many=True, required=False)
-    extra_data = serializers.JSONField(required=False)
     event_id = serializers.CharField(required=False, allow_null=True)
     targets = TargetDataSerializer(many=True, required=False)
     photometry = PhotometryDataSerializer(many=True, required=False)
@@ -513,19 +517,29 @@ class HermesMessageSerializer(serializers.Serializer):
     submitter = serializers.CharField(required=True)
     authors = serializers.CharField(required=False, default='', allow_blank=True)
     data = GenericHermesDataSerializer(required=False)
-    submit_to_tns = serializers.BooleanField(default=False, required=False, write_only=True)
-    submit_to_mpc = serializers.BooleanField(default=False, required=False, write_only=True)
+    submit_to_tns = serializers.BooleanField(required=False, allow_null=True, write_only=True)
+    submit_to_mpc = serializers.BooleanField(required=False, allow_null=True, write_only=True)
 
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
         if validated_data.get('submit_to_tns'):
             # Do extra TNS submission validation here
-            targets = validated_data.get('data', {}).get('targets', [])
-            if len(targets) == 0:
-                raise serializers.ValidationError(_('Must fill in at least one target for TNS submission'))
+            full_error = defaultdict(dict)
 
-            full_error = {}
+            targets = validated_data.get('data', {}).get('targets', [])
+            photometry_data = validated_data.get('data', {}).get('photometry', [])
+            spectroscopy_data = validated_data.get('data', {}).get('spectroscopy', [])
+            general_errors = []
+            if len(targets) == 0:
+                general_errors.append(_('Must fill in at least one target entry for TNS submission'))
+            if len(photometry_data) == 0:
+                general_errors.append(_('Must fill in at least one photometry entry for TNS submission'))
+            if len(spectroscopy_data) == 0:
+                general_errors.append(_('Must fill in at least one spectroscopy entry for TNS submission'))
+            if general_errors:
+                full_error['non_field_errors'] = general_errors
+
             targets_errors = []
             for target in targets:
                 target_error = {}
@@ -543,23 +557,46 @@ class HermesMessageSerializer(serializers.Serializer):
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
             if any(targets_errors):
-                full_error['targets'] = targets_errors
+                full_error['data']['targets'] = targets_errors
+
+            photometry_errors = []
+            for photometry in photometry_data:
+                photometry_error = {}
+                if not photometry.get('brightness'):
+                    photometry_error['brightness'] = [_('Photometry must have Brightness specified for TNS submission')]
+                if not photometry.get('instrument'):
+                    photometry_error['instrument'] = [_('Photometry must have Instrument specified for TNS submission')]
+                photometry_errors.append(photometry_error)
+            if any(photometry_errors):
+                full_error['data']['photometry'] = photometry_errors
 
             spectroscopy_errors = []
-            for spectroscopy in validated_data.get('data', {}).get('spectroscopy', []):
+            for spectroscopy in spectroscopy_data:
+                spectroscopy_error = {}
                 classification = spectroscopy.get('classification')
                 if classification and classification not in TNS_TYPES:
-                    spectroscopy_errors.append(
-                        {'classification': [_('Must be one of the TNS classification types for TNS submission')]}
-                    )
-                else:
-                    spectroscopy_errors.append({})
+                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification types for TNS submission')]
+                if not spectroscopy.get('instrument'):
+                    spectroscopy_error['instrument'] = [_('Spectroscopy must have Instrument specified for TNS submission')]
+                if not spectroscopy.get('observer'):
+                    spectroscopy_error['observer'] = [_('Spectroscopy must have Observer specified for TNS submission')]
+                if not spectroscopy.get('reducer'):
+                    spectroscopy_error['reducer'] = [_('Spectroscopy must have Reducer specified for TNS submission')]
+                if not spectroscopy.get('spec_type'):
+                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have Spec Type specified for TNS submission')]
+                spectroscopy_errors.append(spectroscopy_error)
             if any(spectroscopy_errors):
-                full_error['spectroscopy'] = spectroscopy_errors
+                full_error['data']['spectroscopy'] = spectroscopy_errors
+
+            if not validated_data.get('authors'):
+                full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
 
             if full_error:
-                raise serializers.ValidationError({
-                    'data': full_error
-                })
+                raise serializers.ValidationError(full_error)
+        # Remove the flags from the serialized response sent through hop
+        if 'submit_to_tns' in validated_data:
+            del validated_data['submit_to_tns']
+        if 'submit_to_mpc' in validated_data:
+            del validated_data['submit_to_mpc']
 
         return validated_data

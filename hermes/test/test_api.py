@@ -2,10 +2,12 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.response import Response
 from datetime import timedelta
 from copy import deepcopy
+from collections import OrderedDict
 import math
-
+from unittest.mock import patch, ANY
 from hermes.models import Message, NonLocalizedEvent, Target
 from hermes.serializers import HermesMessageSerializer
 
@@ -152,6 +154,34 @@ class TestSubmitBasicMessageApi(TestCase):
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'field is required', status_code=200)
 
+    @patch('hermes.views.submit_to_hop')
+    def test_arbitrary_fields_are_accepted(self, mock_submit):
+        mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
+        good_message = deepcopy(self.generic_message)
+        good_message['data'] = {
+            'test_string': 'test_value_1',
+            'test_float': 245.55,
+            'test_array': ['this', 'is', 'an', 'array'],
+            'test_object': {'test_key1': 'test_value', 'test_key2': 22.3}
+        }
+        result = self.client.post(reverse('submit_message-list'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        good_message['data'] = OrderedDict(good_message['data'])
+        mock_submit.assert_called_with(ANY, OrderedDict(good_message))
+
+    @patch('hermes.views.submit_to_hop')
+    def test_submit_to_flags_are_removed(self, mock_submit):
+        mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
+        good_message = deepcopy(self.generic_message)
+        good_message['submit_to_tns'] = 'false'
+        good_message['submit_to_mpc'] = 'false'
+        result = self.client.post(reverse('submit_message-list'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        del good_message['submit_to_tns']
+        del good_message['submit_to_mpc']
+        good_message['data'] = OrderedDict(good_message['data'])
+        mock_submit.assert_called_with(ANY, OrderedDict(good_message))
+
 
 class TestBaseMessageApi(TestCase):
     def setUp(self):
@@ -208,8 +238,10 @@ class TestBaseMessageApi(TestCase):
             'flux': [2348.34],
             'flux_error': [20.6],
             'wavelength': [725.25],
-            'wavelength_units': 'nm'
-            
+            'wavelength_units': 'nm',
+            'observer': 'observer1',
+            'reducer': 'reducer1',
+            'spec_type': 'Sky'
         }
         self.astrometry = {
             'target_name': 'test target 1',
@@ -244,9 +276,7 @@ class TestSubmitReferencesMessageApi(TestBaseMessageApi):
                     'source': 'GCN',
                     'citation': 'S123456'
                 }],
-                'extra_data': {
-                    'test_key': 'test_value'
-                }
+                'test_key': 'test_value'
             }
         }
 
@@ -285,9 +315,7 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
                 'event_id': 'S123456',
                 'references': [],
                 'targets': [self.ra_target1],
-                'extra_data': {
-                    'test_key': 'test_value'
-                }
+                'test_key': 'test_value'
             }
         }
 
@@ -452,9 +480,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
                 'references': [],
                 'targets': [self.ra_target1],
                 'photometry': [self.photometry],
-                'extra_data': {
-                    'test_key': 'test_value'
-                }
+                'test_key': 'test_value'
             }
         }
 
@@ -498,7 +524,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
     def test_only_required_photometry_fields_accepted(self):
         good_message = deepcopy(self.good_message)
         del good_message['authors']
-        del good_message['data']['extra_data']
+        del good_message['data']['test_key']
         del good_message['data']['photometry'][0]['brightness_error']
         del good_message['data']['photometry'][0]['brightness_unit']
         del good_message['data']['photometry'][0]['instrument']
@@ -576,9 +602,7 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
                 'references': [],
                 'targets': [self.ra_target1],
                 'spectroscopy': [self.spectroscopy],
-                'extra_data': {
-                    'test_key': 'test_value'
-                }
+                'test_key': 'test_value'
             }
         }
 
@@ -616,9 +640,9 @@ class TestTNSSubmission(TestBaseMessageApi):
                 'event_id': 'S123456',
                 'references': [],
                 'targets': [self.ra_target1],
-                'extra_data': {
-                    'test_key': 'test_value'
-                }
+                'photometry': [self.photometry],
+                'spectroscopy': [self.spectroscopy],
+                'test_key': 'test_value'
             }
         }
     
@@ -636,11 +660,15 @@ class TestTNSSubmission(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.json(), {})
 
-    def test_submission_requires_at_least_one_target(self):
+    def test_submission_requires_at_least_one_target_photometry_spectroscopy(self):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['targets']
+        del bad_message['data']['photometry']
+        del bad_message['data']['spectroscopy']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Must fill in at least one target for TNS submission', status_code=200)
+        self.assertContains(result, 'Must fill in at least one target entry for TNS submission', status_code=200)
+        self.assertContains(result, 'Must fill in at least one photometry entry for TNS submission', status_code=200)
+        self.assertContains(result, 'Must fill in at least one spectroscopy entry for TNS submission', status_code=200)
 
     def test_submission_requires_ra_dec_targets_only(self):
         bad_message = deepcopy(self.basic_message)
@@ -652,3 +680,15 @@ class TestTNSSubmission(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Target ra must be present for TNS submission', status_code=200)
         self.assertContains(result, 'Target dec must be present for TNS submission', status_code=200)
+
+    def test_submission_requires_spectroscopy_fields(self):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['spectroscopy'][0]['observer']
+        del bad_message['data']['spectroscopy'][0]['reducer']
+        bad_message['data']['spectroscopy'][0]['classification'] = 'Not a TNS Type'
+        del bad_message['data']['spectroscopy'][0]['spec_type']
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Spectroscopy must have Observer specified for TNS submission', status_code=200)
+        self.assertContains(result, 'Spectroscopy must have Reducer specified for TNS submission', status_code=200)
+        self.assertContains(result, 'Must be one of the TNS classification types for TNS submission', status_code=200)
+        self.assertContains(result, 'Spectroscopy must have Spec Type specified for TNS submission', status_code=200)

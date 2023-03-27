@@ -179,7 +179,8 @@ def submit_to_hop(request, message):
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
     serializer_class = HermesMessageSerializer
-    
+    EXPECTED_DATA_KEYS = ['targets', 'event_id', 'references', 'photometry', 'spectroscopy', 'astrometry']
+
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
         
@@ -201,10 +202,10 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 },
                 ...
             ],
-            extra_data: {
-                key1: value1,
-                key2: value2,
+            extra_key1: value1,
+            extra_key2: value2,
                 ...
+            extra_keyn: <Any key within data not used by the hermes message format will be passed through in the message>
             },
             event_id: <Nonlocalized event_id this message relates to>,
             targets: [
@@ -315,9 +316,14 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response({"message": message}, status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
+        non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data
+            if non_serialized_data:
+                if 'data' not in data:
+                    data['data'] = {}
+                data['data'].update(non_serialized_data)
             return submit_to_hop(request, data)
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
