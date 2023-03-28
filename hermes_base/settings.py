@@ -10,11 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
-from cmath import log
 import os
 import logging.config
 from pathlib import Path
-from this import d
 
 from corsheaders.defaults import default_headers
 
@@ -46,11 +44,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_filters',
     'corsheaders',
     'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
     'mozilla_django_oidc',
+    'tom_alertstreams',
     'hermes',
 ]
 
@@ -63,6 +63,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
+    'hermes.middleware.SCiMMAAuthSessionRefresh',  # refresh SCiMMA Auth API tokens if necessary
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -95,10 +96,10 @@ WSGI_APPLICATION = 'hermes_base.wsgi.application'
 
 DATABASES = {
    'default': {
-       'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
+       'ENGINE': os.getenv('DB_ENGINE', 'django.contrib.gis.db.backends.postgis'),
        'NAME': os.getenv('DB_NAME', 'hermes'),
        'USER': os.getenv('DB_USER', 'postgres'),
-       'PASSWORD': os.getenv('DB_PASS', ''),
+       'PASSWORD': os.getenv('DB_PASS', 'postgres'),
        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
        'PORT': os.getenv('DB_PORT', '5432'),
    },
@@ -164,7 +165,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 # obtained from Keycloak via SCiMMA/Chris Weaver.
 OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
-OIDC_RP_SIGN_ALGO = 'RS256' # Signing Algorithm for Keycloak
+OIDC_RP_SIGN_ALGO = 'RS256'  # Signing Algorithm for Keycloak
 
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
 OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
@@ -179,25 +180,26 @@ ALLOW_LOGOUT_GET_METHOD = True
 
 # https://docs.djangoproject.com/en/4.0/topics/auth/customizing/#specifying-authentication-backends
 AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
     'hermes.auth_backends.HopskotchOIDCAuthenticationBackend',
     # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 ]
 
 
-# SCiMMA_admin and Hopskotch specific configuration
-#HOP_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for locally running scimma_admin (hopauth)
-#HOP_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for devlopment scimma_admin (hopauth)
-HOP_AUTH_BASE_URL = os.getenv('HOP_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production scimmma_admin (hopauth)
+# SCiMMA Auth and Hopskotch specific configuration
+# SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
+# SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
+SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 # TODO: set up helm chart for dev and prod environments; this default works for local development
-HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8080/')
+HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8001/')
 
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
-LOGIN_URL ='/'  # This is the default redirect URL for user authentication tests
+LOGIN_URL = '/'  # This is the default redirect URL for user authentication tests
 LOGIN_REDIRECT_URL = '/login-redirect/'  # URL path to redirect to after login
-LOGOUT_REDIRECT_URL = '/logout-redirect/' # URL path to redirect to after logout
-LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL # TODO: create login failure page
+LOGOUT_REDIRECT_URL = '/logout-redirect/'  # URL path to redirect to after logout
+LOGIN_REDIRECT_URL_FAILURE = HERMES_FRONT_END_BASE_URL  # TODO: create login failure page
 # TODO: handle login_failure !!
 
 # Our hermes (django) backend is deployed behind nginx/guncorn. By default Django ignores
@@ -213,9 +215,59 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 10,
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    "PAGE_SIZE": 100,
 }
+
+
+# TOM-Alertstreams configuration
+ALERT_STREAMS = [
+    {
+        'ACTIVE': True,
+        'NAME': 'tom_alertstreams.alertstreams.hopskotch.HopskotchAlertStream',
+        'OPTIONS': {
+            'URL': 'kafka://kafka.scimma.org/',
+            'USERNAME': os.getenv('SCIMMA_AUTH_USERNAME', ''),
+            'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
+            # Group ID must be prefixed with SCiMMA SCRAM credential username to open the SCiMMA kafka stream
+            'GROUP_ID': os.getenv('SCIMMA_AUTH_USERNAME', '') + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
+            'TOPIC_HANDLERS': {
+                'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
+                #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
+            },
+        },
+    },
+    {
+        'ACTIVE': True,
+        'NAME': 'tom_alertstreams.alertstreams.gcn.GCNClassicAlertStream',
+        # The keys of the OPTIONS dictionary become (lower-case) properties of the AlertStream instance.
+        'OPTIONS': {
+            # see https://github.com/nasa-gcn/gcn-kafka-python#to-use for configuration details.
+            'GCN_CLASSIC_CLIENT_ID': os.getenv('GCN_CLASSIC_CLIENT_ID', ''),
+            'GCN_CLASSIC_CLIENT_SECRET': os.getenv('GCN_CLASSIC_CLIENT_SECRET', ''),
+            'DOMAIN': 'gcn.nasa.gov',  # optional, defaults to 'gcn.nasa.gov'
+            'CONFIG': {  # optional
+                'group.id': os.getenv('GCN_CLASSIC_OVER_KAFKA_GROUP_ID', 'hermes-dev'),
+                # 'auto.offset.reset': 'earliest',
+                # 'enable.auto.commit': False
+            },
+            'TOPIC_HANDLERS': {
+                # 'gcn.classic.text.FERMI_GBM_ALERT': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_GRB_ALERT': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.SWIFT_POINTDIR': 'tom_demo.log_stuff.handle_message',
+                # 'gcn.classic.text.LVC_INITIAL': 'tom_demo.log_stuff.handle_message',
+                'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+            },
+        },
+    }
+]
 
 
 #
@@ -224,6 +276,7 @@ REST_FRAMEWORK = {
 #
 
 CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = list(default_headers) + [
     # add custom headers here
 ]
@@ -233,6 +286,13 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CACHES = {
+     'default': {
+         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+         'LOCATION': os.getenv('CACHE_LOCATION', 'default-cache')
+     }
+}
 
 #
 # Logging
@@ -255,7 +315,7 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': 'INFO',
-            #'level': 'DEBUG'
+            # 'level': 'DEBUG'
         },
         'mozilla_django_oidc': {
             'handlers': ['console'],
@@ -264,8 +324,6 @@ LOGGING = {
     }
 }
 logging.config.dictConfig(LOGGING)
-
-#logging.debug(f'Allowed CORES Headers: {CORS_ALLOW_HEADERS}')
 
 try:
     logging.info('Looking for local_settings.')

@@ -15,8 +15,6 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.http import JsonResponse
-from django.middleware import csrf
 from django.urls import include, path
 from rest_framework import routers
 from hermes import views
@@ -27,8 +25,12 @@ logger.setLevel(logging.DEBUG)
 
 
 router = routers.DefaultRouter()
-router.register(r'messages', views.MessageViewSet)
+router.register(r'messages', views.MessageViewSet, 'messages')
+router.register(r'nonlocalizedevents', views.NonLocalizedEventViewSet, 'events')
+router.register(r'nonlocalizedeventsequence', views.NonLocalizedEventSequenceViewSet, 'eventsequences')
+router.register(r'targets', views.TargetViewSet, 'targets')
 router.register(r'topics', views.TopicViewSet, basename='topic')
+router.register(r'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
 
 urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
@@ -36,6 +38,7 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('api/v0/profile/', views.ProfileApiView.as_view(), name='profile')
 ]
 
 # mozilla_django_oidc.urls provides:

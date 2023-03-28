@@ -1,8 +1,6 @@
-from abc import abstractmethod
 from http.client import responses
 import json
 import logging
-
 
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -14,191 +12,99 @@ from django.middleware import csrf
 from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
-from rest_framework.views import APIView
-from rest_framework import status
+from django.http import Http404
+from rest_framework.decorators import action
+from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
-
-from astropy.coordinates import SkyCoord
-from astropy import units
-import jsons
-from marshmallow import Schema, fields, ValidationError, validates_schema, validate
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import RetrieveUpdateAPIView
+from django_filters.rest_framework import DjangoFilterBackend
 
 from hop import Stream
 from hop.auth import Auth
 
-from rest_framework import viewsets
-
 from hermes.brokers import hopskotch
-from hermes.models import Message
+from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.serializers import MessageSerializer
-
-from datetime import datetime
-import astropy.time
-
+from hermes.utils import get_all_public_topics, extract_hop_auth
+from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
+from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
+                                NonLocalizedEventSequenceSerializer, ProfileSerializer)
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.DEBUG)
-
-
-def _extract_hop_auth(request) -> Auth:
-    """Return a hop.Auth instance from either the request.header or the request.session.
-
-    The reqeust.header takes precidence over the request.session.
-
-    If this the request is comming from the HERMES front-end, then a hop.auth.Auth instance was inserted
-    into the request's session dictionary upon logon in AuthenticationBackend.authenticate.
-    This method extracts it. (`jsons` is used (vs. json) because Auth is non-trivial to
-    serialize/deserialize, and the stdlib `json` package won't handle it correctly).
-
-    If this this request is coming via the API, then a SCiMMA Auth SCRAM credential must be
-    extracted from the request header and then used to instanciate the returned hop.Auth.
-    """
-    if 'SCIMMA-API-Auth-Username' in request.headers:
-        # A SCiMMA Auth SCRAM credential came in request.headers. Use it to get hop.auth.Auth instance.
-        username = request.headers['SCIMMA-API-Auth-Username']
-        password = request.headers['SCIMMA-API-Auth-Password']
-        hop_user_auth = Auth(username, password)
-    else:
-        # deserialize the hop.auth.Auth instance from the request.session
-        hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
-
-    return hop_user_auth
-
-
-def coordinates_valid(data):
-        for row in data:
-            try:
-                ra, dec = float(row['ra']), float(row['dec'])
-                SkyCoord(ra, dec, unit=(units.deg, units.deg))
-            except:
-                try:
-                    SkyCoord(row['ra'], row['dec'], unit=(units.hourangle, units.deg))
-                except:
-                    raise ValidationError('Coordinates do not all have valid RA and Dec')
-
-
-class CandidateDataSchema(Schema):
-    candidate_id = fields.String(required=True)
-    ra = fields.String(required=True)
-    dec = fields.String(required=True)
-    discovery_date = fields.String(required=True)
-    telescope = fields.String()
-    instrument = fields.String()
-    band = fields.String(required=True)
-    brightness = fields.Float()
-    brightnessError = fields.Float()
-    brightnessUnit = fields.String()
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_coordinates(self, data):
-        coordinates_valid(data)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_brightness_unit(self, data):
-        brightness_units = ['AB mag', 'Vega mag']
-        for row in data:
-            if row['brightness_unit'] not in brightness_units:
-                raise ValidationError(f'Unrecognized brightness unit. Accepted brightness units are {brightness_units}')
-
-class MessageSchema(Schema):
-    title = fields.String(required=True)
-    topic = fields.String(required=True)
-    event_id = fields.String()
-    message_text = fields.String(required=True)
-    submitter = fields.String(required=True)
-    authors = fields.String()
-    @property
-    @abstractmethod
-    def data(self):
-        pass
-
-
-class CandidateMessageSchema(MessageSchema):
-    data = fields.Nested(CandidateDataSchema)
-
-
-class PhotometryDataSchema(Schema):
-    target_name = fields.String()
-    ra = fields.String()
-    dec = fields.String()
-    date_observed = fields.String(required=True)
-    date_format = fields.String()
-    telescope = fields.String(required=True)
-    instrument = fields.String()
-    band = fields.String(required=True)
-    brightness = fields.Float(required=True)
-    brightness_error = fields.Float(required=True)
-    brightness_unit = fields.String(validate=validate.OneOf(choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"]), required=True)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_coordinates(self, data):
-        coordinates_valid(data)
-
-    @validates_schema(skip_on_field_errors=True)
-    def validate_date_observed(self, data):
-        for row in data:
-            if 'date_format' in row:
-                if 'jd' in row['date_format'].lower():
-                    try: 
-                        float(row['date_observed'])
-                    except ValueError:
-                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
-                else:
-                    try:
-                        date_observed = datetime.strptime(row['date_observed'], row['date_format'])
-                    except ValueError:
-                        raise ValidationError(f'Date observed: {row["date_observed"]} does parse based on provided date format: {row["date_format"]}')
-            else:
-                try:
-                    date_observed = astropy.time.Time(row["date_observed"])
-                except ValueError:
-                    raise ValidationError(f'Date observed: {row["date_observed"]} does not parse and no expected date format was provided.')
-
-
-class PhotometryMessageSchema(MessageSchema):
-    data = fields.Nested(PhotometryDataSchema)
+logger.setLevel(logging.DEBUG)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
+    http_method_names = ['get', 'head', 'options']
     serializer_class = MessageSerializer
-    pagination_class = None
+    filterset_class = MessageFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
 
+    def retrieve(self, request, pk=None):
+        try:
+            instance = Message.objects.get(uuid__startswith=pk)
+        except:
+            raise Http404
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+
+class TargetViewSet(viewsets.ModelViewSet):
+    queryset = Target.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = TargetSerializer
+    filterset_class = TargetFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
+
+
+class NonLocalizedEventViewSet(viewsets.ModelViewSet):
+    queryset = NonLocalizedEvent.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = NonLocalizedEventSerializer
+    filterset_class = NonLocalizedEventFilter
+    filter_backends = (
+        DjangoFilterBackend,
+    )
+
+    @action(detail=True, methods=['get'])
+    def targets(self, request, pk=None):
+        targets = Target.objects.filter(messages__nonlocalizedevents__event_id=pk)
+        return Response(TargetSerializer(targets, many=True).data)
+
+    @action(detail=True, methods=['get'])
+    def sequences(self, request, pk=None):
+        sequences = NonLocalizedEventSequence.objects.filter(event__event_id=pk)
+        return Response(NonLocalizedEventSequenceSerializer(sequences, many=True).data)
+
+
+class NonLocalizedEventSequenceViewSet(viewsets.ModelViewSet):
+    queryset = NonLocalizedEventSequence.objects.all()
+    http_method_names = ['get', 'head', 'options']
+    serializer_class = NonLocalizedEventSequenceSerializer
+    filterset_class = NonLocalizedEventSequenceFilter
+    filter_backends = (
+        filters.OrderingFilter,
+        DjangoFilterBackend
+    )
+    ordering = ('-id',)
 
 
 class TopicViewSet(viewsets.ViewSet):
-    """This ViewSet does not have a Model backing it. It uses the SCiMMA Auth (Hop Auth) API
-    to construct a response and return a dictionary:
-        {
-        'read': <topic list>,
-        'write': <topic-list>,
-        }
+    """This ViewSet does not have a Model backing it. It returns the cached list of (public) topics ingested in hermes.
     """
     def list(self, request, *args, **kwargs) -> JsonResponse:
-        """
-        """
-        username = request.user.username
-        try:
-            user_hop_auth: Auth = _extract_hop_auth(request)
-        except KeyError as err:
-            # This means no SCRAM creds were saved in this request's Session dict
-            # TODO: what to do for HERMES Guest (AnonymousUser)
-            logger.error(f'TopicViewSet {err}')
-            default_topics = {
-                'read': ['hermes.test', 'gcn.circular'],
-                'write': ['hermes.test'],
-                }
-            logger.error(f'TopicViewSet returning default topics: {default_topics}')
-            return JsonResponse(data=default_topics)
-
-        credential_name = user_hop_auth.username
-        user_api_token = hopskotch.get_user_api_token(username)
-
-        topics = hopskotch.get_user_topics(username, credential_name, user_api_token)
-        logger.info(f'TopicViewSet.list topics for {username}: {topics}')
-
-        response = JsonResponse(data=topics)
+        all_topics = get_all_public_topics()
+        response = JsonResponse(data={'topics': all_topics})
         return response
 
 
@@ -222,7 +128,7 @@ class MessageFormView(FormView):
         new_message_data = form.cleaned_data
 
         # List of universal Fields
-        non_json_fields = ['title', 'author', 'message_text']
+        non_json_fields = ['title', 'authors', 'message_text']
         non_json_dict = {key: new_message_data[key] for key in new_message_data.keys() if key in non_json_fields}
         message = Message(**non_json_dict)
 
@@ -245,7 +151,7 @@ def submit_to_hop(request, message):
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
     try:
-        hop_auth: Auth = _extract_hop_auth(request)
+        hop_auth: Auth = extract_hop_auth(request)
     except KeyError as err:
         logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
         # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
@@ -253,126 +159,199 @@ def submit_to_hop(request, message):
         logger.warning(f'Submitting with Hermes service account authorization (testing only)')
         hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
-    # TODO: provide some indication of the User/vo_person_id submitting the message
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
 
+    logger.debug(f'submit_to_hop request: {request}')
+    logger.debug(f'submit_to_hop request.data: {request.data}')
+    logger.debug(f'submit_to_hop s.write => message: {message}')
+
     try:
-        topic = 'hermes.test'
+        topic = request.data['topic']
         stream = Stream(auth=hop_auth)
-        # open for write ('w')
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as s:
+        # open for write ('w') returns a hop.io.Producer instance
+        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
             metadata = {'topic': topic}
-            s.write(message, metadata)
+            producer.write(message, metadata)
     except Exception as e:
         return Response({'message': f'Error posting message to kafka: {e}'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response({"message": {"Message was submitted successfully"}}, status=status.HTTP_200_OK)
+    return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
 
 
-class HopSubmitView(APIView):
-    """
-    Submit a message to the hop client
-    """
-
-    def post(self, request, *args, **kwargs):
-        """Sumbit to Hopskotch
-
-        Requests to this method go through rest_framework.authentication.SessionMiddleware
-        and as such require a CSRF token in the header. see GetCSRFTokenView.
-        """
-        # request.data does not read the data stream again. So,
-        # that is more appropriate than request.body which does
-        # (read the stream again).
-        # NO:
-        #logger.info(f'type(request.body): {type(request.body)}')
-        #logger.info(f'request.body: {request.body}')
-        # YES:
-        logger.debug(f'request.data: {request.data}')
-
-        return submit_to_hop(request, request.data)
+class SubmitHermesMessageViewSet(viewsets.ViewSet):
+    serializer_class = HermesMessageSerializer
+    EXPECTED_DATA_KEYS = ['targets', 'event_id', 'references', 'photometry', 'spectroscopy', 'astrometry']
 
     def get(self, request, *args, **kwargs):
-        return Response({"message": "Supply any valid json to send a message to kafka."}, status=status.HTTP_200_OK)
-
-
-class HopSubmitCandidatesView(APIView):
-    def get(self, request, *args, **kwargs):
-        message = """This endpoint is used to send a message with a list of potential candidates corresponding to a 
-        non-localized event.
+        message = """This endpoint is used to send a generic hermes message
         
         Requests should be structured as below:
         
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
          submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>
+         authors: <Full list of authors on a message>,
          message_text: <Text of the message to send>,
-         event_id: <ID of the non-localized event for these candidates>,
-         data: {[{candidate_id: <ID of the candidate>,
-                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
-                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  discovery_date: <Date/time of the candidate discovery>,
-                  date_format: <Python strptime format string or "mjd" or "jd">,
-                  telescope: <Discovery telescope>,
-                  instrument: <Discovery instrument>,
-                  band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the candidate at discovery>,
-                  brightness_error: <Brightness error of the candidate at discovery>,
-                  brightness_unit: <Brightness units for the discovery, 
-                                   current supported values: [AB mag, Vega mag]>
-                           }, ...]}
+         submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
+         submit_to_mpc: <Boolean of whether or not to submit this message to MPC along with hop>
+         data: {
+            references: [
+                {
+                    source:
+                    citation:
+                    url:
+                },
+                ...
+            ],
+            extra_key1: value1,
+            extra_key2: value2,
+                ...
+            extra_keyn: <Any key within data not used by the hermes message format will be passed through in the message>
+            },
+            event_id: <Nonlocalized event_id this message relates to>,
+            targets: [
+                {
+                    name: <Target name>,
+                    ra: <Target ra in decimal or sexigesimal format>,
+                    dec: <Target dec in decimal or sexigesimal format>,
+                    ra_error: <Error of ra>,
+                    dec_error: <Error of dec>,
+                    ra_error_units: <Units for ra_error>,
+                    dec_error_units: <Units for dec_error>,
+                    pm_ra: <RA proper motion in arcsec/year>,
+                    pm_dec: <Dec proper motion in arcsec/year>,
+                    epoch: <Epoch of reference frame>,
+                    new_discovery: <Boolean if this target is for a new discovery or not>
+                    orbital_elements: {
+                        epoch_of_elements: <Epoch of Elements in MJD>,
+                        orbital_inclination: <Orbital Inclination (i) in Degrees>,
+                        longitude_of_the_ascending_node: <Longitude of the Ascending Node (Ω) in Degrees>,
+                        argument_of_the_perihelion: <Argument of Periapsis (ω) in Degrees>,
+                        eccentricity: <Orbital Eccentricity (e)>,
+                        semimajor_axis: <Semimajor Axis (a) in AU>,
+                        mean_anomaly: <Mean Anomaly (M) in Degrees>,
+                        perihperihelion_distancedist: <Distance to the Perihelion (q) in AU>,
+                        epoch_of_perihelion: <Epoch of Perihelion passage (tp) in MJD>
+                    },
+                    discovery_info: {
+                        reporting_group: <>,
+                        discovery_source: <>,
+                        transient_type: <Type of source, one of PSN, nuc, PNV, AGN, or Other>,
+                        proprietary_period: <Duration that this discovery should be kept private>,
+                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>
+                    },
+                    redshift: <>,
+                    host_name: <Host galaxy name>,
+                    host_redshift: <Redshift (z) of Host Galaxy>,
+                    aliases: [
+                        'alias1',
+                        'alias2',
+                        ...
+                    ],
+                    group_associations: <String of group associations for this target>
+                }
+            ],
+            photometry: [
+                {
+                    target_index: <Index of target list that this photometry relates to. Can be left out if there is only one target>,
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <Observation telescope>,
+                    instrument: <Observation instrument>,
+                    bandpass: <Wavelength band of the observation>,
+                    brightness: <Brightness of the observation>,
+                    brightness_error: <Brightness error of the observation>,
+                    brightness_unit: <Brightness units for the observation,
+                                      current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>,
+                    exposure_time: <Exposure time in seconds for this photometry>,
+                    observer: <The entity that observed this photometry data>,
+                    comments: <String of comments for the photometry>,
+                    limiting_brightness: <The minimum brightness at which the target is visible>,
+                    limiting_brightness_unit: <Unit for the limiting brightness>
+                    catalog: <Photometric catalog used to reduce this data>,
+                    group_associations: <>
+                }
+            ],
+            spectroscopy: [
+                {
+                    target_index: <Index of target list that this specotroscopic datum relates to. Can be left out if there is only one target>,
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <specotroscopic datum telescope>,
+                    instrument: <specotroscopic datum instrument>,
+                    setup: <>,
+                    flux: [<Flux values of the specotroscopic datum>],
+                    flux_error: [ <Flux error values of the specotroscopic datum>],
+                    flux_units: <Flux units for the specotroscopic datum,
+                               current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
+                    wavelength: [<Wavelength values for this spectroscopic datum>],
+                    wavelength_units: <Units for the wavelength>,
+                    classification: <TNS classification for this specotroscopic datum>,
+                    proprietary_period: <>,
+                    proprietary_period_units: <>,
+                    exposure_time: <Exposure time in seconds for this spectroscopic datum>,
+                    observer: <The entity that observed this spectroscopic datum>,
+                    reducer: <The entity that reduced this spectroscopic datum>,
+                    comments: <String of comments for the spectroscopic datum>,
+                    group_associations: <>,
+                    spec_type: <>
+                }
+            ],
+            astrometry: [
+                {
+                    date_obs: <Date of the observation, in a parseable format or JD>,
+                    telescope: <Astrometry telescope>,
+                    instrument: <Astrometry instrument>,
+                    ra: <Target ra in decimal or sexigesimal format>,
+                    dec: <Target dec in decimal or sexigesimal format>,
+                    ra_error: <Error of ra>,
+                    dec_error: <Error of dec>,
+                    ra_error_units: <Units for ra error>,
+                    dec_error_units: <Units for dec error>,
+                    mpc_sitecode: <MPC Site code for this data>,
+                    catalog: <Astrometric catalog used to reduce this data>,
+                    comments: <String of comments for the astrometric datum>
+                }
+            ],
+         }
         }
         """
         return Response({"message": message}, status.HTTP_200_OK)
 
-    def post(self, request, *args, **kwargs):
-        candidate_schema = CandidateMessageSchema()
-        candidates, errors = candidate_schema.load(request.json)
+    def create(self, request, *args, **kwargs):
+        non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            data = serializer.validated_data
+            if non_serialized_data:
+                if 'data' not in data:
+                    data['data'] = {}
+                data['data'].update(non_serialized_data)
+            return submit_to_hop(request, data)
+        else:
+            return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
-        logger.debug(f"Request data: {request.json}")
-        if errors:
-            return Response(errors, status.HTTP_400_BAD_REQUEST)
-
-        return submit_to_hop(request, vars(candidates))
-
-
-class SubmitPhotometryView(APIView):
-    def get(self, request, *args, **kwargs):
-        message = """This endpoint is used to send a message to report photometry of one or more targets.
-         
-        Requests should be structured as below:
-
-        {title: <Title of the message>,
-         topic: <kafka topic to post message to>, 
-         submitter: <submitter of the message>,
-         authors: <Text full list of authors on a message>
-         message_text: <Text of the message to send>,
-         event_id: <ID of the non-localized event for these candidates>,
-         data: {[{target_name: <Name of the observed target>,
-                  ra: <Right Ascension in hh:mm:ss.ssss or decimal degrees>,
-                  dec: <Declination in dd:mm:ss.ssss or decimal degrees>,
-                  date_observed: <Date/time of the observation>,
-                  telescope: <Discovery telescope>,
-                  instrument: <Discovery instrument>,
-                  band: <Wavelength band of the discovery observation>,
-                  brightness: <Brightness of the candidate at discovery>,
-                  brightness_error: <Brightness error of the candidate at discovery>,
-                  brightness_unit: <Brightness units for the discovery, 
-                                   current supported values: [AB mag, Vega mag, mJy, and erg / s / cm² / Å]>
-                           }, ...]}
-        }
+    @action(detail=False, methods=['post'])
+    def validate(self, request):
+        """ Validate a Message Schema
         """
-        return Response({"message": message}, status.HTTP_200_OK)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            errors = {}
+        else:
+            errors = serializer.errors
+        return Response(errors, status.HTTP_200_OK)
 
-    def post(self, request, *args, **kwargs):
-        photometry_schema = PhotometryMessageSchema()
-        photometry, errors = photometry_schema.load(request.json)
 
-        if errors:
-            logger.debug(f"Request data: {request.json}")
-            return Response(errors, status.HTTP_400_BAD_REQUEST)
+class ProfileApiView(RetrieveUpdateAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
 
-        return submit_to_hop(request, vars(photometry))
+    def get_object(self):
+        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
+        """Once authenticated, retrieve profile data"""
+        qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
+            'profile'
+        )
+        return qs.first().profile
 
 
 class LoginRedirectView(RedirectView):
@@ -382,7 +361,7 @@ class LoginRedirectView(RedirectView):
 
         logger.debug(f'LoginRedirectView.get -- request.user: {request.user}')
 
-        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}#/?user={request.user.email}'
+        login_redirect_url = f'{settings.HERMES_FRONT_END_BASE_URL}'
         logger.info(f'LoginRedirectView.get -- setting self.url and redirecting to {login_redirect_url}')
         self.url = login_redirect_url
 
