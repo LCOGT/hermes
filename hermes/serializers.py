@@ -182,7 +182,7 @@ class ReferenceDataSerializer(RemoveNullSerializer):
                     'citation': 'Must set source/citation or url',
                     'url': 'Must set source/citation or url',
                 })
-        elif validated_data['source'].lower() == 'hop_uuid' and not Message.objects.filter(uuid__startswith=validated_data['citation']).exists():
+        elif validated_data['source'].lower() == 'hop_uuid' and not Message.objects.filter(uuid=validated_data['citation']).exists():
             raise serializers.ValidationError({
                 'citation': f"hop_uuid {validated_data['citation']} does not exist"
             })
