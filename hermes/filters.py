@@ -5,12 +5,12 @@ from django.contrib.gis.measure import D
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
 
 import math
-import uuid
 EARTH_RADIUS_METERS = 6371008.77141506
 
 
 class MessageFilter(filters.FilterSet):
     uuid = filters.CharFilter(method='filter_uuid', label='UUID', help_text='Full or partial UUID search')
+    referencing_uuid = filters.CharFilter(method='filter_referencing_uuid', label='Referencing UUID', help_text='Messages referencing a hop UUID')
     cone_search = filters.CharFilter(method='filter_cone_search', label='Cone Search',
                                      help_text='RA, Dec, Radius (degrees)')
     polygon_search = filters.CharFilter(method='filter_polygon_search', label='Polygon Search',
@@ -53,16 +53,23 @@ class MessageFilter(filters.FilterSet):
     def filter_uuid(self, queryset, name, value):
         return queryset.filter(uuid__startswith=value)
 
+    def filter_referencing_uuid(self, queryset, name, value):
+        return queryset.filter(data__references__contains=[{'citation': value}])
+
 
 class NonLocalizedEventFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='event_id', lookup_expr='exact', label='Event Id exact')
     event_id = filters.CharFilter(field_name='event_id', lookup_expr='icontains', label='Event Id contains')
+    referenced_by_uuid = filters.CharFilter(method='filter_referenced_by_uuid', label='Referenced by UUID', help_text='Messages referenced by a hop UUID')
 
     class Meta:
         model = NonLocalizedEvent
         fields = (
             'event_id', 'event_id_exact'
         )
+
+    def filter_referenced_by_uuid(self, queryset, name, value):
+        return queryset.filter(references__uuid__startswith=value)
 
 
 class NonLocalizedEventSequenceFilter(filters.FilterSet):
@@ -86,6 +93,7 @@ class TargetFilter(filters.FilterSet):
     event_id = filters.CharFilter(field_name='messages__nonlocalizedevents__event_id', lookup_expr='icontains', label='Event Id contains')
     name = filters.CharFilter(field_name='name', lookup_expr='icontains', help_text='Name contains keyword')
     name_exact = filters.CharFilter(field_name='name', lookup_expr='exact', help_text='Name exact')
+    referenced_by_uuid = filters.CharFilter(method='filter_referenced_by_uuid', label='Referenced by UUID', help_text='Messages referenced by a hop UUID')
 
     class Meta:
         model = Target
@@ -109,3 +117,6 @@ class TargetFilter(filters.FilterSet):
         vertices = tuple((float(v.split(' ')[0]), float(v.split(' ')[1])) for v in value.split(', '))  # TODO: explain!
         polygon = Polygon(vertices, srid=4035)
         return queryset.filter(coordinate__within=polygon)
+
+    def filter_referenced_by_uuid(self, queryset, name, value):
+        return queryset.filter(messages__uuid__startswith=value)
