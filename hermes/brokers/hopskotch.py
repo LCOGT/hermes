@@ -27,6 +27,8 @@ import os
 import requests
 
 from django.conf import settings
+from django.core.cache import cache
+from django.utils import dateparse, timezone
 
 from hop.auth import Auth
 
@@ -86,9 +88,17 @@ def get_hermes_hop_authorization() -> Auth:
 
 
 def get_hermes_api_token():
-    username = HERMES_USERNAME
-    password = HERMES_PASSWORD
-    return _get_hermes_api_token(username, password)
+    hermes_api_token = cache.get('hermes_api_token', None)
+    if not hermes_api_token:
+        logger.debug("Hermes api credential don't exist in cache, regenerating them now.")
+        username = HERMES_USERNAME
+        password = HERMES_PASSWORD
+        hermes_api_token, hermes_api_token_expiration = _get_hermes_api_token(username, password)
+        expiration_date = dateparse.parse_datetime(hermes_api_token_expiration)
+        # Subtract a small amount from timeout to ensure credential is available when retrieved
+        timeout = (expiration_date - timezone.now()).total_seconds() - 60
+        cache.set('hermes_api_token', hermes_api_token, timeout=timeout)
+    return hermes_api_token
 
 
 def _get_hermes_api_token(scram_username, scram_password) -> str:
@@ -173,7 +183,7 @@ def get_or_create_user(claims: dict):
     logger.debug(f'get_or_create_user claims: {claims}')
 
     # check to see if the user already exists in SCiMMA Auth
-    hermes_api_token, _ = get_hermes_api_token()
+    hermes_api_token = get_hermes_api_token()
     username = claims['sub']
 
     hop_user = get_hop_user(username, hermes_api_token)

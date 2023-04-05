@@ -79,6 +79,7 @@ resources: {}
 # Settings for the PostgreSQL database
 applyDatabaseMigrations: true
 useDockerizedDatabase: true
+cacheBackend: "django.core.cache.backends.redis.RedisCache"
 
 djangoDatabaseEngine: "django.db.backends.postgresql"
 postgresql:
@@ -106,6 +107,31 @@ postgresql:
 
 secretKey: "changeme"
 
+redis:
+  # If enabled, an in-cluster Redis instance will be spun up.
+  # Otherwise, redisURL will be used.
+  enabled: true
+  usePassword: false
+  master:
+    port: "6379"
+    disableCommands: ["FLUSHALL"]
+    persistence:
+      enabled: true
+      size: 256Mi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 512Mi
+  cluster:
+    enabled: false
+  configmap: |-
+    maxmemory 256mb
+    maxmemory-policy volatile-lru
+    # idle client timeout after 600 seconds
+    timeout 600
 
 loadInitialData:
   enabled: false

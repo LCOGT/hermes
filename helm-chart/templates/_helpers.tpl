@@ -83,6 +83,19 @@ Generate the postgres DB hostname
 {{- end -}}
 
 {{/*
+Generate the cache location
+*/}}
+{{- define "hermes.cacheLocation" -}}
+{{- if not .Values.redis.enabled -}}
+{{- required "Must set `redisURL`" .Values.redisURL -}}
+{{- else if .Values.redis.fullnameOverride -}}
+{{- printf "redis://%s-master:%s/0" .Values.redis.fullnameOverride .Values.redis.master.port -}}
+{{- else -}}
+{{- printf "redis://%s-redis-master:%s/0" .Release.Name .Values.redis.master.port -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Create the environment variables for configuration of this project. They are
 repeated in a bunch of places, so to keep from repeating ourselves, we'll
 build it here and use it everywhere.
@@ -92,6 +105,10 @@ build it here and use it everywhere.
   value: "/tmp"
 - name: DEBUG
   value: {{ .Values.djangoDebug | toString | lower | title | quote }}
+- name CACHE_BACKEND
+  value: {{ .Values.cacheBackend | quote }}
+- name: CACHE_LOCATION
+  value: {{ include "hermes.cacheLocation" . | quote }}
 - name: HERMES_FRONT_END_BASE_URL
   value: {{ .Values.hermesFrontEndBaseUrl | quote }}
 - name: HOP_AUTH_BASE_URL

@@ -200,7 +200,7 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         """
         user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
 
-        hermes_api_token = request.session['hermes_api_token']
+        hermes_api_token = hopskotch.get_hermes_api_token()
         hop_auth = hopskotch.authorize_user(user.get_username(), hermes_api_token)
 
         # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
