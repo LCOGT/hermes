@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
+from django.utils.http import urlencode
 
 from hop.auth import Auth
 import jsons
@@ -230,7 +231,12 @@ def hopskotch_logout(request):
     except KeyError as err:
         logger.error(f'No hop.auth.Auth instance in Session. Clean up SCiMMA Auth manually. session: {request.session}')
 
-    return settings.LOGOUT_REDIRECT_URL
+    id_token = request.session['oidc_id_token']
+
+    url_args = {'post_logout_redirect_uri': settings.HERMES_FRONT_END_BASE_URL, 'client_id': settings.OIDC_RP_CLIENT_ID, 'id_token_hint': id_token}
+    logout_redirect_url = f'{settings.OIDC_OP_LOGOUT_ENDPOINT}?{urlencode(url_args)}'
+
+    return logout_redirect_url
 
 
 def is_member_of(claims, group):
