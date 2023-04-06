@@ -105,7 +105,7 @@ build it here and use it everywhere.
   value: "/tmp"
 - name: DEBUG
   value: {{ .Values.djangoDebug | toString | lower | title | quote }}
-- name CACHE_BACKEND
+- name: CACHE_BACKEND
   value: {{ .Values.cacheBackend | quote }}
 - name: CACHE_LOCATION
   value: {{ include "hermes.cacheLocation" . | quote }}
