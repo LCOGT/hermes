@@ -165,7 +165,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
 OIDC_RP_SIGN_ALGO = 'RS256'  # Signing Algorithm for Keycloak
-OIDC_STORE_ID_TOKEN = True
+OIDC_STORE_ID_TOKEN = True  # Forces OIDC login to store oidc_id_token in session dict
 
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
 OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
