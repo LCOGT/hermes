@@ -3,11 +3,26 @@ from pydoc_data.topics import topics
 from django.db import models
 from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
+from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_token
 
 
 class Profile(models.Model):
     # This model will be used to store user settings, such as topic sort/filter preferences
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    hop_user_pk = models.BigIntegerField(default=-1, help_text='Scimma Auth User primary key')
+    credential_pk = models.BigIntegerField(default=-1, help_text='Scimma Auth User Scram Credential primary key')
+    credential_name = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential name')
+    credential_password = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential password')
+
+    @property
+    def api_token(self):
+        return Token.objects.get_or_create(user=self.user)[0]
+
+    @property
+    def writable_topics(self):
+        user_api_token = get_user_api_token(self.user.username)
+        return get_user_writable_topics(self.user.username, self.hop_user_pk, self.credential_name, self.credential_pk, user_api_token, exclude_groups=['sys'])
 
 
 class Message(models.Model):
