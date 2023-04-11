@@ -246,7 +246,7 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
                                              choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
-                                                       choices=['Months', 'Days', 'Years'])
+                                                       choices=['Days', 'Months', 'Years'])
 
 
 class TargetDataSerializer(RemoveNullSerializer):
@@ -391,7 +391,7 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     classification = serializers.CharField(required=False, allow_null=True)
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
-                                                       choices=['Months', 'Days', 'Years'])
+                                                       choices=['Days', 'Months', 'Years'])
     comments = serializers.CharField(required=False, allow_null=True)
     group_associations = serializers.CharField(required=False, allow_null=True)
     observer = serializers.CharField(required=False, allow_null=True)
