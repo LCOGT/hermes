@@ -172,11 +172,13 @@ class ReferenceDataSerializer(RemoveNullSerializer):
                     'citation': 'Must set source/citation or url',
                     'url': 'Must set source/citation or url',
                 })
-        elif validated_data['source'].lower() == 'hop_uuid' and not Message.objects.filter(uuid=validated_data['citation']).exists():
+        elif validated_data['source'].lower() == 'hop_uuid' and not \
+                Message.objects.filter(uuid=validated_data['citation']).exists():
             raise serializers.ValidationError({
                 'citation': f"hop_uuid {validated_data['citation']} does not exist"
             })
         return validated_data
+
 
 class OrbitalElementsSerializer(RemoveNullSerializer):
     epoch_of_elements = serializers.CharField(required=True)
@@ -230,9 +232,11 @@ class OrbitalElementsSerializer(RemoveNullSerializer):
 class DiscoveryInfoSerializer(RemoveNullSerializer):
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
-    transient_type = serializers.ChoiceField(required=False, default='Other', choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
+    transient_type = serializers.ChoiceField(required=False, default='Other',
+                                             choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
-    proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
+    proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
+                                                       choices=['Days', 'Months', 'Years'])
 
 
 class TargetDataSerializer(RemoveNullSerializer):
@@ -242,10 +246,10 @@ class TargetDataSerializer(RemoveNullSerializer):
     ra_error = serializers.FloatField(required=False, allow_null=True)
     dec_error = serializers.FloatField(required=False, allow_null=True)
     ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'marcsec', 'arcsec', 'arcmin'
+        'degrees', 'mas', 'arcsec', 'arcmin'
     ])
     dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'marcsec', 'arcsec', 'arcmin'
+        'degrees', 'mas', 'arcsec', 'arcmin'
     ])
     pm_ra = serializers.FloatField(required=False, allow_null=True)
     pm_dec = serializers.FloatField(required=False, allow_null=True)
@@ -288,7 +292,6 @@ class TargetDataSerializer(RemoveNullSerializer):
 
         return validated_data
 
-
     def validate_ra(self, value):
         try:
             float_ra = float(value)
@@ -320,6 +323,7 @@ class TargetDataSerializer(RemoveNullSerializer):
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg
+
 
 class CommonDataSerializer(RemoveNullSerializer):
     target_name = serializers.CharField(required=True)
@@ -371,11 +375,13 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     flux_error = serializers.ListField(child=serializers.FloatField(), required=False)
     flux_units = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
     wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
-    wavelength_units = serializers.ChoiceField(required=False, default='nm', choices=['Å', 'nm', 'µm'])
+    wavelength_units = serializers.ChoiceField(required=False, default='nm',
+                                               choices=['Å', 'nm', 'µm', 'Hz', 'GHz', 'THz'])
     flux_type = serializers.ChoiceField(required=False, default='Fλ', choices=['Fλ', 'Flambda', 'Fν', 'Fnu'])
     classification = serializers.CharField(required=False, allow_null=True)
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
-    proprietary_period_units = serializers.ChoiceField(required=False, default='Days', choices=['Seconds', 'Days', 'Years'])
+    proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
+                                                       choices=['Days', 'Months', 'Years'])
     comments = serializers.CharField(required=False, allow_null=True)
     group_associations = serializers.CharField(required=False, allow_null=True)
     observer = serializers.CharField(required=False, allow_null=True)
@@ -399,10 +405,10 @@ class AstrometryDataSerializer(CommonDataSerializer):
     ra_error = serializers.FloatField(required=False, allow_null=True)
     dec_error = serializers.FloatField(required=False, allow_null=True)
     ra_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'marcsec', 'arcsec', 'arcmin'
+        'degrees', 'mas', 'arcsec', 'arcmin'
     ])
     dec_error_units = serializers.ChoiceField(required=False, default='degrees', choices=[
-        'degrees', 'marcsec', 'arcsec', 'arcmin'
+        'degrees', 'mas', 'arcsec', 'arcmin'
     ])
     mpc_sitecode = serializers.CharField(required=False, allow_null=True)
     catalog = serializers.CharField(required=False, allow_null=True)
