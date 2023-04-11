@@ -34,7 +34,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -49,6 +48,7 @@ INSTALLED_APPS = [
     'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
+    'rest_framework.authtoken',
     'mozilla_django_oidc',
     'tom_alertstreams',
     'hermes',
@@ -62,7 +62,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'mozilla_django_oidc.middleware.SessionRefresh',  # make sure User's ID token is still valid
     'hermes.middleware.SCiMMAAuthSessionRefresh',  # refresh SCiMMA Auth API tokens if necessary
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -166,6 +165,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 OIDC_RP_CLIENT_ID = os.getenv('OIDC_RP_CLIENT_ID', None)
 OIDC_RP_CLIENT_SECRET = os.getenv('OIDC_RP_CLIENT_SECRET', None)
 OIDC_RP_SIGN_ALGO = 'RS256'  # Signing Algorithm for Keycloak
+OIDC_STORE_ID_TOKEN = True  # Forces OIDC login to store oidc_id_token in session dict
 
 OIDC_OP_AUTHORIZATION_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/auth'
 OIDC_OP_TOKEN_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/token'
@@ -173,6 +173,10 @@ OIDC_OP_USER_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-
 OIDC_OP_JWKS_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/certs'
 # this method is invoke upon /logout -> mozilla_django_oidc.ODICLogoutView.post
 OIDC_OP_LOGOUT_URL_METHOD = 'hermes.auth_backends.hopskotch_logout'
+OIDC_OP_LOGOUT_ENDPOINT = 'https://login.scimma.org/realms/SCiMMA/protocol/openid-connect/logout'
+
+# Set the OIDC login to be valid for 2 weeks since we disabled the refresh middleware
+OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = 60 * 60 * 24 * 14
 
 # this tells mozilla-django-oidc that the front end can logout with a GET
 # which allows the front end to use location.href to /auth/logout to logout.
@@ -215,6 +219,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        'hermes.auth_backends.HermesTokenAuthentication',
+    ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 100,
 }
@@ -264,11 +272,11 @@ ALERT_STREAMS = [
                 # 'gcn.classic.text.SWIFT_POINTDIR': 'tom_demo.log_stuff.handle_message',
                 # 'gcn.classic.text.LVC_INITIAL': 'tom_demo.log_stuff.handle_message',
                 'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                #'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
                 'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
                 'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                #'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                #'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
             },
         },
     }

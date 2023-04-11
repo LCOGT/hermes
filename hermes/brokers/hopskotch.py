@@ -14,8 +14,8 @@ Notes on the change of OIDC Provider from CILogon to SCiMMA's Keycloak instance:
    * In the changeover from CILogon to Keycloak, vo_person_id variable names were changed to username
 
 The top level functions are:
-  * authorize_user()
-  * deauthorize_user()
+  * create_credential_for_user()
+  * delete_credential()
 
 Lower level and utility functions:
   * TODO: make function glossary
@@ -27,6 +27,9 @@ import os
 import requests
 
 from django.conf import settings
+from django.core.cache import cache
+from django.utils import dateparse, timezone
+from django.contrib.auth.models import User
 
 from hop.auth import Auth
 
@@ -86,9 +89,17 @@ def get_hermes_hop_authorization() -> Auth:
 
 
 def get_hermes_api_token():
-    username = HERMES_USERNAME
-    password = HERMES_PASSWORD
-    return _get_hermes_api_token(username, password)
+    hermes_api_token = cache.get('hermes_api_token', None)
+    if not hermes_api_token:
+        logger.debug("Hermes api token doesn't exist in cache, regenerating it now.")
+        username = HERMES_USERNAME
+        password = HERMES_PASSWORD
+        hermes_api_token, hermes_api_token_expiration = _get_hermes_api_token(username, password)
+        expiration_date = dateparse.parse_datetime(hermes_api_token_expiration)
+        # Subtract a small amount from timeout to ensure credential is available when retrieved
+        timeout = (expiration_date - timezone.now()).total_seconds() - 60
+        cache.set('hermes_api_token', hermes_api_token, timeout=timeout)
+    return hermes_api_token
 
 
 def _get_hermes_api_token(scram_username, scram_password) -> str:
@@ -173,7 +184,7 @@ def get_or_create_user(claims: dict):
     logger.debug(f'get_or_create_user claims: {claims}')
 
     # check to see if the user already exists in SCiMMA Auth
-    hermes_api_token, _ = get_hermes_api_token()
+    hermes_api_token = get_hermes_api_token()
     username = claims['sub']
 
     hop_user = get_hop_user(username, hermes_api_token)
@@ -200,7 +211,49 @@ def get_or_create_user(claims: dict):
         return hop_user, True
 
 
-def authorize_user(username: str, hermes_api_token: str) -> Auth:
+def verify_credential_for_user(username: str, user_pk: int, credential_name: str, credential_pk: int):
+    """
+    """
+    url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials/{credential_pk}'
+    user_api_token = get_user_api_token(username)
+
+    try:
+        response = requests.get(url,
+                                headers={'Authorization': user_api_token,
+                                        'Content-Type': 'application/json'})
+        response.raise_for_status()
+        credential = response.json()
+        if credential.get('username') == credential_name:
+            return True
+        else:
+            logger.warning(f"Credential with pk {credential_pk} for user {username} does not match credential name {credential_name}")
+    except Exception as e:
+        logger.warning(f"Failed to verify credential with pk {credential_pk} for user {username}")
+
+    return False
+
+
+def check_and_regenerate_hop_credential(user: User):
+    """ Check that the Django model user profile has a valid credential, and if not, generate a new one
+    """
+    if ((not user.profile.credential_name or not user.profile.credential_password) or
+        not verify_credential_for_user(user.username, user.profile.hop_user_pk,
+                                       user.profile.credential_name, user.profile.credential_pk)):
+        regenerate_hop_credential(user)
+
+
+def regenerate_hop_credential(user: User):
+    """ Create hop credential for django model user
+    """
+    hop_auth, user_pk, credential_pk = create_credential_for_user(user.get_username())
+    user.profile.hop_user_pk = user_pk
+    user.profile.credential_pk = credential_pk
+    user.profile.credential_name = hop_auth.username
+    user.profile.credential_password = hop_auth.password
+    user.profile.save()
+
+
+def create_credential_for_user(username: str, hermes_api_token: str = None) -> Auth:
     """Set up user for all Hopskotch interactions.
     (Should be called upon logon (probably via OIDC authenticate)
 
@@ -210,20 +263,23 @@ def authorize_user(username: str, hermes_api_token: str) -> Auth:
     * add 'hermes.test' topic permissions to SCRAM credential
     * returns hop.auth.Auth to authenticate() for inclusion in Session dictionary
     """
-    logger.info(f'authorize_user Authorizing for Hopskotch, user: {username}')
+    logger.info(f'create_credential_for_user Authorizing for Hopskotch, user: {username}')
 
-    user_api_token, _ = get_user_api_token(username, hermes_api_token=hermes_api_token)
+    if not hermes_api_token:
+        hermes_api_token = get_hermes_api_token()
+
+    user_api_token = get_user_api_token(username, hermes_api_token=hermes_api_token)
     hop_user = get_hop_user(username, user_api_token)
     user_pk = hop_user['pk']
 
     # create user SCRAM credential (hop.auth.Auth instance)
     user_hop_auth: Auth = get_user_hop_authorization(hop_user, user_api_token)
-    logger.info(f'authorize_user SCRAM credential created for {username}:  {user_hop_auth.username}')
+    logger.info(f'create_credential_for_user SCRAM credential created for {username}:  {user_hop_auth.username}')
     credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
 
     add_permissions_to_credential(user_pk, credential_pk, user_api_token=user_api_token, hermes_api_token=hermes_api_token)
 
-    return user_hop_auth
+    return user_hop_auth, user_pk, credential_pk
 
 
 def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes_api_token):
@@ -258,14 +314,14 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
             _add_permission_to_credential_for_user(user_pk, credential_pk, group_permission['topic'],
                                                    group_permission['operation'], user_api_token)
 
-def deauthorize_user(username: str, user_hop_auth: Auth, user_api_token):
+def delete_credential(username: str, credential: Auth, user_api_token):
     """Remove from Hop Auth the SCRAM credentials (user_hop_auth) that were created
     for this session.
 
     This should be called from the OIDC_OP_LOGOUT_URL_METHOD, upon HERMES logout.
     """
-    logger.info(f'deauthorize_user Deauthorizing for Hopskotch, user: {username} auth: {user_hop_auth.username}')
-    delete_user_hop_credentials(username, user_hop_auth.username, user_api_token)
+    logger.info(f'delete_credential for user: {username} auth: {credential.username}')
+    delete_user_hop_credentials(username, credential.username, user_api_token)
 
 
 def add_user_to_group(user_pk, group_pk, hermes_api_token):
@@ -462,9 +518,9 @@ def get_user_hop_authorization(hop_user: dict, user_api_token) -> Auth:
 
     logger.info(f'get_user_hop_authorization Creating SCRAM credentials for user {username}')
     response = requests.post(url,
-                                              data=json.dumps({'description': 'Created by HERMES'}),
-                                              headers={'Authorization': user_api_token,
-                                                       'Content-Type': 'application/json'})
+                             data=json.dumps({'description': 'Created by HERMES'}),
+                             headers={'Authorization': user_api_token,
+                                      'Content-Type': 'application/json'})
     # for example, {'username': 'llindstrom-93fee00b', 'password': 'asdlkjfsadkjf'}
     logger.debug(f'get_user_hop_authorization user_credentials_response.json(): {response.json()}')
 
@@ -495,7 +551,6 @@ def get_user_hop_credentials(user_pk, user_api_token):
     and we return a list of them.
 
     NOTES:
-      * the username argument is the SCiMMA Auth and HERMES User.get_username()
       * the username key in the returned credential dict is the SCRAM credential name
 
     """
@@ -509,6 +564,24 @@ def get_user_hop_credentials(user_pk, user_api_token):
     user_hop_credentials = response.json()
     logger.debug(f'get_user_hop_credentials: {user_hop_credentials}')
     return user_hop_credentials
+
+
+def delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, user_api_token):
+    logger.debug(f'delete_user_hop_credential_by_pk for user pk {hop_user_pk} with credential pk {credential_pk}')
+    user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{credential_pk}'
+    url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
+
+    # delete the user SCRAM credential in Hop Auth
+    try:
+        response = requests.delete(url,
+                                headers={'Authorization': user_api_token,
+                                            'Content-Type': 'application/json'})
+        logger.debug(
+            (f'delete_user_hop_credential_by_pk response: {responses[response.status_code]}',
+                f'[{response.status_code}]'))
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"delete_user_hop_credential_by_pk - Error deleting credential: {repr(e)}.")
 
 
 def delete_user_hop_credentials(username, credential_name, user_api_token):
@@ -533,23 +606,13 @@ def delete_user_hop_credentials(username, credential_name, user_api_token):
     # this is the idiom for searchng a list of dictionaries for certain key-value (username)
     user_cred = next((item for item in user_creds if item["username"] == credential_name), None)
     if user_cred is not None:
-        scram_pk = user_cred['pk']
-        user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{scram_pk}'
-        url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
-        logger.debug(f'delete_user_hop_credentials SCRAM cred: {user_cred}')
-
-        # delete the user SCRAM credential in Hop Auth
-        response = requests.delete(url,
-                                   headers={'Authorization': user_api_token,
-                                            'Content-Type': 'application/json'})
-        logger.debug(
-            (f'delete_user_hop_credentials response: {responses[response.status_code]}',
-             f'[{response.status_code}]'))
+        credential_pk = user_cred['pk']
+        delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, user_api_token)
     else:
         logger.error(f'delete_user_hop_credentials: Can not clean up SCRAM credential: {credential_name} not found in {user_creds}')
 
 
-def get_user_api_token(username: str, hermes_api_token):
+def get_user_api_token(username: str, hermes_api_token=None):
     """return a Hop Auth API token for the given user.
 
     The tuple returned is the API token, and the expiration date as a string.
@@ -559,41 +622,49 @@ def get_user_api_token(username: str, hermes_api_token):
     for the HERMES service account), to get the API token for the user with
     the given username. If the hermes_api_token isn't passed in, get one.
     """
-    # Set up the URL
-    # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
-    url = get_hop_auth_api_url() + '/oidc/token_for_user'
+    user_api_token = cache.get(f'user_{username}_api_token', None)
+    if not user_api_token:
+        logger.debug(f"User {username} api token doesn't exist in cache, regenerating it now.")
+        # Set up the URL
+        # see scimma-admin/scimma_admin/hopskotch_auth/urls.py (scimma-admin is Hop Auth repo)
+        url = get_hop_auth_api_url() + '/oidc/token_for_user'
 
-    # Set up the request data
-    # the username comes from the request.user.username for OIDC Provider-created
-    # User instances. It is the value of the sub key from Keycloak
-    # that Hop Auth (scimma-admin) is looking for.
-    # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
-    hop_auth_request_data = {
-        'vo_person_id': username, # this key didn't change over the switch to Keycloak
-    }
+        # Set up the request data
+        # the username comes from the request.user.username for OIDC Provider-created
+        # User instances. It is the value of the sub key from Keycloak
+        # that Hop Auth (scimma-admin) is looking for.
+        # see scimma-admin/scimma_admin.hopskotch_auth.api_views.TokenForOidcUser
+        hop_auth_request_data = {
+            'vo_person_id': username, # this key didn't change over the switch to Keycloak
+        }
 
-    # Make the request and extract the user api token from the response
-    response = requests.post(url,
-                             data=json.dumps(hop_auth_request_data),
-                             headers={'Authorization': hermes_api_token,
-                                      'Content-Type': 'application/json'})
+        if not hermes_api_token:
+            hermes_api_token = get_hermes_api_token()
 
-    if response.status_code == 200:
-        # get the user API token out of the response
-        token_info = response.json()
-        user_api_token = token_info['token']
-        user_api_token = f'Token {user_api_token}'  # Django wants a 'Token ' prefix
-        user_api_token_expiration_date_as_str = token_info['token_expires']
+        # Make the request and extract the user api token from the response
+        response = requests.post(url,
+                                data=json.dumps(hop_auth_request_data),
+                                headers={'Authorization': hermes_api_token,
+                                        'Content-Type': 'application/json'})
 
-        logger.debug(f'get_user_api_token username: {username};  user_api_token: {user_api_token}')
-        logger.debug(f'get_user_api_token user_api_token Expires: {user_api_token_expiration_date_as_str}')
-    else:
-        logger.error((f'get_user_api_token response.status_code: '
-                      f'{responses[response.status_code]} [{response.status_code}] ({url})'))
-        user_api_token = None # signal to create_user in SCiMMA Auth
-        user_api_token_expiration_date_as_str = None
+        if response.status_code == 200:
+            # get the user API token out of the response
+            token_info = response.json()
+            user_api_token = token_info['token']
+            user_api_token = f'Token {user_api_token}'  # Django wants a 'Token ' prefix
+            user_api_token_expiration_date_as_str = token_info['token_expires']
+            # Subtract a small amount from timeout to ensure credential is available when retrieved
+            expiration_date = dateparse.parse_datetime(user_api_token_expiration_date_as_str)
+            timeout = (expiration_date - timezone.now()).total_seconds() - 60
+            cache.set(f'user_{username}_api_token', user_api_token, timeout=timeout)
+            logger.debug("Caching ")
+            logger.debug(f'get_user_api_token username: {username};  user_api_token: {user_api_token}')
+            logger.debug(f'get_user_api_token user_api_token Expires: {user_api_token_expiration_date_as_str}')
+        else:
+            logger.error((f'get_user_api_token response.status_code: '
+                        f'{responses[response.status_code]} [{response.status_code}] ({url})'))
 
-    return user_api_token, user_api_token_expiration_date_as_str
+    return user_api_token
 
 
 def get_user_groups(user_pk: int, user_api_token):
@@ -775,10 +846,9 @@ def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, top
                         f'permission to {request_data}'))
 
 
-def get_user_writable_topics(username, credential_name, user_api_token, exclude_groups=None):
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
-    hop_cred_pk = _get_hop_credential_pk(username, credential_name, user_api_token=user_api_token)
-    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{hop_cred_pk}/permissions'
+def get_user_writable_topics(username, hop_user_pk, credential_name, credential_pk, user_api_token, exclude_groups=None):
+    logger.warning(f"Get user writable topics with username {username}, credential {credential_name}, token {user_api_token}")
+    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{credential_pk}/permissions'
     perm_response = requests.get(perm_url,
                                  headers={'Authorization': user_api_token,
                                           'Content-Type': 'application/json'})
