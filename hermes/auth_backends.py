@@ -30,7 +30,6 @@ class HermesTokenAuthentication(TokenAuthentication):
 
         Extends base class method.
         """
-        logger.warning("Trying to authenticate!!!")
         auth = super().authenticate(request, **kwargs)  # returns a tuple of (user, token)
         if auth:
             hopskotch.check_and_regenerate_hop_credential(auth[0])
