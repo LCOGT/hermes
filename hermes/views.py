@@ -16,8 +16,10 @@ from django.http import Http404
 from rest_framework.decorators import action
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.generics import RetrieveAPIView
+from rest_framework.authtoken.models import Token
 from django_filters.rest_framework import DjangoFilterBackend
 
 from hop import Stream
@@ -26,7 +28,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.utils import get_all_public_topics, extract_hop_auth
+from hermes.utils import get_all_public_topics
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -150,10 +152,10 @@ def submit_to_hop(request, message):
     stream with. (The hop.auth.Auth instance was added to the Session dict upon
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
-    try:
-        hop_auth: Auth = extract_hop_auth(request)
-    except KeyError as err:
-        logger.error(f'Hopskotch Authorization for User {request.user.username} not found.  err: {err}')
+    if request.user and request.user.profile.credential_name and request.user.profile.credential_password:
+        hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+    else:
+        logger.error(f'Hopskotch Authorization for User {request.user.username} not found.')
         # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
         # use the Hermes service account temporarily while testing...
         logger.warning(f'Submitting with Hermes service account authorization (testing only)')
@@ -341,19 +343,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response(errors, status.HTTP_200_OK)
 
 
-class ProfileApiView(RetrieveUpdateAPIView):
-    serializer_class = ProfileSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_object(self):
-        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
-        """Once authenticated, retrieve profile data"""
-        qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
-            'profile'
-        )
-        return qs.first().profile
-
-
 class LoginRedirectView(RedirectView):
     pattern_name = 'login-redirect'
 
@@ -366,6 +355,7 @@ class LoginRedirectView(RedirectView):
         self.url = login_redirect_url
 
         return super().get(request, *args, **kwargs)
+
 
 class LogoutRedirectView(RedirectView):
     pattern_name = 'logout-redirect'
@@ -395,3 +385,49 @@ class GetCSRFTokenView(View):
         response = JsonResponse(data={'token': token})
         # this is where you can modify or log the response before returning it
         return response
+
+
+class ProfileApiView(RetrieveAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
+        """Once authenticated, retrieve profile data"""
+        qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
+            'profile'
+        )
+        return qs.first().profile
+
+
+class RevokeApiTokenApiView(APIView):
+    """View to revoke an API token."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """A simple POST request (empty request body) with user authentication information in the HTTP header will revoke a user's API Token."""
+        request.user.auth_token.delete()
+        Token.objects.create(user=request.user)
+        return Response({'message': 'API token revoked.'}, status=status.HTTP_200_OK)
+
+    def get_endpoint_name(self):
+        return 'revokeApiToken'
+
+
+class RevokeHopCredentialApiView(APIView):
+    """View to revoke this accounts Scimma Auth Hop Credential and create a new one."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """A simple POST request (empty request body) with user authentication information in the HTTP header will revoke the users hop credential."""
+        username = request.user.get_username()
+        hop_user_pk = request.user.profile.hop_user_pk
+        credential_pk = request.user.profile.credential_pk
+        credential_name = request.user.profile.credential_name
+        if hopskotch.verify_credential_for_user(username, hop_user_pk, credential_name, credential_pk):
+            hopskotch.delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, hopskotch.get_user_api_token(username))
+        hopskotch.regenerate_hop_credential(request.user)
+        return Response({'message': 'Hop credential revoked and regenerated.'}, status=status.HTTP_200_OK)
+
+    def get_endpoint_name(self):
+        return 'revokeHopCredential'

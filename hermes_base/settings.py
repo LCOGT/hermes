@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'django_extensions',  # for debuging: shell_plus management command
     'bootstrap4',
     'rest_framework',
+    'rest_framework.authtoken',
     'mozilla_django_oidc',
     'tom_alertstreams',
     'hermes',
@@ -218,6 +219,10 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        'hermes.auth_backends.HermesTokenAuthentication',
+    ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 100,
 }

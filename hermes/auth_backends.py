@@ -3,9 +3,8 @@ import logging
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils.http import urlencode
+from rest_framework.authentication import TokenAuthentication
 
-from hop.auth import Auth
-import jsons
 from mozilla_django_oidc import auth
 
 from hermes.brokers import hopskotch
@@ -19,6 +18,24 @@ class NotInKafkaUsers(PermissionDenied):
     belong to in order to submit to the Hopskotch kafka steam.
     """
     pass
+
+
+class HermesTokenAuthentication(TokenAuthentication):
+    def authenticate(self, request, **kwargs):
+        """Override this method to verify hop credential is valid within profile and regenerate it if not
+
+        Notes:
+         * the user is a django.contrib.auth.User instance
+         * the safe way to the username is user.get_username()
+
+        Extends base class method.
+        """
+        logger.warning("Trying to authenticate!!!")
+        auth = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
+        if auth:
+            hopskotch.check_and_regenerate_hop_credential(auth[0])
+
+        return auth # mimic super()
 
 
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
@@ -189,32 +206,27 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
 
 
     def authenticate(self, request, **kwargs):
-        """Override this method to insert Hop Auth data into the session to be used
-        in the Views that submit alerts to Hopskotch.
+        """Override this method to verify hop credential is valid within profile and regenerate it if not
 
         Notes:
-         * the request.session is a SessionStore instance
          * the user is a django.contrib.auth.User instance
          * the safe way to the username is user.get_username()
 
         Extends base class method.
         """
+        logger.warning("Trying to authenticate!!!")
         user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
-
-        hermes_api_token = hopskotch.get_hermes_api_token()
-        hop_auth = hopskotch.authorize_user(user.get_username(), hermes_api_token)
-
-        # Auth instances are not trivially serializable with json.dumps. So use jsons.dump:
-        request.session['hop_user_auth_json'] = jsons.dump(hop_auth)
+        hopskotch.check_and_regenerate_hop_credential(user)
 
         return user # mimic super()
+
 
 
 def hopskotch_logout(request):
     """Do the actions required when the user logs out of HERMES (and thus hopskotch).
     (This is the OIDC_OP_LOGOUT_URL_METHOD).
 
-    1. call hopskotch.deauthorize_user()
+    This forms an authenticated logout URL to logout this user from the keycloak instance.
 
     NOTES:
       * must return the logout URL
@@ -223,16 +235,7 @@ def hopskotch_logout(request):
       * the request.user is a django.utils.functional.SimpleLazyObject which is a wrapper
         around a django.contrib.auth.User (see SO:10506766).
     """
-    # hop_user_auth_json added to Session dict in AuthenticationBackend.authenticate
-    try:
-        hop_user_auth: Auth = jsons.load(request.session['hop_user_auth_json'], Auth)
-        user_api_token = request.session['user_api_token']
-        hopskotch.deauthorize_user(request.user.username, hop_user_auth, user_api_token)
-    except KeyError as err:
-        logger.error(f'No hop.auth.Auth instance in Session. Clean up SCiMMA Auth manually. session: {request.session}')
-
     id_token = request.session['oidc_id_token']
-
     url_args = {'post_logout_redirect_uri': settings.HERMES_FRONT_END_BASE_URL, 'client_id': settings.OIDC_RP_CLIENT_ID, 'id_token_hint': id_token}
     logout_redirect_url = f'{settings.OIDC_OP_LOGOUT_ENDPOINT}?{urlencode(url_args)}'
 
