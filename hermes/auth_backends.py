@@ -31,11 +31,11 @@ class HermesTokenAuthentication(TokenAuthentication):
         Extends base class method.
         """
         logger.warning("Trying to authenticate!!!")
-        auth = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
+        auth = super().authenticate(request, **kwargs)  # returns a tuple of (user, token)
         if auth:
             hopskotch.check_and_regenerate_hop_credential(auth[0])
 
-        return auth # mimic super()
+        return auth  # mimic super()
 
 
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
