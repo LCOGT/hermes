@@ -117,7 +117,7 @@ redis:
     disableCommands: ["FLUSHALL"]
     persistence:
       enabled: true
-      size: 256Mi
+      size: 512Mi
     resources:
       requests:
         cpu: 50m
@@ -128,7 +128,7 @@ redis:
   cluster:
     enabled: false
   configmap: |-
-    maxmemory 256mb
+    maxmemory 512mb
     maxmemory-policy volatile-lru
     # idle client timeout after 600 seconds
     timeout 600
