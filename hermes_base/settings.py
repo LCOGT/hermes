@@ -241,6 +241,11 @@ ALERT_STREAMS = [
             'GROUP_ID': os.getenv('SCIMMA_AUTH_USERNAME', '') + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
             'TOPIC_HANDLERS': {
                 'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes.astrometry': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes.discovery': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes.message': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes.photometry': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'hermes.spectroscopy': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
                 #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
