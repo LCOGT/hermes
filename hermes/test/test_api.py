@@ -120,6 +120,32 @@ class TestApiFiltering(TestCase):
         self.assertContains(result, self.target2_ra)
         self.assertContains(result, self.target2_dec)
 
+    def test_get_messages_by_search_event_id(self):
+        result = self.client.get(reverse('messages-list') + f'?search={self.event2_id}')
+        self.assertEqual(result.status_code, 200)
+        # Two from the event and 1 from a counterpart message on that event
+        self.assertEqual(len(result.json()['results']), 3)
+
+    def test_get_messages_by_search_topic(self):
+        result = self.client.get(reverse('messages-list') + '?search=COUNTERPART')
+        self.assertEqual(result.status_code, 200)
+        # 3 from counterpart notices, 2 from subject line of gcn circulars
+        self.assertEqual(len(result.json()['results']), 5)
+
+    def test_get_messages_by_search_multiple_or(self):
+        result = self.client.get(reverse('messages-list') + '?search=CIRCULAR COUNTERPART')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(len(result.json()['results']), 5)
+
+    def test_get_messages_by_search_quoted_string_together(self):
+        result = self.client.get(reverse('messages-list') + '?search="GCN CIRCULAR"')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(len(result.json()['results']), 2)
+        result = self.client.get(reverse('messages-list') + '?search=GCN CIRCULAR')
+        self.assertEqual(result.status_code, 200)
+        # All 10 test messages have either GCN or CIRCULAR in them
+        self.assertEqual(len(result.json()['results']), 10)
+
 
 class TestSubmitBasicMessageApi(TestCase):
     def setUp(self):
