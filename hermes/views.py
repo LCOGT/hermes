@@ -152,7 +152,7 @@ def submit_to_hop(request, message):
     stream with. (The hop.auth.Auth instance was added to the Session dict upon
     logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
-    if request.user and request.user.profile.credential_name and request.user.profile.credential_password:
+    if (not request.user.is_anonymous()) and request.user.profile.credential_name and request.user.profile.credential_password:
         hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
     else:
         logger.error(f'Hopskotch Authorization for User {request.user.username} not found.')
