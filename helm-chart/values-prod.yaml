@@ -1,6 +1,7 @@
 # Helm chart values for Production Deployment
 
 djangoDebug: false
+saveTestMessages: false
 
 replicaCount: 1
 
