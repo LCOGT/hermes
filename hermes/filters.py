@@ -1,6 +1,7 @@
 from django_filters import rest_framework as filters
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
+from django.db.models import Q
 
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
 
@@ -24,12 +25,13 @@ class MessageFilter(filters.FilterSet):
     authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
     submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
     title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
+    search = filters.CharFilter(method='filter_search', label='Search Terms', help_text='Search multiple fields for given search terms')
 
     class Meta:
         model = Message
         fields = (
             'topic', 'title', 'published', 'authors', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid'
+            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid', 'search'
         )
 
 
@@ -55,6 +57,30 @@ class MessageFilter(filters.FilterSet):
 
     def filter_referencing_uuid(self, queryset, name, value):
         return queryset.filter(data__references__contains=[{'citation': value}])
+
+    def filter_search(self, queryset, name, value):
+        query_terms = []
+        for i, term in enumerate(value.split('"')):
+            if term.strip():
+                if i % 2 == 0:
+                    for subterm in term.split(' '):
+                        if subterm.strip():
+                            query_terms.append(subterm.strip())
+                else:
+                    # Assume this piece is within double quotes, so don't split it
+                    query_terms.append(term.strip())
+
+        aggregate_keyword_query = Q()  # empty Q-object doesn't even add WHERE clause to SQL
+        for term in query_terms:
+            aggregate_keyword_query = aggregate_keyword_query | Q(title__icontains=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(uuid__startswith=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(authors__icontains=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(submitter__icontains=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(message_text__icontains=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(targets__name__iexact=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(nonlocalizedevents__event_id__iexact=term)
+
+        return queryset.filter(aggregate_keyword_query)
 
 
 class NonLocalizedEventFilter(filters.FilterSet):
