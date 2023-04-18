@@ -29,7 +29,7 @@ def str2bool(value):
     if value in ('f', 'false', 'n', 'no', '0', ):
         return False
 
-    raise RuntimeError('Unable to parse {} as a boolean value'.format(value))
+    raise RuntimeError(f'Unable to parse {value} as a boolean value')
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
