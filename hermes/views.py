@@ -1,6 +1,9 @@
 from http.client import responses
 import json
 import logging
+import io
+
+from astropy.table import Table
 
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -180,9 +183,13 @@ def submit_to_hop(request, message):
     return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
 
 
+def submit_to_gcn(request, message):
+    return Response({"message": "GCN Submission not implemented."},
+                    status=status.HTTP_200_OK)
+
+
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
     serializer_class = HermesMessageSerializer
-    EXPECTED_DATA_KEYS = ['targets', 'event_id', 'references', 'photometry', 'spectroscopy', 'astrometry']
 
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
@@ -196,6 +203,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
          message_text: <Text of the message to send>,
          submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
          submit_to_mpc: <Boolean of whether or not to submit this message to MPC along with hop>
+         submit_to_gcn: <Boolean of whether or not to submit this message to GCN along with hop>
          data: {
             references: [
                 {
@@ -321,13 +329,20 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
     def create(self, request, *args, **kwargs):
         non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         serializer = self.serializer_class(data=request.data, context={'request': request})
+
         if serializer.is_valid():
             data = serializer.validated_data
             if non_serialized_data:
                 if 'data' not in data:
                     data['data'] = {}
                 data['data'].update(non_serialized_data)
-            return submit_to_hop(request, data)
+            response = submit_to_hop(request, data)
+            if response.status_code != status.HTTP_200_OK:
+                return response
+            if data['submit_to_gcn']:
+                # TODO: I don't really know what we should do here if the GCN submission fails
+                submit_to_gcn(request, data)
+            return response
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
@@ -431,3 +446,26 @@ class RevokeHopCredentialApiView(APIView):
 
     def get_endpoint_name(self):
         return 'revokeHopCredential'
+
+
+class PlainTextView(APIView):
+    def post(self, request):
+        print(request.data['data'])
+        formatted_message = """{title}
+
+{authors}
+
+{message}""".format(title=request.data.get('title'),
+                            authors=request.data.get('authors'),
+                            message=request.data.get('message_text'))
+        for table in ['target', 'photometry', 'astrometry', 'references']:
+            if len(request.data['data'].get(table, [])) > 0:
+                formatted_message += "\n"
+                string_buffer = io.StringIO()
+                Table(request.data['data'][table]).write(string_buffer, format='ascii.basic')
+                formatted_message += string_buffer.getvalue()
+
+        return Response(formatted_message, status=status.HTTP_200_OK)
+
+    def get_endpoint_name(self):
+        return 'viewPlainText'

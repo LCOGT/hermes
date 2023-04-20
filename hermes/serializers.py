@@ -46,7 +46,7 @@ class BaseTargetSerializer(serializers.ModelSerializer):
             'declination',
             'declination_sexagesimal',
         ]
-    
+
     def get_right_ascension(self, obj):
         if obj.coordinate:
             return obj.coordinate.x
@@ -459,7 +459,7 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
         validated_data = super().validate(data)
         target_names = [target.get('name') for target in validated_data.get('targets', [])]
         full_error = {}
-        
+
         target_errors = []
         for target_name in target_names:
             if target_names.count(target_name) > 1:
@@ -470,7 +470,7 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
                 target_errors.append({})
         if any(target_errors):
             full_error['targets'] = target_errors
-        
+
         photometry_errors = []
         for photometry in validated_data.get('photometry', []):
             if photometry.get('target_name') not in target_names:
@@ -519,6 +519,7 @@ class HermesMessageSerializer(serializers.Serializer):
     data = GenericHermesDataSerializer(required=False)
     submit_to_tns = serializers.BooleanField(required=False, allow_null=True, write_only=True)
     submit_to_mpc = serializers.BooleanField(required=False, allow_null=True, write_only=True)
+    submit_to_gcn = serializers.BooleanField(default=False, required=False, write_only=True)
 
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
