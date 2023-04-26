@@ -13,6 +13,8 @@ resources:
 brokers:
   gcnClassicOverKafka:
     groupId: 'hermes-dev'
+  hopskotch:
+    groupId: 'hermes-dev'
 
 hermesFrontEndBaseUrl: http://hermes-dev.lco.gtn/
 
