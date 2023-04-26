@@ -8,6 +8,7 @@
 hopAuthBaseUrl: https://my.hop.scimma.org/hopauth
 
 djangoDebug: true
+saveTestMessages: true
 
 gunicornWorkers: 2
 gunicornTimeout: 300

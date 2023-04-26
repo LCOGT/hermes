@@ -78,4 +78,20 @@ class NonLocalizedEventSequence(models.Model):
         default=1,
         help_text='The sequence_number or iteration of a specific nonlocalized event.'    
     )
+    skymap_version = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text='Version of the skymap for this event, derived from detecting a change in the raw skymap from its hash'
+    )
+    skymap_hash = models.UUIDField(
+        null=True, blank=True,
+        help_text='A UUID from an md5 hash of the raw skymap file contents, used to detect when the skymap has changed'
+    )
+    combined_skymap_version = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text='Version of the combined skymap for this event, derived from detecting a change in the raw skymap from its hash'
+    )
+    combined_skymap_hash = models.UUIDField(
+        null=True, blank=True,
+        help_text='A UUID from an md5 hash of the raw combined skymap file contents, used to detect when the skymap has changed'
+    )
     sequence_type = models.CharField(max_length=64, default='', blank=True, choices=SEQUENCE_TYPES, help_text='The alert type for this sequence')
