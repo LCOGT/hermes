@@ -51,6 +51,7 @@ def get_sequence_number(superevent_id: str) -> int:
 def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     """ This method gets the most recent previous sequence of this superevent and checks if the skymap has changed.
         It returns the 'version' of the skymap, which can be used to retrieve the proper file and image files from gracedb.
+        This is a hack because IGWN GWAlerts no longer have any way of knowing which skymap version they reference.
     """
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
@@ -65,6 +66,7 @@ def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
 def get_combined_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     """ This method looks through the most recent previous sequences of this superevent and checks if the combined_skymap has changed.
         It returns the 'version' of the skymap, which can be used to retrieve the proper file and image files from gracedb.
+        This is a hack because IGWN GWAlerts no longer have any way of knowing which skymap version they reference.
     """
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
@@ -230,7 +232,7 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             combined_skymap_version = get_skymap_version(alert['superevent_id'], skymap_hash=uuid.UUID(combined_skymap_hash.hexdigest()))
             alert['external_coinc']['combined_skymap_hash'] = combined_skymap_hash.hexdigest()
             alert['external_coinc']['combined_skymap_version'] = combined_skymap_version
-            alert['urls']['combined_skymap'] = f"https://gracedb.ligo.org/api/superevents/{alert['superevent_id']}/files/combined-ext.multiorder.fits,{skymap_version}"
+            alert['urls']['combined_skymap'] = f"https://gracedb.ligo.org/api/superevents/{alert['superevent_id']}/files/combined-ext.multiorder.fits,{combined_skymap_version}"
     alert['sequence_num'] = get_sequence_number(alert['superevent_id'])
 
     logger.debug(f"Storing message for igwn alert {alert_uuid}: {alert}")
