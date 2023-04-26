@@ -26,6 +26,8 @@ fullnameOverride: ""
 brokers:
   gcnClassicOverKafka:
     groupId: 'hermes-dev'
+  hopskotch:
+    groupId: 'hermes-dev'
 
 serviceAccount:
   # Specifies whether a service account should be created
