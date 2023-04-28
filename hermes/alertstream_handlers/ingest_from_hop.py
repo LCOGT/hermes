@@ -268,6 +268,9 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     """
     logger.debug(f'updating db with hermes alert {hermes_message}')
     logger.debug(f'metadata: {metadata}')
+    # Only store test hermes messages if we are configured to do so
+    if hermes_message.content['topic'] in ['hermes.test', 'tomtoolkit.test'] and not settings.SAVE_TEST_MESSAGES:
+        return
 
     # metadata.timestamp is the number of milliseconds since the epoch (UTC).
     published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
