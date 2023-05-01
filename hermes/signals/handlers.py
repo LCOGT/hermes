@@ -5,9 +5,6 @@ from django.core.cache import cache
 
 from hermes.models import Message
 
-import logging
-logger = logging.getLogger(__name__)
-
 
 @receiver(post_save, sender=Message)
 def cb_post_save_message(sender, instance, created, **kwargs):
