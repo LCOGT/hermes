@@ -56,9 +56,11 @@ def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         latest_sequence = nle.sequences.last()
-        if latest_sequence.skymap_hash != skymap_hash:
+        if latest_sequence.skymap_version != None and latest_sequence.skymap_hash != skymap_hash:
             return latest_sequence.skymap_version + 1
-        return latest_sequence.skymap_version
+        if latest_sequence.skymap_version:
+            return latest_sequence.skymap_version
+        return 0
     except NonLocalizedEvent.DoesNotExist:
         return 0  # The nonlocalizedevent doesnt exist in our system yet, so this must be the first skymap version
 
@@ -71,7 +73,7 @@ def get_combined_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         for sequence in nle.sequences.all().reverse():
-            if sequence.combined_skymap_version and sequence.combined_skymap_hash and sequence.combined_skymap_hash != skymap_hash:
+            if sequence.combined_skymap_version != None and sequence.combined_skymap_hash and sequence.combined_skymap_hash != skymap_hash:
                 return sequence.combined_skymap_version + 1
         return 0  # No previous combined_skymaps were found, so this must be the first sequence with a combined skymap
     except NonLocalizedEvent.DoesNotExist:
