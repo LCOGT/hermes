@@ -2,16 +2,27 @@ from django.test import TestCase
 from datetime import datetime, timezone
 from dateutil.parser import parse
 from copy import deepcopy
-from hermes.management.commands.inject_message import BASE_LVC_MESSAGE, BASE_LVC_COUNTERPART, BASE_GCN_CIRCULAR
+import uuid
+from hermes.management.commands.inject_message import BASE_LVC_COUNTERPART, BASE_GCN_CIRCULAR, BASE_LVK_MESSAGE
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
-from hermes.parsers import GCNCircularParser, GCNLVCNoticeParser, GCNLVCCounterpartNoticeParser
+from hermes.parsers import GCNCircularParser, GCNLVCCounterpartNoticeParser, IGWNAlertParser
 
 
-def get_lvc_notice_text(type, event_id, sequence_number=1, published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
-    return BASE_LVC_MESSAGE.format(type=type, event_id=event_id, sequence_number=sequence_number, published=published)
+def get_lvk_notice_data(type, event_id, sequence_number=1, published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(), skymap_version=0):
+    data = deepcopy(BASE_LVK_MESSAGE)
+    base_type = type.split('_')[1]
+    data['superevent_id'] = event_id
+    data['alert_type'] = base_type
+    data['time_created'] = published
+    data['sequence_num'] = sequence_number
+    data['event']['skymap_version'] = skymap_version
+    data['event']['skymap_hash'] = uuid.uuid4().hex
+    return data
+
 
 def get_lvc_counterpart_text(type, event_id, target_ra=33.3, target_dec=22.2, source_sernum=1, author='N/A', published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
     return BASE_LVC_COUNTERPART.format(type=type, event_id=event_id, target_ra=target_ra, target_dec=target_dec, source_sernum=source_sernum, author=author, published=published)
+
 
 def get_gcn_circular_header(event_id, author='N/A', published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
     header = deepcopy(BASE_GCN_CIRCULAR['header'])
@@ -25,28 +36,15 @@ class TestLVCNoticeParser(TestCase):
     def setUp(self) -> None:
         super().setUp()
     
-    def test_published_date_updated(self):
-        published = datetime(2020, 1, 5, 12, 23, 44, tzinfo=timezone.utc)
-        message, _ = Message.objects.get_or_create(
-            topic='test_topic',
-            message_text=get_lvc_notice_text(type='LVC_INITIAL', event_id='S112233', sequence_number=1, published=published.isoformat())
-        )
-        # Initially, published is set to ingestion time until it is parsed from message_text
-        self.assertGreater(message.published, published)
-        self.assertTrue(GCNLVCNoticeParser().parse(message))
-        message.refresh_from_db()
-        # Now published time has been parsed from the message
-        self.assertEqual(published, message.published)
-    
     def test_nonlocalizedevent_created(self):
         event_id = 'S112233'
         with self.assertRaises(NonLocalizedEvent.DoesNotExist):
             NonLocalizedEvent.objects.get(event_id=event_id)
         message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=get_lvc_notice_text(type='LVC_PRELIMINARY', event_id=event_id)
+            data=get_lvk_notice_data(type='LVC_PRELIMINARY', event_id=event_id)
         )
-        self.assertTrue(GCNLVCNoticeParser().parse(message))
+        self.assertTrue(IGWNAlertParser().parse(message))
         event = NonLocalizedEvent.objects.get(event_id=event_id)
         self.assertEqual(event.event_id, event_id)
 
@@ -56,20 +54,21 @@ class TestLVCNoticeParser(TestCase):
             NonLocalizedEvent.objects.get(event_id=event_id)
         message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=get_lvc_notice_text(type='LVC_PRELIMINARY', event_id=event_id, sequence_number=1)
+            data=get_lvk_notice_data(type='LVC_PRELIMINARY', event_id=event_id, sequence_number=1)
         )
-        self.assertTrue(GCNLVCNoticeParser().parse(message))
+        self.assertTrue(IGWNAlertParser().parse(message))
+        same_data = get_lvk_notice_data(type='LVC_INITIAL', event_id=event_id, sequence_number=2, skymap_version=1)
         message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=get_lvc_notice_text(type='LVC_INITIAL', event_id=event_id, sequence_number=2)
+            data=same_data
         )
-        self.assertTrue(GCNLVCNoticeParser().parse(message))
+        self.assertTrue(IGWNAlertParser().parse(message))
         # Add a duplicate of one sequence_number to show it does not get added
         message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=get_lvc_notice_text(type='LVC_INITIAL', event_id=event_id, sequence_number=2)
+            data=same_data
         )
-        self.assertTrue(GCNLVCNoticeParser().parse(message))
+        self.assertTrue(IGWNAlertParser().parse(message))
         sequences = NonLocalizedEventSequence.objects.filter(event__event_id=event_id)
         self.assertEqual(sequences.count(), 2)
         self.assertEqual(sequences[0].sequence_number, 1)
@@ -77,29 +76,30 @@ class TestLVCNoticeParser(TestCase):
         self.assertEqual(sequences[1].sequence_number, 2)
         self.assertEqual(sequences[1].sequence_type, 'INITIAL')
 
-    def test_fail_to_parse_if_title_doesnt_contain_keywords(self):
-        # Expected keywords are LVC, GCN, and NOTICE
-        bad_message = 'TITLE:            BAD NOTICE\nTRIGGER_NUM:       S112233\nSEQUENCE_NUM:      1'
+    def test_fail_to_if_alert_missing_keywords(self):
+        # Expected 'alert_type', 'superevent_id', 'time_created', and 'sequence_num' in data
+        event_id = 'S123454'
+        bad_data = get_lvk_notice_data(type='LVC_INITIAL', event_id=event_id, sequence_number=2, skymap_version=1)
+        del bad_data['alert_type']
         message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=bad_message
+            data=bad_data
         )
-        self.assertFalse(GCNLVCNoticeParser().parse(message))
-        message.refresh_from_db()
-        self.assertIsNone(message.data)
-        self.assertEqual(message.title, '')
+        self.assertFalse(IGWNAlertParser().parse(message))
+        with self.assertRaises(NonLocalizedEvent.DoesNotExist):
+            NonLocalizedEvent.objects.get(event_id=event_id)
 
 
 class TestLVCCounterpartParser(TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.event_id = 'S123321'
-        message_text = get_lvc_notice_text(type='LVC_INITIAL', event_id=self.event_id )
+        data = get_lvk_notice_data(type='LVC_INITIAL', event_id=self.event_id )
         self.message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=message_text
+            data=data
         )
-        GCNLVCNoticeParser().parse(self.message)
+        IGWNAlertParser().parse(self.message)
         self.message.refresh_from_db()
         self.event = NonLocalizedEvent.objects.get(event_id=self.event_id)
 
@@ -196,12 +196,12 @@ class TestGCNCircularParser(TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.event_id = 'S123321'
-        message_text = get_lvc_notice_text(type='LVC_INITIAL', event_id=self.event_id )
+        data = get_lvk_notice_data(type='LVC_INITIAL', event_id=self.event_id )
         self.message, _ = Message.objects.get_or_create(
             topic='test_topic',
-            message_text=message_text
+            data=data
         )
-        GCNLVCNoticeParser().parse(self.message)
+        IGWNAlertParser().parse(self.message)
         self.message.refresh_from_db()
         self.event = NonLocalizedEvent.objects.get(event_id=self.event_id)
     

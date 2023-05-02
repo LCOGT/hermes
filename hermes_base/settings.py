@@ -19,6 +19,19 @@ from corsheaders.defaults import default_headers
 from lcogt_logging import LCOGTFormatter
 
 
+def str2bool(value):
+    '''Convert a string value to a boolean'''
+    value = value.lower()
+
+    if value in ('t', 'true', 'y', 'yes', '1', ):
+        return True
+
+    if value in ('f', 'false', 'n', 'no', '0', ):
+        return False
+
+    raise RuntimeError(f'Unable to parse {value} as a boolean value')
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,7 +43,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-l9e!8@(p@p59st&xz1l8efd&4=10ms)2s=0jl9@wy$uh^h=f3p'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = str2bool(os.getenv('DEBUG', 'false'))
 
 ALLOWED_HOSTS = ['*']
 
@@ -189,6 +202,8 @@ AUTHENTICATION_BACKENDS = [
     # 'mozilla_django_oidc.auth.OIDCAuthenticationBackend',
 ]
 
+# Used to tell if this should save test messages or discard them
+SAVE_TEST_MESSAGES = str2bool(os.getenv('SAVE_TEST_MESSAGES', 'true'))
 
 # SCiMMA Auth and Hopskotch specific configuration
 # SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
@@ -240,20 +255,16 @@ ALERT_STREAMS = [
             # Group ID must be prefixed with SCiMMA SCRAM credential username to open the SCiMMA kafka stream
             'GROUP_ID': os.getenv('SCIMMA_AUTH_USERNAME', '') + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
             'TOPIC_HANDLERS': {
-                'hermes.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes.astrometry': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes.discovery': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes.message': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes.photometry': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'hermes.spectroscopy': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                '*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
+                'hermes.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
-                #'*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
+                'igwn.gwalert': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message'
             },
         },
     },
     {
-        'ACTIVE': True,
+        'ACTIVE': False,
         'NAME': 'tom_alertstreams.alertstreams.gcn.GCNClassicAlertStream',
         # The keys of the OPTIONS dictionary become (lower-case) properties of the AlertStream instance.
         'OPTIONS': {
@@ -271,12 +282,12 @@ ALERT_STREAMS = [
                 # 'gcn.classic.text.SWIFT_BAT_GRB_ALERT': 'tom_demo.log_stuff.handle_message',
                 # 'gcn.classic.text.SWIFT_POINTDIR': 'tom_demo.log_stuff.handle_message',
                 # 'gcn.classic.text.LVC_INITIAL': 'tom_demo.log_stuff.handle_message',
-                'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                #'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                #'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                #'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
             },
         },
     }

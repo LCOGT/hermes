@@ -104,7 +104,9 @@ build it here and use it everywhere.
 - name: HOME
   value: "/tmp"
 - name: DEBUG
-  value: {{ .Values.djangoDebug | toString | lower | title | quote }}
+  value: {{ .Values.djangoDebug | quote }}
+- name: SAVE_TEST_MESSAGES
+  value: {{ .Values.saveTestMessages | quote }}
 - name: CACHE_BACKEND
   value: {{ .Values.cacheBackend | quote }}
 - name: CACHE_LOCATION
