@@ -5,6 +5,7 @@ from django.db.models import Q
 from dateutil.parser import parse
 
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
+from hermes.utils import get_all_public_topics
 
 import math
 EARTH_RADIUS_METERS = 6371008.77141506
@@ -21,7 +22,7 @@ class MessageFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
     message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
+    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[(t, t) for t in get_all_public_topics()], help_text='Topic contains keyword')
     topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
     authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
     submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
