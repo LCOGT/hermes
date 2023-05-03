@@ -1,6 +1,7 @@
 # Helm chart values for Production Deployment
 
 djangoDebug: false
+saveTestMessages: false
 
 replicaCount: 1
 
@@ -14,6 +15,8 @@ resources:
 
 brokers:
   gcnClassicOverKafka:
+    groupId: 'hermes'
+  hopskotch:
     groupId: 'hermes'
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/

@@ -13,15 +13,17 @@ resources:
 brokers:
   gcnClassicOverKafka:
     groupId: 'hermes-dev'
+  hopskotch:
+    groupId: 'hermes-dev'
 
-hermesFrontEndBaseUrl: http://hermes-dev.lco.gtn/
+hermesFrontEndBaseUrl: https://hermes-dev.lco.global/
 
 ingress:
   enabled: true
   annotations:
-    kubernetes.io/ingress.class: nginx-ingress-private
+    kubernetes.io/ingress.class: nginx-ingress-public
   hosts:
-    - host: hermes-dev.lco.gtn
+    - host: hermes-dev.lco.global
       paths:
         - "/messages"
         - "/api"

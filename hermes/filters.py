@@ -2,8 +2,10 @@ from django_filters import rest_framework as filters
 from django.contrib.gis.geos import Point, Polygon
 from django.contrib.gis.measure import D
 from django.db.models import Q
+from dateutil.parser import parse
 
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
+from hermes.utils import get_all_public_topics
 
 import math
 EARTH_RADIUS_METERS = 6371008.77141506
@@ -20,7 +22,7 @@ class MessageFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
     message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic = filters.CharFilter(field_name='topic', lookup_expr='icontains', help_text='Topic contains keyword')
+    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[(t, t) for t in get_all_public_topics()], help_text='Topic contains keyword')
     topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
     authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
     submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
@@ -87,12 +89,22 @@ class NonLocalizedEventFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='event_id', lookup_expr='exact', label='Event Id exact')
     event_id = filters.CharFilter(field_name='event_id', lookup_expr='icontains', label='Event Id contains')
     referenced_by_uuid = filters.CharFilter(method='filter_referenced_by_uuid', label='Referenced by UUID', help_text='Messages referenced by a hop UUID')
+    published_after = filters.CharFilter(method='filter_published_after', label='Published after')
+    published_before = filters.CharFilter(method='filter_published_before', label='Published before')
 
     class Meta:
         model = NonLocalizedEvent
         fields = (
-            'event_id', 'event_id_exact'
+            'event_id', 'event_id_exact', 'referenced_by_uuid', 'published_after', 'published_before'
         )
+
+    def filter_published_before(self, queryset, name, value):
+        parsed_date = parse(value)
+        return queryset.filter(sequences__message__published__lte=parsed_date).distinct()
+
+    def filter_published_after(self, queryset, name, value):
+        parsed_date = parse(value)
+        return queryset.filter(sequences__message__published__gte=parsed_date).distinct()
 
     def filter_referenced_by_uuid(self, queryset, name, value):
         return queryset.filter(references__uuid__startswith=value)

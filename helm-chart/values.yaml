@@ -8,6 +8,7 @@
 hopAuthBaseUrl: https://my.hop.scimma.org/hopauth
 
 djangoDebug: true
+saveTestMessages: true
 
 gunicornWorkers: 2
 gunicornTimeout: 300
@@ -25,6 +26,8 @@ fullnameOverride: ""
 
 brokers:
   gcnClassicOverKafka:
+    groupId: 'hermes-dev'
+  hopskotch:
     groupId: 'hermes-dev'
 
 serviceAccount:

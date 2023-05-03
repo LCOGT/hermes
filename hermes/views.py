@@ -11,7 +11,7 @@ from django.conf import settings
 #from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.middleware import csrf
-
+from django.core.cache import cache
 from django.views.generic import ListView, DetailView, FormView, RedirectView, View
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
@@ -413,6 +413,16 @@ class ProfileApiView(RetrieveAPIView):
             'profile'
         )
         return qs.first().profile
+
+
+class HeartbeatApiView(RetrieveAPIView):
+    """ View to retrieve last timestamps for data received per stream """
+
+    def get(self, request):
+        last_timestamps = {
+            'hop': cache.get('hop_stream_heartbeat')
+        }
+        return Response(last_timestamps)
 
 
 class RevokeApiTokenApiView(APIView):

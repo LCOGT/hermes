@@ -17,14 +17,14 @@ class TestApiFiltering(TestCase):
         super().setUpTestData()
         # Setup some sample models
         cls.event1_id = 'S192837'
-        call_command('inject_message', event_id=cls.event1_id, type='LVC_INITIAL', sequence_number=1)
-        call_command('inject_message', event_id=cls.event1_id, type='LVC_PRELIMINARY', sequence_number=2)
-        call_command('inject_message', event_id=cls.event1_id, type='LVC_UPDATE', sequence_number=3)
+        call_command('inject_message', event_id=cls.event1_id, type='LVC_INITIAL', sequence_number=1, skymap_version=0)
+        call_command('inject_message', event_id=cls.event1_id, type='LVC_PRELIMINARY', sequence_number=2, skymap_version=1)
+        call_command('inject_message', event_id=cls.event1_id, type='LVC_UPDATE', sequence_number=3, skymap_version=1)
         cls.event1 = NonLocalizedEvent.objects.get(event_id=cls.event1_id)
         
         cls.event2_id = 'S735592'
-        call_command('inject_message', event_id=cls.event2_id, type='LVC_INITIAL', sequence_number=1)
-        call_command('inject_message', event_id=cls.event2_id, type='LVC_RETRACTION', sequence_number=2)
+        call_command('inject_message', event_id=cls.event2_id, type='LVC_INITIAL', sequence_number=1, skymap_version=0)
+        call_command('inject_message', event_id=cls.event2_id, type='LVC_RETRACTION', sequence_number=2, skymap_version=-1)
         cls.event2 = NonLocalizedEvent.objects.get(event_id=cls.event2_id)
         
         # Add a few counterpart messages with targets
