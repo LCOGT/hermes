@@ -38,6 +38,7 @@ urlpatterns = [
     path('auth/', include('mozilla_django_oidc.urls')),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('api/v0/heartbeat/', views.HeartbeatApiView.as_view(), name='heartbeat'),
     path('api/v0/profile/', views.ProfileApiView.as_view(), name='profile'),
     path('api/v0/revoke_api_token/', views.RevokeApiTokenApiView.as_view(), name='revoke_api_token'),
     path('api/v0/revoke_hop_credential/', views.RevokeHopCredentialApiView.as_view(), name='revoke_hop_credential')
