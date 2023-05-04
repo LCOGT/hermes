@@ -519,7 +519,7 @@ class HermesMessageSerializer(serializers.Serializer):
     data = GenericHermesDataSerializer(required=False)
     submit_to_tns = serializers.BooleanField(required=False, allow_null=True, write_only=True)
     submit_to_mpc = serializers.BooleanField(required=False, allow_null=True, write_only=True)
-    submit_to_gcn = serializers.BooleanField(default=False, required=False, write_only=True)
+    submit_to_gcn = serializers.BooleanField(required=False, allow_null=True, write_only=True)
 
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
@@ -599,5 +599,7 @@ class HermesMessageSerializer(serializers.Serializer):
             del validated_data['submit_to_tns']
         if 'submit_to_mpc' in validated_data:
             del validated_data['submit_to_mpc']
+        if 'submit_to_gcn' in validated_data:
+            del validated_data['submit_to_gcn']
 
         return validated_data

@@ -1,5 +1,7 @@
 from django.core.cache import cache
 from hermes.models import Message
+from astropy.table import Table
+import io
 
 
 TNS_TYPES = [
@@ -80,3 +82,21 @@ def get_all_public_topics():
         all_topics = sorted(list(Message.objects.order_by().values_list('topic', flat=True).distinct()))
         cache.set("all_public_topics", all_topics, 3600)
     return all_topics
+
+
+def convert_to_plaintext(message):
+    # TODO: Incorporate the message uuid into here somewhere
+    formatted_message = """{title}
+
+{authors}
+
+{message}""".format(title=message.get('title'),
+                            authors=message.get('authors'),
+                            message=message.get('message_text'))
+    for table in ['target', 'photometry', 'astrometry', 'references']:
+        if len(message['data'].get(table, [])) > 0:
+            formatted_message += "\n"
+            string_buffer = io.StringIO()
+            Table(message['data'][table]).write(string_buffer, format='ascii.basic')
+            formatted_message += string_buffer.getvalue()
+    return formatted_message

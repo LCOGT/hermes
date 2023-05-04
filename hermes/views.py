@@ -1,9 +1,7 @@
 from http.client import responses
 import json
 import logging
-import io
-
-from astropy.table import Table
+import uuid
 
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -17,6 +15,7 @@ from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from django.http import Http404
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -31,7 +30,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.utils import get_all_public_topics
+from hermes.utils import get_all_public_topics, convert_to_plaintext
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -58,6 +57,17 @@ class MessageViewSet(viewsets.ModelViewSet):
             raise Http404
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+
+    @action(detail=True)
+    def plaintext(self, request, pk=None):
+        try:
+            instance = Message.objects.get(uuid__startswith=pk)
+        except:
+            raise Http404
+        serializer = self.get_serializer(instance)
+        plaintext_message = convert_to_plaintext(serializer.data)
+
+        return Response(plaintext_message)
 
 
 class TargetViewSet(viewsets.ModelViewSet):
@@ -176,20 +186,30 @@ def submit_to_hop(request, message):
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
             metadata = {'topic': topic}
-            producer.write(message, metadata)
+            payload, headers = producer.pack(message, metadata)
+            message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
+            message_uuid = None
+            if message_uuid_tuple:
+                message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
+            producer.write_raw(payload, headers)
     except Exception as e:
-        return Response({'message': f'Error posting message to kafka: {e}'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
+        raise APIException(f'Error posting message to kafka: {e}')
+
+    return message_uuid
 
 
-def submit_to_gcn(request, message):
+def submit_to_gcn(request, message, message_uuid):
+    # TODO: Add code to submit the message with its message_uuid to gcn here.
+    # First add the uuid into the message, then transfer the message into plaintext format
+    message_plaintext = convert_to_plaintext(message)
+    # Then submit the plaintext message to gcn via email
     return Response({"message": "GCN Submission not implemented."},
                     status=status.HTTP_200_OK)
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
     serializer_class = HermesMessageSerializer
+    EXPECTED_DATA_KEYS = ['targets', 'event_id', 'references', 'photometry', 'spectroscopy', 'astrometry']
 
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
@@ -328,6 +348,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
 
     def create(self, request, *args, **kwargs):
         non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        gcn_submit = request.data.get('submit_to_gcn', False)
         serializer = self.serializer_class(data=request.data, context={'request': request})
 
         if serializer.is_valid():
@@ -336,13 +357,12 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 if 'data' not in data:
                     data['data'] = {}
                 data['data'].update(non_serialized_data)
-            response = submit_to_hop(request, data)
-            if response.status_code != status.HTTP_200_OK:
-                return response
-            if data['submit_to_gcn']:
+            message_uuid = submit_to_hop(request, data)
+            if gcn_submit:
                 # TODO: I don't really know what we should do here if the GCN submission fails
-                submit_to_gcn(request, data)
-            return response
+                return submit_to_gcn(request, data, message_uuid)
+            return Response({"message": f"Submitted message with uuid {message_uuid}"},
+                            status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
@@ -357,6 +377,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             errors = serializer.errors
         return Response(errors, status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'])
+    def plaintext(self, request):
+        plaintext_message = convert_to_plaintext(request.data)
+
+        return Response(plaintext_message, status=status.HTTP_200_OK)
 
 class LoginRedirectView(RedirectView):
     pattern_name = 'login-redirect'
@@ -456,26 +481,3 @@ class RevokeHopCredentialApiView(APIView):
 
     def get_endpoint_name(self):
         return 'revokeHopCredential'
-
-
-class PlainTextView(APIView):
-    def post(self, request):
-        print(request.data['data'])
-        formatted_message = """{title}
-
-{authors}
-
-{message}""".format(title=request.data.get('title'),
-                            authors=request.data.get('authors'),
-                            message=request.data.get('message_text'))
-        for table in ['target', 'photometry', 'astrometry', 'references']:
-            if len(request.data['data'].get(table, [])) > 0:
-                formatted_message += "\n"
-                string_buffer = io.StringIO()
-                Table(request.data['data'][table]).write(string_buffer, format='ascii.basic')
-                formatted_message += string_buffer.getvalue()
-
-        return Response(formatted_message, status=status.HTTP_200_OK)
-
-    def get_endpoint_name(self):
-        return 'viewPlainText'
