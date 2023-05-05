@@ -30,7 +30,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.utils import get_all_public_topics, convert_to_plaintext
+from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -202,8 +202,11 @@ def submit_to_gcn(request, message, message_uuid):
     # TODO: Add code to submit the message with its message_uuid to gcn here.
     # First add the uuid into the message, then transfer the message into plaintext format
     message_plaintext = convert_to_plaintext(message)
+    message_plaintext += '\n\n This message can be viewed at https://hermes.lco.global/messages/' + str(message_uuid)
     # Then submit the plaintext message to gcn via email
-    return Response({"message": "GCN Submission not implemented."},
+    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL, settings.HERMES_EMAIL_PASSWORD,
+               message['title'], message_plaintext)
+    return Response({"message": "GCN Submission successful"},
                     status=status.HTTP_200_OK)
 
 
@@ -213,9 +216,9 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
 
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
-        
+
         Requests should be structured as below:
-        
+
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
          submitter: <submitter of the message>,
@@ -347,7 +350,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response({"message": message}, status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        non_serialized_data = {key: val for key, val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         gcn_submit = request.data.get('submit_to_gcn', False)
         serializer = self.serializer_class(data=request.data, context={'request': request})
 
@@ -382,6 +385,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         plaintext_message = convert_to_plaintext(request.data)
 
         return Response(plaintext_message, status=status.HTTP_200_OK)
+
 
 class LoginRedirectView(RedirectView):
     pattern_name = 'login-redirect'

@@ -119,6 +119,10 @@ build it here and use it everywhere.
   value: {{ .Values.brokers.gcnClassicOverKafka.groupId | quote }}
 - name: HOPSKOTCH_GROUP_ID
   value: {{ .Values.brokers.hopskotch.groupId | quote }}
+- name: HERMES_EMAIL
+  value: {{ .Values.hermesEmail }}
+- name: GCN_EMAIL
+  value: {{ .Values.gcnEmail }}
 {{- end }}
 
 {{/*
