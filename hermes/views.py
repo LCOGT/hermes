@@ -204,7 +204,7 @@ def submit_to_gcn(request, message, message_uuid):
     message_plaintext = convert_to_plaintext(message)
     message_plaintext += '\n\n This message can be viewed at https://hermes.lco.global/messages/' + str(message_uuid)
     # Then submit the plaintext message to gcn via email
-    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL, settings.HERMES_EMAIL_PASSWORD,
+    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL_USERNAME, settings.HERMES_EMAIL_PASSWORD,
                message['title'], message_plaintext)
     return Response({"message": "GCN Submission successful"},
                     status=status.HTTP_200_OK)

@@ -18,7 +18,6 @@ brokers:
 
 hermesFrontEndBaseUrl: https://hermes-dev.lco.global/
 
-hermesEmail: hermes@lco.global
 gcnEmai: circulars@dev.gcn.nasa.gov
 
 ingress:
