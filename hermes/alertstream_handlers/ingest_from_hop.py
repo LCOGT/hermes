@@ -4,13 +4,14 @@ from datetime import datetime, timezone
 from dateutil.parser import parse, parserinfo
 import logging
 import uuid
-import fastavro
 import healpy as hp
 import numpy as np
 import hashlib
 from astropy.table import Table
 from io import BytesIO
 from django.conf import settings
+from django.core.cache import cache
+from django.utils import timezone
 
 from hop.io import Metadata
 from hop.models import GCNCircular, JSONBlob
@@ -143,6 +144,9 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
     """Ingest a generic  alert from a topic we have no a priori knowledge of.
     """
     topic = metadata.topic
+    if topic == 'sys.heartbeat-cit':
+        # Store the last timestamp we received a heartbeat message to know if the stream is alive
+        cache.set('hop_stream_heartbeat', timezone.now().isoformat(), None)
     if should_ingest_topic(topic):
         logger.debug(f'updating db with generic hop message for topic {topic}')
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
@@ -248,7 +252,7 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             authors='LVK',
             data=alert,
             message_text='',
-            published=published_time,
+            defaults={'published': published_time}
         )
     except KeyError as err:
         logger.error(f'Required key not found in {metadata.topic} alert: {alert_uuid}.')
