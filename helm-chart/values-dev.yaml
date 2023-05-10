@@ -18,6 +18,8 @@ brokers:
 
 hermesFrontEndBaseUrl: https://hermes-dev.lco.global/
 
+gcnEmai: circulars@dev.gcn.nasa.gov
+
 ingress:
   enabled: true
   annotations:

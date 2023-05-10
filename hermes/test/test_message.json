@@ -1,0 +1,150 @@
+{
+    "title": "GRB 230409B: Swift/UVOT Detection",
+    "authors": "N. Paul Kuin (UCL/MSSL) and A. P. Beardmore (U. Leicester) report on behalf of the Swift/UVOT team:",
+    "topic": "hermes.test",
+    "message_text": "The Swift/UVOT began settled observations of the field of GRB 230409B 386 s after the BAT trigger (Beardmore et al., GCN Circ. 33592).  A weak fading source consistent with the XRT position (Beardmore et al., GCN Circ. 33592) is detected in the initial UVOT exposures at position RA=329.5158, Dec=52.8321 deg.\n\nPreliminary detections and 3-sigma upper limits using the UVOT photometric system (Breeveld et al. 2011, AIP Conf. Proc. 1358, 373) for the early exposures are reported.\n\nThe magnitudes reported here are not corrected for the Galactic extinction due to the reddening of E(B-V) = 1.226 in the direction of the burst (Schlegel et al. 1998).\n",
+    "submitter": "HERMES Guest",
+    "submit_to_tns": false,
+    "submit_to_mpc": false,
+    "submit_to_gcn": false,
+    "data": {
+        "event_id": "GRB 230409B",
+        "references": [
+            {
+                "source": "GCN",
+                "citation": "Beardmore et al., GCN Circ. 33592"
+            },
+            {
+                "source": "AIP",
+                "citation": "Breeveld et al. 2011, AIP Conf. Proc. 1358, 373"
+            },
+            {
+                "source": "ApJ",
+                "citation": "Schlegel et al. 1998",
+                "url": "https://iopscience.iop.org/article/10.1086/305772"
+            }
+        ],
+        "targets": [
+            {
+                "name": "GRB 230409B",
+                "ra": "329.5158",
+                "dec": "52.8321",
+                "ra_error_units": "degrees",
+                "dec_error_units": "degrees",
+                "new_discovery": false
+            }
+        ],
+        "photometry": [
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "white",
+                "brightness": "19.35",
+                "brightness_error": "0.2",
+                "brightness_unit": "AB mag",
+                "exposure_time": "147",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 386,
+                "T_stop": 536,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "v",
+                "brightness_unit": "AB mag",
+                "exposure_time": "156",
+                "limiting_brightness": "18.1",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 542,
+                "T_stop": 1931,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "b",
+                "brightness_unit": "AB mag",
+                "exposure_time": "156",
+                "limiting_brightness": "19.4",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 642,
+                "T_stop": 2029,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "u",
+                "brightness_unit": "AB mag",
+                "exposure_time": "156",
+                "limiting_brightness": "19.0",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 616,
+                "T_stop": 2004,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "w1",
+                "brightness_unit": "AB mag",
+                "exposure_time": "156",
+                "limiting_brightness": "18.8",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 592,
+                "T_stop": 1980,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "m2",
+                "brightness_unit": "AB mag",
+                "exposure_time": "156",
+                "limiting_brightness": "19.2",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 567,
+                "T_stop": 1985,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            },
+            {
+                "target_name": "GRB 230409B",
+                "date_obs": "2023-04-09",
+                "telescope": "Swift",
+                "instrument": "UVOT",
+                "bandpass": "w2",
+                "brightness_unit": "AB mag",
+                "exposure_time": "136",
+                "limiting_brightness": "19.2",
+                "limiting_brightness_unit": "AB mag",
+                "T_start": 692,
+                "T_stop": 1906,
+                "T_start_units": "s",
+                "T_stop_units": "s"
+            }
+        ],
+        "spectroscopy": [],
+        "astrometry": [],
+        "T_START": "386",
+        "EBV": "1.226"
+    }
+}
