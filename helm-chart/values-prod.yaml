@@ -19,7 +19,7 @@ brokers:
   hopskotch:
     groupId: 'hermes'
 
-gcnEmai: circulars@dev.gcn.nasa.gov
+gcnEmail: circulars@dev.gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
