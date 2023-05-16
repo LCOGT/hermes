@@ -35,3 +35,7 @@ ingress:
         - "/login-redirect"
         - "/logout-redirect"
 
+# temporary test for switching to AWS RDS db
+useDockerizedDatabase: false
+postgresql:
+  hostname: prod-hermes.cple9sjsskrf.us-west-2.rds.amazonaws.com
