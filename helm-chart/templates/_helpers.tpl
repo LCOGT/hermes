@@ -131,8 +131,12 @@ Define shared database environment variables
   value: {{ include "hermes.dbhost" . | quote }}
 - name: DB_NAME
   value: {{ .Values.postgresql.auth.database | quote }}
+
+{{/* This removed when hermes db moved to AWS RDS and DB_PASS became k8s secret
 - name: DB_PASS
   value: {{ .Values.postgresql.auth.password | quote }}
+*/}}
+
 - name: DB_USER
   value: {{ .Values.postgresql.auth.username | quote }}
 - name: DB_PORT
