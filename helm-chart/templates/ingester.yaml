@@ -70,7 +70,7 @@ spec:
             {{ include "hermes.backendEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
-                name: hermes-secrets
+                name: {{ .Values.hermesSecretName }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:

@@ -61,7 +61,7 @@ spec:
             {{- include "hermes.backendEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
-                name: hermes-secrets
+                name: {{ .Values.hermesSecretName }}
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -74,7 +74,7 @@ spec:
               mountPath: /tmp
               readOnly: false
         {{- end }}
-    
+
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -102,7 +102,7 @@ spec:
             {{ include "hermes.backendEnv" . | nindent 12 }}
           envFrom:
             - secretRef:
-                name: hermes-secrets
+                name: {{ .Values.hermesSecretName }}
           ports:
             - name: http
               containerPort: 8080

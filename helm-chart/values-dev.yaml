@@ -38,4 +38,6 @@ ingress:
 # temporary test for switching to AWS RDS db
 useDockerizedDatabase: false
 postgresql:
+  client:
+    TLSMode: "require"
   hostname: prod-hermes.cple9sjsskrf.us-west-2.rds.amazonaws.com
