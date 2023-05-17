@@ -30,7 +30,7 @@ class MessageFilter(filters.FilterSet):
     search = filters.CharFilter(method='filter_search', label='Search Terms', help_text='Search multiple fields for given search terms')
 
     def __init__(self, data=None, queryset=None, *, request=None, prefix=None):
-        super().__init__(self, data, queryset, request=request, prefix=prefix)
+        super().__init__(self, data=data, queryset=queryset, request=request, prefix=prefix)
         # NB: the * in the parameter list indicates that parameters following the *
         #     are keyword parameters only.
 
