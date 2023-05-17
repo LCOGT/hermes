@@ -36,8 +36,8 @@ class MessageFilter(filters.FilterSet):
         # populating the topic choices dynamicly must be done at runtime:
         # not possible in class variable assignment of MultipleChoiceFilter.
         topic_choices = [(t, t) for t in get_all_public_topics()]
-        self.topic = filters.MultipleChoiceFilter(field_name='topic', choices=topic_choices,
-                                                  help_text='Topic contains keyword')
+        MessageFilter.topic = filters.MultipleChoiceFilter(field_name='topic', choices=topic_choices,
+                                                           help_text='Topic contains keyword')
 
     class Meta:
         model = Message
