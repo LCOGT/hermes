@@ -37,3 +37,9 @@ ingress:
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"
+
+#useDockerizedDatabase: false
+#postgresql:
+#  client:
+#    TLSMode: "require"
+#  hostname: prod-hermes.cple9sjsskrf.us-west-2.rds.amazonaws.com
