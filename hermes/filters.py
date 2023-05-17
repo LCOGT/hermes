@@ -22,7 +22,6 @@ class MessageFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
     message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[], help_text='Topic contains keyword')
     topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
     authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
     submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
@@ -37,8 +36,8 @@ class MessageFilter(filters.FilterSet):
         # populating the topic choices dynamicly must be done at runtime:
         # not possible in class variable assignment of MultipleChoiceFilter.
         topic_choices = [(t, t) for t in get_all_public_topics()]
-        # see https://github.com/carltongibson/django-filter/blob/main/django_filters/fields.py#L253
-        self.topic._set_choices(topic_choices)
+        self.topic = filters.MultipleChoiceFilter(field_name='topic', choices=topic_choices,
+                                                  help_text='Topic contains keyword')
 
     class Meta:
         model = Message
