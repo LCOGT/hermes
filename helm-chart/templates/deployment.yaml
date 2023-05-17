@@ -59,6 +59,9 @@ spec:
             - --no-input
           env:
             {{- include "hermes.backendEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: hermes-secrets
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000

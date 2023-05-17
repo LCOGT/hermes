@@ -143,4 +143,6 @@ Define shared database environment variables
   value: {{ .Values.postgresql.primary.service.port.postgresql | quote }}
 - name: SECRET_KEY
   value: {{ .Values.secretKey | quote }}
+- name: PGSSLMODE
+  value : "require"
 {{- end -}}
