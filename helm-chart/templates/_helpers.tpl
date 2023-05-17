@@ -134,7 +134,7 @@ Define shared database environment variables
   value: {{ .Values.postgresql.auth.database | quote }}
 {{- if .Values.useDockerizedDatabase }}
 - name: DB_PASS
-  value: {{ required "" .Values.postgresql.auth.postgresPassword | quote }}
+  value: {{ required "" .Values.postgresql.auth.password | quote }}
 {{- end }}
 - name: DB_USER
   value: {{ .Values.postgresql.auth.username | quote }}
