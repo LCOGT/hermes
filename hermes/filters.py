@@ -38,7 +38,7 @@ class MessageFilter(filters.FilterSet):
         # not possible in class variable assignment of MultipleChoiceFilter.
         # see https://github.com/carltongibson/django-filter/blob/main/django_filters/filterset.py#L309
         # see https://github.com/carltongibson/django-filter/blob/main/django_filters/fields.py#L253
-        self.get_filters()['topic'].choices = [(t, t) for t in get_all_public_topics()]
+        self.get_filters()['topic'].field.choices = [(t, t) for t in get_all_public_topics()]
 
     class Meta:
         model = Message
