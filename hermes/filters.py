@@ -29,8 +29,11 @@ class MessageFilter(filters.FilterSet):
     title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
     search = filters.CharFilter(method='filter_search', label='Search Terms', help_text='Search multiple fields for given search terms')
 
-    def __init__(self):
-        super().__init__(self)
+    def __init__(self, data=None, queryset=None, *, request=None, prefix=None):
+        super().__init__(self, data, queryset, request=request, prefix=prefix)
+        # NB: the * in the parameter list indicates that parameters following the *
+        #     are keyword parameters only.
+
         # populating the topic choices dynamicly must be done at runtime:
         # not possible in class variable assignment of MultipleChoiceFilter.
         topic_choices = [(t, t) for t in get_all_public_topics()]
