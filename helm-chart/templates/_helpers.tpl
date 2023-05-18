@@ -82,6 +82,7 @@ Generate the postgres DB hostname
 {{- end -}}
 {{- end -}}
 
+
 {{/*
 Generate the cache location
 */}}
@@ -119,6 +120,8 @@ build it here and use it everywhere.
   value: {{ .Values.brokers.gcnClassicOverKafka.groupId | quote }}
 - name: HOPSKOTCH_GROUP_ID
   value: {{ .Values.brokers.hopskotch.groupId | quote }}
+- name: GCN_EMAIL
+  value: {{ .Values.gcnEmail }}
 {{- end }}
 
 {{/*
@@ -129,12 +132,18 @@ Define shared database environment variables
   value: {{ include "hermes.dbhost" . | quote }}
 - name: DB_NAME
   value: {{ .Values.postgresql.auth.database | quote }}
+{{- if .Values.useDockerizedDatabase }}
 - name: DB_PASS
-  value: {{ .Values.postgresql.auth.password | quote }}
+  value: {{ required "" .Values.postgresql.auth.password | quote }}
+{{- end }}
 - name: DB_USER
   value: {{ .Values.postgresql.auth.username | quote }}
 - name: DB_PORT
   value: {{ .Values.postgresql.primary.service.port.postgresql | quote }}
+{{- if .Values.secretKey }}
 - name: SECRET_KEY
   value: {{ .Values.secretKey | quote }}
+{{- end }}
+- name: PGSSLMODE
+  value: {{ required "" .Values.postgresql.client.TLSMode | quote }}
 {{- end -}}

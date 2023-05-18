@@ -79,17 +79,31 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
+# Name of the v1/Secret to source env vars from
+hermesSecretName: "hermes-secrets"
+
 # Settings for the PostgreSQL database
 applyDatabaseMigrations: true
+
+# If false DB_PASS is sourced from hermesSecret
 useDockerizedDatabase: true
+
 cacheBackend: "django.core.cache.backends.redis.RedisCache"
 
 djangoDatabaseEngine: "django.db.backends.postgresql"
 postgresql:
+  client:
+    TLSMode: "prefer"
+
   auth:
-    postgresPassword: "changeme"
     username: "postgres"
     password: "changeme"
+
+    # This password is for the default "postgres" user, compared to the previous
+    # one which is for the custom "username" (which can be different).
+    # Either way, both must be set. And if username=postgres, then both password
+    # should be the same.
+    postgresPassword: "changeme"
     database: "hermes"
   primary:
     initdb:
@@ -108,7 +122,9 @@ postgresql:
         cpu: 400m
         memory: 512Mi
 
+# If not set it's sourced from the key SECRET_KEY in a v1/Secret with a name of hermesSecret
 secretKey: "changeme"
+
 
 redis:
   # If enabled, an in-cluster Redis instance will be spun up.

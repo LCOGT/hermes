@@ -18,6 +18,8 @@ brokers:
 
 hermesFrontEndBaseUrl: https://hermes-dev.lco.global/
 
+gcnEmail: circulars@dev.gcn.nasa.gov
+
 ingress:
   enabled: true
   annotations:
@@ -32,4 +34,3 @@ ingress:
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"
-

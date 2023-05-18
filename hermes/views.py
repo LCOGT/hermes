@@ -1,6 +1,7 @@
 from http.client import responses
 import json
 import logging
+import uuid
 
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -14,6 +15,7 @@ from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from django.http import Http404
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -28,7 +30,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.utils import get_all_public_topics
+from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -55,6 +57,17 @@ class MessageViewSet(viewsets.ModelViewSet):
             raise Http404
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+
+    @action(detail=True)
+    def plaintext(self, request, pk=None):
+        try:
+            instance = Message.objects.get(uuid__startswith=pk)
+        except:
+            raise Http404
+        serializer = self.get_serializer(instance)
+        plaintext_message = convert_to_plaintext(serializer.data)
+
+        return Response(plaintext_message)
 
 
 class TargetViewSet(viewsets.ModelViewSet):
@@ -173,11 +186,28 @@ def submit_to_hop(request, message):
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
             metadata = {'topic': topic}
-            producer.write(message, metadata)
+            payload, headers = producer.pack(message, metadata)
+            message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
+            message_uuid = None
+            if message_uuid_tuple:
+                message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
+            producer.write_raw(payload, headers)
     except Exception as e:
-        return Response({'message': f'Error posting message to kafka: {e}'},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return Response({"message": "Message was submitted successfully."}, status=status.HTTP_200_OK)
+        raise APIException(f'Error posting message to kafka: {e}')
+
+    return message_uuid
+
+
+def submit_to_gcn(request, message, message_uuid):
+    # TODO: Add code to submit the message with its message_uuid to gcn here.
+    # First add the uuid into the message, then transfer the message into plaintext format
+    message_plaintext = convert_to_plaintext(message)
+    message_plaintext += '\n\n This message can be viewed at https://hermes.lco.global/messages/' + str(message_uuid)
+    # Then submit the plaintext message to gcn via email
+    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL_USERNAME, settings.HERMES_EMAIL_PASSWORD,
+               message['title'], message_plaintext)
+    return Response({"message": "GCN Submission successful"},
+                    status=status.HTTP_200_OK)
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
@@ -186,9 +216,9 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
 
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
-        
+
         Requests should be structured as below:
-        
+
         {title: <Title of the message>,
          topic: <kafka topic to post message to>, 
          submitter: <submitter of the message>,
@@ -196,6 +226,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
          message_text: <Text of the message to send>,
          submit_to_tns: <Boolean of whether or not to submit this message to TNS along with hop>
          submit_to_mpc: <Boolean of whether or not to submit this message to MPC along with hop>
+         submit_to_gcn: <Boolean of whether or not to submit this message to GCN along with hop>
          data: {
             references: [
                 {
@@ -319,15 +350,22 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response({"message": message}, status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        non_serialized_data = {key:val for key,val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        non_serialized_data = {key: val for key, val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        gcn_submit = request.data.get('submit_to_gcn', False)
         serializer = self.serializer_class(data=request.data, context={'request': request})
+
         if serializer.is_valid():
             data = serializer.validated_data
             if non_serialized_data:
                 if 'data' not in data:
                     data['data'] = {}
                 data['data'].update(non_serialized_data)
-            return submit_to_hop(request, data)
+            message_uuid = submit_to_hop(request, data)
+            if gcn_submit:
+                # TODO: I don't really know what we should do here if the GCN submission fails
+                return submit_to_gcn(request, data, message_uuid)
+            return Response({"message": f"Submitted message with uuid {message_uuid}"},
+                            status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
@@ -341,6 +379,12 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         else:
             errors = serializer.errors
         return Response(errors, status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def plaintext(self, request):
+        plaintext_message = convert_to_plaintext(request.data)
+
+        return Response(plaintext_message, status=status.HTTP_200_OK)
 
 
 class LoginRedirectView(RedirectView):

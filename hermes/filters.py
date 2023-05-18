@@ -22,12 +22,23 @@ class MessageFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
     message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
     data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[(t, t) for t in get_all_public_topics()], help_text='Topic contains keyword')
+    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[], help_text='Topic contains keyword')
     topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
     authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
     submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
     title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
     search = filters.CharFilter(method='filter_search', label='Search Terms', help_text='Search multiple fields for given search terms')
+
+    def __init__(self, data=None, queryset=None, *, request=None, prefix=None):
+        super().__init__(data=data, queryset=queryset, request=request, prefix=prefix)
+        # NB: the * in the parameter list indicates that parameters following the *
+        #     are keyword parameters only.
+
+        # populating the topic choices dynamicly must be done at runtime:
+        # not possible in class variable assignment of MultipleChoiceFilter.
+        # see https://github.com/carltongibson/django-filter/blob/main/django_filters/filterset.py#L309
+        # see https://github.com/carltongibson/django-filter/blob/main/django_filters/fields.py#L253
+        self.get_filters()['topic'].field.choices = [(t, t) for t in get_all_public_topics()]
 
     class Meta:
         model = Message

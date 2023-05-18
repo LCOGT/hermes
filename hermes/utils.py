@@ -1,5 +1,12 @@
 from django.core.cache import cache
 from hermes.models import Message
+from astropy.table import Table
+import io
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+import smtplib
+import datetime
 
 
 TNS_TYPES = [
@@ -80,3 +87,57 @@ def get_all_public_topics():
         all_topics = sorted(list(Message.objects.order_by().values_list('topic', flat=True).distinct()))
         cache.set("all_public_topics", all_topics, 3600)
     return all_topics
+
+
+def convert_to_plaintext(message):
+    # TODO: Incorporate the message uuid into here somewhere
+    formatted_message = """{title}
+
+{authors}
+
+{message}""".format(title=message.get('title'),
+                    authors=message.get('authors'),
+                    message=message.get('message_text'))
+    for table in ['target', 'photometry', 'astrometry', 'references']:
+        if len(message['data'].get(table, [])) > 0:
+            formatted_message += "\n"
+            string_buffer = io.StringIO()
+            Table(message['data'][table]).write(string_buffer, format='ascii.basic')
+            formatted_message += string_buffer.getvalue()
+    return formatted_message
+
+
+def send_email(recipient_email, sender_email, sender_password,
+               email_title, email_body, smtp_url='smtp.gmail.com:587'):
+    """
+    Send the email via smtp
+    
+    Parameters
+    ----------
+    recipient_email : String
+                      Email address of the recipients
+    sender_email : str
+                   Email address of the sender (must be a Google account)
+    sender_password : str
+                   Password for the sender email account
+    email_body : str
+                 Body of the email
+    smtp_url : str
+            URL of the smtp server to send the email
+    """
+
+    # Create the container (outer) email message.
+    msg = MIMEMultipart()
+    msg['Subject'] = email_title
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+
+    msg.attach(MIMEText(email_body, 'html'))
+
+    # Send the email via our the localhost SMTP server.
+    server = smtplib.SMTP(smtp_url)
+    server.ehlo()
+    server.starttls()
+    server.login(sender_email, sender_password)
+    server.sendmail(sender_email, recipient_email, msg.as_string())
+    server.quit()

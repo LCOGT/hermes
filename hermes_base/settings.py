@@ -211,6 +211,10 @@ SAVE_TEST_MESSAGES = str2bool(os.getenv('SAVE_TEST_MESSAGES', 'true'))
 SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
+GCN_EMAIL = os.getenv('GCN_EMAIL', 'circulars@dev.gcn.nasa.gov')
+HERMES_EMAIL_USERNAME = os.getenv('HERMES_EMAIL_USERNAME', 'hermes@lco.global')
+HERMES_EMAIL_PASSWORD = os.getenv('HERMES_EMAIL_PASSWORD', "please set HERMES_EMAIL_PASSWORD env var")
+
 # TODO: set up helm chart for dev and prod environments; this default works for local development
 HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8001/')
 
