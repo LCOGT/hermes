@@ -10,11 +10,12 @@ whitenoise==6.0.0
 lcogt-logging==0.3.2
 hop-client~=0.8
 healpy>=1.16
+astropy_healpix>=0.7
 tom_alertstreams>=0.6.2
 django-cors-headers==3.11.0
 mozilla-django-oidc==2.0.0
 astropy>=5.2
 django-extensions # for shell_plus debugging
-requests==2.27.1
+requests==2.31.0
 scramp==1.4.1
 jsons==1.6.3 # for Auth serialization

@@ -520,6 +520,78 @@ class HermesMessageSerializer(serializers.Serializer):
     submit_to_tns = serializers.BooleanField(required=False, allow_null=True, write_only=True)
     submit_to_mpc = serializers.BooleanField(required=False, allow_null=True, write_only=True)
     submit_to_gcn = serializers.BooleanField(required=False, allow_null=True, write_only=True)
+    # These lists for the GCN are from https://gcn.nasa.gov/docs/circulars/styleguide
+    GCN_REQUIRED_KEYS = ["AGILE",
+                         "ANTARES",
+                         "AXP",
+                         "Baksan Neutrino Observatory Alert",
+                         "CALET",
+                         "Chandra",
+                         "Fermi",
+                         "FXT",
+                         "GRB",
+                         "GW",
+                         "HAWC",
+                         "HST",
+                         "IBAS",
+                         "IceCube",
+                         "INTEGRAL",
+                         "IPN",
+                         "KAGRA",
+                         "KONUS",
+                         "LIGO",
+                         "LOFAR",
+                         "LVC",
+                         "LVK",
+                         "MAGIC",
+                         "MASTER",
+                         "MAXI",
+                         "Pan-STARRS",
+                         "POLAR",
+                         "RATIR",
+                         "SDSS",
+                         "SFXT",
+                         "SGR",
+                         "Suzaku",
+                         "Swift",
+                         "transient",
+                         "VLA",
+                         "VLBI",
+                         "XRB",
+                         "XRF",
+                         "XRT",
+                         "XTR",
+                         "Virgo",
+                         "VLA",
+                         "ZTF",
+                         ]
+    GCN_PROHIBITED_KEYS = ["this is an automatic reply",
+                           "automatic reply:",
+                           "auto reply",
+                           "autoreply",
+                           "vacation",
+                           "out of the office",
+                           "out of office",
+                           "out of town",
+                           "away from my mail",
+                           "away from his e-mail",
+                           "away from her e-mail",
+                           "away from the office",
+                           "away from his office",
+                           "away from her office",
+                           "traveling until",
+                           "no longer receiving mail",
+                           "delivery failure notif",
+                           "mail delivery failure",
+                           "returned mail",
+                           "saxzlcnkgzmfpbhvyzsbub",
+                           "ponse_automatique",
+                           "off-line re:",
+                           "re:",
+                           "fwd:",
+                           "r:",
+                           "ris:",
+                           ]
 
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
@@ -593,6 +665,24 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
 
             if full_error:
+                raise serializers.ValidationError(full_error)
+        if validated_data.get('submit_to_gcn'):
+            # Validate the title for GCN submission (which appears to be the only form validation the GCN does)
+            title = validated_data.get('title', '')
+            full_error = defaultdict(dict)
+            if len(title) == 0:
+                full_error['non_field_errors'] = [_('Title must be set to submit to GCN')]
+                raise serializers.ValidationError(full_error)
+            gcn_errors = []
+            if not any(key in title for key in self.GCN_REQUIRED_KEYS):
+                gcn_errors.append([_('Title must contain one of allowed subject keywords from \
+                                      https://gcn.nasa.gov/docs/circulars/styleguide to submit to GCN'                                                                                                      )])
+            for key in self.GCN_PROHIBITED_KEYS:
+                if key in title:
+                    gcn_errors.append([_('Title cannot contain the prohibited keyword "{}". Please see \
+                                         https://gcn.nasa.gov/docs/circulars/styleguide'                                                                                        .format(key))])
+            if gcn_errors:
+                full_error['non_field_errors'] = gcn_errors
                 raise serializers.ValidationError(full_error)
         # Remove the flags from the serialized response sent through hop
         if 'submit_to_tns' in validated_data:

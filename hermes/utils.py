@@ -100,7 +100,7 @@ def convert_to_plaintext(message):
                     message=message.get('message_text'))
     for table in ['target', 'photometry', 'astrometry', 'references']:
         if len(message['data'].get(table, [])) > 0:
-            formatted_message += "\n"
+            formatted_message += "\n\n"
             string_buffer = io.StringIO()
             Table(message['data'][table]).write(string_buffer, format='ascii.basic')
             formatted_message += string_buffer.getvalue()
