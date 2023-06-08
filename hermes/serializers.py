@@ -680,12 +680,14 @@ class HermesMessageSerializer(serializers.Serializer):
                 raise serializers.ValidationError(full_error)
             gcn_errors = []
             if not any(key in title for key in self.GCN_REQUIRED_KEYS):
-                gcn_errors.append(_('Title must contain one of allowed subject keywords from \
-                                      https://gcn.nasa.gov/docs/circulars/styleguide to submit to GCN'))
+                gcn_errors.append(_('Title must contain one of allowed subject keywords from the'
+                                    ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style Guide</a>'
+                                    ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
                 if key in title:
-                    gcn_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see \
-                                         https://gcn.nasa.gov/docs/circulars/styleguide'.format(key)))
+                    gcn_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
+                                        ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
+                                        ' Guide</a>.'.format(key)))
             if gcn_errors:
                 full_error['non_field_errors'] = gcn_errors
                 raise serializers.ValidationError(full_error)
