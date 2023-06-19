@@ -32,6 +32,25 @@ TOPIC_PIECES_TO_IGNORE = [
 ]
 
 
+def generate_skymap_url(superevent_id: str, pipeline: str, skymap_version: int, combined: bool) -> str:
+    """ This attempts to generate the gracedb skymap url to download the skymap later based on its
+        pipeline and version.
+    """
+    base_url = f"https://gracedb.ligo.org/api/superevents/{superevent_id}/files/"
+    if pipeline in ['pycbc', 'gstlal', 'MBTA', 'MBTAOnline', 'spiir']:
+        if combined:
+            return f"{base_url}combined-ext.multiorder.fits,{skymap_version}"
+        else:
+            return f"{base_url}bayestar.multiorder.fits,{skymap_version}"
+    elif pipeline == 'CWB' and not combined:
+        return f"{base_url}cwb.multiorder.fits,{skymap_version}"
+    elif pipeline == 'oLIB' and not combined:
+        return f"{base_url}olib.multiorder.fits,{skymap_version}"
+    # Currently don't know naming scheme for mLY pipeline or combined files for CWB, oLIB or mLY
+    # So just default to having no url stored rather than a wrong one.
+    return None
+
+
 def should_ingest_topic(topic):
     for topic_piece in TOPIC_PIECES_TO_IGNORE:
         if topic_piece in topic.lower():
@@ -223,7 +242,9 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             skymap_version = get_skymap_version(alert['superevent_id'], skymap_hash=uuid.UUID(skymap_hash.hexdigest()))
             alert['event']['skymap_hash'] = skymap_hash.hexdigest()
             alert['event']['skymap_version'] = skymap_version
-            alert['urls']['skymap'] = f"https://gracedb.ligo.org/api/superevents/{alert['superevent_id']}/files/bayestar.multiorder.fits,{skymap_version}"
+            skymap_url = generate_skymap_url(alert['superevent_id'], alert['event']['pipeline'], skymap_version, False)
+            if skymap_url:
+                alert['urls']['skymap'] = skymap_url
     if alert.get('external_coinc', {}):
         combined_skymap_bytes = alert['external_coinc'].pop('combined_skymap')
         if combined_skymap_bytes:
@@ -236,7 +257,9 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             combined_skymap_version = get_skymap_version(alert['superevent_id'], skymap_hash=uuid.UUID(combined_skymap_hash.hexdigest()))
             alert['external_coinc']['combined_skymap_hash'] = combined_skymap_hash.hexdigest()
             alert['external_coinc']['combined_skymap_version'] = combined_skymap_version
-            alert['urls']['combined_skymap'] = f"https://gracedb.ligo.org/api/superevents/{alert['superevent_id']}/files/combined-ext.multiorder.fits,{combined_skymap_version}"
+            combined_skymap_url = generate_skymap_url(alert['superevent_id'], alert['event']['pipeline'], combined_skymap_version, True)
+            if combined_skymap_url:
+                alert['urls']['combined_skymap'] = combined_skymap_url
     alert['sequence_num'] = get_sequence_number(alert['superevent_id'])
 
     logger.debug(f"Storing message for igwn alert {alert_uuid}: {alert}")
