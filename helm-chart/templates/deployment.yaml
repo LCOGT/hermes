@@ -48,6 +48,32 @@ spec:
             limits:
               cpu: 50m
               memory: 16Mi
+        # wait for redis cache to become ready
+        - name: check-cache-ready
+          image: "redis:7.0-alpine"
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - >
+              until redis-cli \
+                  -u {{ include "hermes.cacheLocation" . | quote }} \
+                  ping | grep PONG;
+                do echo waiting for redis cache;
+                sleep 2;
+                done;
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 16Mi
         {{- if .Values.applyDatabaseMigrations }}
         - name: apply-db-migrations
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
