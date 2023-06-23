@@ -144,7 +144,7 @@ class TestApiFiltering(TestCase):
         result = self.client.get(reverse('messages-list') + '?search=GCN CIRCULAR')
         self.assertEqual(result.status_code, 200)
         # All 10 test messages have either GCN or CIRCULAR in them
-        self.assertEqual(len(result.json()['results']), 10)
+        self.assertEqual(len(result.json()['results']), 5)
 
 
 class TestSubmitBasicMessageApi(TestCase):

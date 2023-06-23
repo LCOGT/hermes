@@ -77,6 +77,8 @@ def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         latest_sequence = nle.sequences.last()
+        if latest_sequence == None:
+            return 0
         if latest_sequence.skymap_version != None and latest_sequence.skymap_hash != skymap_hash:
             return latest_sequence.skymap_version + 1
         if latest_sequence.skymap_version:

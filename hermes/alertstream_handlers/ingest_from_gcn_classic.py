@@ -10,14 +10,8 @@ from hermes import parsers
 logger = logging.getLogger(__name__)
 
 
-TOPICS_TO_PARSERS = {
-    'gcn.classic.text.LVC_COUNTERPART': parsers.GCNLVCCounterpartNoticeParser(),
-    'gcn.classic.text.LVC_INITIAL': parsers.GCNLVCNoticeParser(),
-    'gcn.classic.text.LVC_PRELIMINARY': parsers.GCNLVCNoticeParser(),
-    'gcn.classic.text.LVC_RETRACTION': parsers.GCNLVCNoticeParser(),
-    'gcn.classic.text.LVC_UPDATE': parsers.GCNLVCNoticeParser(),
-    'gcn.classic.text.LVC_EARLY_WARNING': parsers.GCNLVCNoticeParser(),
-}
+GENERIC_NOTICE_PARSER = parsers.GCNNoticePlaintextParser()
+TOPICS_TO_PARSERS = {}
 
 def handle_message(message):
     # It receives a Kafka Cimpl.message
@@ -29,9 +23,9 @@ def handle_message(message):
 
     message, created = Message.objects.get_or_create(
         topic=topic,
-        uuid=message_uuid,
         message_text=message_text,
         defaults={
+            'uuid': message_uuid,
             'submitter':'GCN Classic Over Kafka',
         }
     )
@@ -44,3 +38,5 @@ def handle_message(message):
     if topic in TOPICS_TO_PARSERS:
         parser = TOPICS_TO_PARSERS[topic]
         parser.parse(message)
+    else:
+        GENERIC_NOTICE_PARSER.parse(message)

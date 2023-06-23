@@ -92,6 +92,7 @@ class MessageFilter(filters.FilterSet):
             aggregate_keyword_query = aggregate_keyword_query | Q(message_text__icontains=term)
             aggregate_keyword_query = aggregate_keyword_query | Q(targets__name__iexact=term)
             aggregate_keyword_query = aggregate_keyword_query | Q(nonlocalizedevents__event_id__iexact=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(sequences__event__event_id__iexact=term)
 
         return queryset.filter(aggregate_keyword_query)
 

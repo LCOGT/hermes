@@ -3,7 +3,7 @@ from django.utils import timezone
 from dateutil.parser import parse
 from copy import deepcopy
 from hermes.models import Message
-from hermes.parsers import GCNLVCCounterpartNoticeParser, GCNCircularParser, IGWNAlertParser
+from hermes.parsers import GCNNoticePlaintextParser, GCNCircularParser, IGWNAlertParser
 
 import uuid
 import logging
@@ -84,7 +84,7 @@ class Command(BaseCommand):
                     'submitter': 'inject_message command'
                 }
             )
-            GCNLVCCounterpartNoticeParser().parse(message)
+            GCNNoticePlaintextParser().parse(message)
         elif 'LVC' in options.get('type'):
             base_type = options.get('type').split('_')[1]
             message_payload = deepcopy(BASE_LVK_MESSAGE)
