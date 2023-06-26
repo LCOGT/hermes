@@ -88,8 +88,8 @@ class GCNNoticePlaintextParser(BaseParser):
                 if len(entry) > 1:
                     key = entry[0].strip().lower()
                     if key == last_entry and last_entry in parsed_fields:
-                        # For multi-line values repeating the key, append the values here
-                        parsed_fields[last_entry] += entry[1].lstrip()
+                        # For multi-line values repeating the key, append the values here with a space
+                        parsed_fields[last_entry] += f'\n{entry[1].lstrip()}'
                     else:
                         parsed_fields[key] = entry[1].strip()
                     last_entry = key
