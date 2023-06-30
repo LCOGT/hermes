@@ -623,9 +623,11 @@ class HermesMessageSerializer(serializers.Serializer):
                 discovery_info = target.get('discovery_info', {})
                 discovery_error = {}
                 if not discovery_info or not discovery_info.get('reporting_group'):
-                    discovery_error['reporting_group'] = [_("Target must have discovery info reporting group for TNS submission")]
+                    discovery_error['reporting_group'] = [_("Target must have discovery info reporting group for TNS"
+                                                            " submission")]
                 if not discovery_info or not discovery_info.get('discovery_source'):
-                    discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS submission")]
+                    discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
+                                                             " submission")]
                 if discovery_error:
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
@@ -648,15 +650,18 @@ class HermesMessageSerializer(serializers.Serializer):
                 spectroscopy_error = {}
                 classification = spectroscopy.get('classification')
                 if classification and classification not in TNS_TYPES:
-                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification types for TNS submission')]
+                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification types for TNS'
+                                                              ' submission')]
                 if not spectroscopy.get('instrument'):
-                    spectroscopy_error['instrument'] = [_('Spectroscopy must have Instrument specified for TNS submission')]
+                    spectroscopy_error['instrument'] = [_('Spectroscopy must have Instrument specified for TNS'
+                                                          ' submission')]
                 if not spectroscopy.get('observer'):
                     spectroscopy_error['observer'] = [_('Spectroscopy must have Observer specified for TNS submission')]
                 if not spectroscopy.get('reducer'):
                     spectroscopy_error['reducer'] = [_('Spectroscopy must have Reducer specified for TNS submission')]
                 if not spectroscopy.get('spec_type'):
-                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have Spec Type specified for TNS submission')]
+                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have Spec Type specified for TNS'
+                                                         ' submission')]
                 spectroscopy_errors.append(spectroscopy_error)
             if any(spectroscopy_errors):
                 full_error['data']['spectroscopy'] = spectroscopy_errors
@@ -675,12 +680,14 @@ class HermesMessageSerializer(serializers.Serializer):
                 raise serializers.ValidationError(full_error)
             gcn_errors = []
             if not any(key in title for key in self.GCN_REQUIRED_KEYS):
-                gcn_errors.append([_('Title must contain one of allowed subject keywords from \
-                                      https://gcn.nasa.gov/docs/circulars/styleguide to submit to GCN'                                                                                                      )])
+                gcn_errors.append(_('Title must contain one of allowed subject keywords from the'
+                                    ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style Guide</a>'
+                                    ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
                 if key in title:
-                    gcn_errors.append([_('Title cannot contain the prohibited keyword "{}". Please see \
-                                         https://gcn.nasa.gov/docs/circulars/styleguide'                                                                                        .format(key))])
+                    gcn_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
+                                        ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
+                                        ' Guide</a>.'.format(key)))
             if gcn_errors:
                 full_error['non_field_errors'] = gcn_errors
                 raise serializers.ValidationError(full_error)
