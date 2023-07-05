@@ -1,6 +1,6 @@
 # Helm chart values for Development Deployment
 
-replicaCount: 1
+replicaCount: 2
 
 resources:
   requests:
