@@ -5,7 +5,7 @@ from copy import deepcopy
 import uuid
 from hermes.management.commands.inject_message import BASE_LVC_COUNTERPART, BASE_GCN_CIRCULAR, BASE_LVK_MESSAGE
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
-from hermes.parsers import GCNCircularParser, GCNLVCCounterpartNoticeParser, IGWNAlertParser
+from hermes.parsers import GCNCircularParser, GCNNoticePlaintextParser, IGWNAlertParser
 
 
 def get_lvk_notice_data(type, event_id, sequence_number=1, published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(), skymap_version=0):
@@ -112,7 +112,7 @@ class TestLVCCounterpartParser(TestCase):
         )
         # Initially, published is set to ingestion time until it is parsed from message_text
         self.assertGreater(message.published, obs_date)
-        self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message))
+        self.assertTrue(GCNNoticePlaintextParser().parse(message))
         message.refresh_from_db()
         # Now published time has been parsed from the message
         self.assertEqual(obs_date, message.published)
@@ -124,7 +124,7 @@ class TestLVCCounterpartParser(TestCase):
             message_text=get_lvc_counterpart_text(type='LVC_COUNTERPART', event_id=self.event_id, author=author)
         )
         self.assertEqual(message.authors, "")
-        self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message))
+        self.assertTrue(GCNNoticePlaintextParser().parse(message))
         message.refresh_from_db()
         self.assertEqual(author, message.authors)
 
@@ -139,7 +139,7 @@ class TestLVCCounterpartParser(TestCase):
                 type='LVC_COUNTERPART', event_id=self.event_id, target_ra=target_ra, target_dec=target_dec, source_sernum=source_sernum
             )
         )
-        self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message))
+        self.assertTrue(GCNNoticePlaintextParser().parse(message))
         message.refresh_from_db()
         self.assertEqual(message.targets.count(), 1)
         target = message.targets.first()
@@ -158,7 +158,7 @@ class TestLVCCounterpartParser(TestCase):
                 type='LVC_COUNTERPART', event_id=self.event_id, target_ra=target1_ra, target_dec=target1_dec, source_sernum=source_sernum
             )
         )
-        self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message1))
+        self.assertTrue(GCNNoticePlaintextParser().parse(message1))
         target2_ra = 38.559
         target2_dec = 17.683
         message2, _ = Message.objects.get_or_create(
@@ -167,7 +167,7 @@ class TestLVCCounterpartParser(TestCase):
                 type='LVC_COUNTERPART', event_id=self.event_id, target_ra=target2_ra, target_dec=target2_dec, source_sernum=source_sernum
             )
         )
-        self.assertTrue(GCNLVCCounterpartNoticeParser().parse(message2))
+        self.assertTrue(GCNNoticePlaintextParser().parse(message2))
         message1.refresh_from_db()
         message2.refresh_from_db()
         targets = Target.objects.all()
@@ -186,7 +186,7 @@ class TestLVCCounterpartParser(TestCase):
             topic='test_topic',
             message_text=bad_message
         )
-        self.assertFalse(GCNLVCCounterpartNoticeParser().parse(message))
+        self.assertFalse(GCNNoticePlaintextParser().parse(message))
         message.refresh_from_db()
         self.assertIsNone(message.data)
         self.assertEqual(message.title, '')
