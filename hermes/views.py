@@ -30,6 +30,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
+from hermes.tns import get_tns_values
 from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
@@ -282,7 +283,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         'alias2',
                         ...
                     ],
-                    group_associations: <String of group associations for this target>
+                    group_associations: [
+                        'group one',
+                        'group two',
+                        ...
+                    ]
                 }
             ],
             photometry: [
@@ -302,7 +307,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     limiting_brightness: <The minimum brightness at which the target is visible>,
                     limiting_brightness_unit: <Unit for the limiting brightness>
                     catalog: <Photometric catalog used to reduce this data>,
-                    group_associations: <>
                 }
             ],
             spectroscopy: [
@@ -325,7 +329,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     observer: <The entity that observed this spectroscopic datum>,
                     reducer: <The entity that reduced this spectroscopic datum>,
                     comments: <String of comments for the spectroscopic datum>,
-                    group_associations: <>,
                     spec_type: <>
                 }
             ],
@@ -443,6 +446,13 @@ class ProfileApiView(RetrieveAPIView):
             'profile'
         )
         return qs.first().profile
+
+
+class TNSOptionsApiView(RetrieveAPIView):
+    """ View to retrieve the set of options for TNS submission, for the hermes UI to use """
+
+    def get(self, request):
+        return JsonResponse(data=get_tns_values())
 
 
 class HeartbeatApiView(RetrieveAPIView):
