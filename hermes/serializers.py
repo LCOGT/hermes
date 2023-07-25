@@ -143,7 +143,9 @@ class TargetSerializer(BaseTargetSerializer):
 
 def validate_date(date):
     try:
-        float(date)
+        fdate = float(date)
+        if not ((fdate < 2600000 and fdate > 2400000) or (fdate < 150000 and fdate > 1000)):
+            raise serializers.ValidationError(_(f"Date {fdate} in JD format must be within bounds of 2400000 to 2600000, and in MJD format within bounds of 15000 to 150000."))
     except ValueError:
         try:
             parse(date)
@@ -614,6 +616,8 @@ class HermesMessageSerializer(serializers.Serializer):
             targets_errors = []
             for target in targets:
                 target_error = {}
+                if not target.get('new_discovery', True):
+                    target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
                 if not target.get('ra'):
                     target_error['ra'] = [_("Target ra must be present for TNS submission")]
                 if not target.get('dec'):
@@ -643,10 +647,12 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['data']['targets'] = targets_errors
 
             photometry_errors = []
+            has_nondetection = False
+            has_detection = False
             for photometry in photometry_data:
                 photometry_error = {}
-                if not photometry.get('brightness'):
-                    photometry_error['brightness'] = [_('Photometry must have brightness specified for TNS submission')]
+                if photometry.get('brightness'):
+                    has_detection = True
                 if not photometry.get('instrument'):
                     photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
                 elif photometry.get('instrument') not in tns_options.get('instruments'):
@@ -655,7 +661,8 @@ class HermesMessageSerializer(serializers.Serializer):
                     photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
                 if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
                     photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
-
+                if photometry.get('limiting_brightness'):
+                    has_nondetection = True
                 photometry_errors.append(photometry_error)
             if any(photometry_errors):
                 full_error['data']['photometry'] = photometry_errors
@@ -683,6 +690,11 @@ class HermesMessageSerializer(serializers.Serializer):
 
             if not validated_data.get('authors'):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
+
+            if not has_nondetection:
+                full_error['non_field_errors'] = [_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission')]
+            if not has_detection:
+                full_error['non_field_errors'] = [_(f'At least one photometry detection / brightness must be specified for TNS submission')]
 
             if full_error:
                 raise serializers.ValidationError(full_error)

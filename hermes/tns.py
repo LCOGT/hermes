@@ -1,6 +1,9 @@
 import requests
+import time
+import json
 from urllib.parse import urljoin
 from dateutil.parser import parse
+from astropy.time import Time
 
 from django.core.cache import cache
 from django.conf import settings
@@ -11,6 +14,10 @@ logger = logging.getLogger(__name__)
 
 # Need to spoof a web based user agent or TNS will block the request :(
 SPOOF_USER_AGENT = 'Mozilla/5.0 (X11; Linux i686; rv:110.0) Gecko/20100101 Firefox/110.0.'
+
+
+class BadTnsRequest(Exception):
+    pass
 
 
 def populate_tns_values():
@@ -68,6 +75,10 @@ def parse_date(date):
     parsed_date = None
     try:
         parsed_date = float(date)
+        if parsed_date > 2400000:
+            parsed_date = Time(parsed_date, format='jd').datetime
+        else:
+            parsed_date = Time(parsed_date, format='mjd').datetime
     except ValueError:
         try:
             parsed_date = parse(date)
@@ -131,8 +142,8 @@ def convert_hermes_message_to_tns(hermes_message):
         discovery_info = target.get('discovery_info', {})
         report['reporting_group_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('reporting_group'), -1))
         report['discovery_data_source_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('discovery_source'), -1))
-        report['reporter'] = hermes_message.get('submitter')
-        report['discovery_datetime'] = earliest_photometry.get('date_obs')
+        report['reporter'] = hermes_message.get('authors')
+        report['discovery_datetime'] = parse_date(earliest_photometry.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S')
         report['at_type'] = str(tns_options.get('at_types', {}).get(discovery_info.get('transient_type'), -1))
         report['host_name'] = target.get('host_name', '')
         report['host_redshift'] = target.get('host_redshift', '')
@@ -141,14 +152,15 @@ def convert_hermes_message_to_tns(hermes_message):
         report['remarks'] = hermes_message.get('message_text')
         groups = target.get('group_associations', [])
         report['proprietary_period_groups'] = [str(tns_options.get('groups', {}).get(group, -1)) for group in groups]
-        report['proprietary_period'] = {
-            'proprietary_period_value': discovery_info.get('proprietary_period'),
-            'proprietary_period_units': discovery_info.get('proprietary_period_units').lower()
-        }
+        if discovery_info.get('proprietary_period'):
+            report['proprietary_period'] = {
+                'proprietary_period_value': str(discovery_info.get('proprietary_period')),
+                'proprietary_period_units': discovery_info.get('proprietary_period_units').lower()
+            }
         earliest_nondetection = get_earliest_photometry(photometry_list, nondetection=True)
         if earliest_nondetection.get('limiting_brightness', 0):
-            report['nondetection'] = {
-                'obsdate': earliest_nondetection.get('date_obs'),
+            report['non_detection'] = {
+                'obsdate': parse_date(earliest_nondetection.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S'),
                 'limiting_flux': earliest_nondetection.get('limiting_brightness'),
                 'flux_units': convert_flux_units(earliest_nondetection.get('limiting_brightness_unit', 'AB mag')),
                 'filter_value': str(tns_options.get('filters', {}).get(earliest_nondetection.get('bandpass'))),
@@ -164,11 +176,11 @@ def convert_hermes_message_to_tns(hermes_message):
         for photometry in photometry_list:
             if photometry.get('brightness'):
                 report_photometry = {
-                    'obsdate': photometry.get('date_obs'),
+                    'obsdate': parse_date(photometry.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S'),
                     'flux': photometry.get('brightness', ''),
                     'flux_error': photometry.get('brightness_error', ''),
                     'limiting_flux': photometry.get('limiting_brightness', ''),
-                    'flux_units': convert_flux_units(photometry.get('brightness')),
+                    'flux_units': convert_flux_units(photometry.get('brightness_unit', 'AB mag')),
                     'filter_value': str(tns_options.get('filters', {}).get(photometry.get('bandpass'))),
                     'instrument_value': str(tns_options.get('instruments', {}).get(photometry.get('instrument', ''))),
                     'exptime': str(photometry.get('exposure_time', '')),
@@ -179,3 +191,51 @@ def convert_hermes_message_to_tns(hermes_message):
                 i += 1
         at_report[str(len(at_report))] = report
     return at_report
+
+
+def get_tns_marker():
+    tns_marker = 'tns_marker{"tns_id": "' + str(settings.TNS_CREDENTIALS.get('id')) + '", "type": "bot", "name": "' + settings.TNS_CREDENTIALS.get('name') + '"}'
+    return tns_marker
+
+
+def parse_object_from_tns_response(response_json):
+    at_report_response = response_json.get('data', {}).get('feedback', {}).get('at_report', {})[0]
+    for value in at_report_response.values():
+        if isinstance(value, dict) and 'objname' in value:
+            return value['objname']
+    return None
+
+
+def submit_to_tns(at_report):
+    """ Submit a tns formatted message to the tns server, and returns the TNS object name """
+    data = {'at_report': at_report}
+    payload = {
+        'api_key': settings.TNS_CREDENTIALS.get('api_token'),
+        'data': json.dumps(data, indent=4)
+    }
+    url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report')
+    headers = {'User-Agent': get_tns_marker()}
+    try:
+        response = requests.post(url, headers = headers, data = payload)
+        response.raise_for_status()
+        report_id = response.json()['data']['report_id']
+    except Exception:
+        raise Exception
+
+    attempts = 0
+    object_name = None
+    reply_url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report-reply')
+    reply_data = {'api_key': settings.TNS_CREDENTIALS.get('api_token'), 'report_id': report_id}
+    while attempts < 10:
+        response = requests.post(reply_url, headers = headers, data = reply_data)
+        attempts += 1
+        if response.status_code == 404:
+            time.sleep(1)
+        elif response.status_code == 400:
+            raise BadTnsRequest(f"TNS submission failed with feedback: {response.json().get('data', {}).get('feedback', {})}")
+        elif response.status_code == 200:
+            object_name = parse_object_from_tns_response(response.json())
+            break
+    if not object_name:
+        raise BadTnsRequest(f"TNS submission failed to be processed within 10 seconds. The report_id = {report_id}")
+    return object_name

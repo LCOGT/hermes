@@ -273,9 +273,8 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             title=title,
             submitter=get_sender_from_metadata(metadata),
             authors='LVK',
-            data=alert,
             message_text='',
-            defaults={'published': published_time}
+            defaults={'published': published_time, 'data': alert}
         )
     except KeyError as err:
         logger.error(f'Required key not found in {metadata.topic} alert: {alert_uuid}.')
