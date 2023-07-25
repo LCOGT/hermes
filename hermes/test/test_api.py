@@ -200,8 +200,8 @@ class TestSubmitBasicMessageApi(TestCase):
     def test_submit_to_flags_are_removed(self, mock_submit):
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
-        good_message['submit_to_tns'] = 'false'
-        good_message['submit_to_mpc'] = 'false'
+        good_message['submit_to_tns'] = False
+        good_message['submit_to_mpc'] = False
         result = self.client.post(reverse('submit_message-list'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         del good_message['submit_to_tns']
@@ -256,6 +256,16 @@ class TestBaseMessageApi(TestCase):
             'brightness': 22.5,
             'brightness_error': 1.5,
             'brightness_unit': 'AB mag'
+        }
+        self.limiting_photometry = {
+            'target_name': 'test target 1',
+            'date_obs': (timezone.now() - timedelta(days=7)).isoformat(),
+            'telescope': '1m0a.doma.elp.lco',
+            'instrument': 'fa16',
+            'bandpass': 'g',
+            'limiting_brightness': 20.2,
+            'limiting_brightness_error': 0.5,
+            'limiting_brightness_unit': 'AB mag'
         }
         self.spectroscopy = {
             'target_name': 'test target 1',
@@ -529,7 +539,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
 
     def test_message_time_mjd_submission_accepted(self):
         good_message = deepcopy(self.good_message)
-        good_message['data']['photometry'][0]['date_obs'] = '2348532.241'
+        good_message['data']['photometry'][0]['date_obs'] = 2440532.241
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
@@ -539,6 +549,12 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
         bad_message['data']['photometry'][0]['date_obs'] = '23-not-valid-date:22.2'
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'does not parse', status_code=200)
+
+    def test_message_out_of_bounds_jd_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['date_obs'] = 24453250.241
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'within bounds of 2400000 to 2600000', status_code=200)
 
     def test_message_brightness_error_nan_rejected(self):
         bad_message = deepcopy(self.good_message)
@@ -679,7 +695,7 @@ class TestTNSSubmission(TestBaseMessageApi):
                 'event_id': 'S123456',
                 'references': [],
                 'targets': [self.ra_target1],
-                'photometry': [self.photometry],
+                'photometry': [self.photometry, self.limiting_photometry],
                 'spectroscopy': [self.spectroscopy],
                 'test_key': 'test_value'
             }
@@ -734,6 +750,18 @@ class TestTNSSubmission(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must fill in at least one target entry for TNS submission', status_code=200)
         self.assertContains(result, 'Must fill in at least one photometry or spectroscopy entry for TNS submission', status_code=200)
+
+    def test_submission_requires_at_least_one_photometry_nondetection(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['photometry'][1]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'At least one photometry nondetection / limiting_brightness must be specified for TNS submission', status_code=200)
+
+    def test_submission_requires_at_least_one_photometry_detection(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['photometry'][0]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'At least one photometry detection / brightness must be specified for TNS submission', status_code=200)
 
     def test_submission_requires_ra_dec_targets_only(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)

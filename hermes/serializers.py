@@ -610,8 +610,6 @@ class HermesMessageSerializer(serializers.Serializer):
                 general_errors.append(_('Must fill in at least one target entry for TNS submission'))
             if len(photometry_data) == 0 and len(spectroscopy_data) == 0:
                 general_errors.append(_('Must fill in at least one photometry or spectroscopy entry for TNS submission'))
-            if general_errors:
-                full_error['non_field_errors'] = general_errors
 
             targets_errors = []
             for target in targets:
@@ -692,9 +690,13 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
 
             if not has_nondetection:
-                full_error['non_field_errors'] = [_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission')]
+                general_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
             if not has_detection:
-                full_error['non_field_errors'] = [_(f'At least one photometry detection / brightness must be specified for TNS submission')]
+                general_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
+
+            if general_errors:
+                full_error['non_field_errors'] = general_errors
+
 
             if full_error:
                 raise serializers.ValidationError(full_error)
