@@ -372,7 +372,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CACHES = {
      'default': {
-         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.dummy.DummyCache'),
          'LOCATION': os.getenv('CACHE_LOCATION', 'default-cache')
      }
 }
