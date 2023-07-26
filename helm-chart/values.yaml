@@ -125,6 +125,10 @@ postgresql:
 # If not set it's sourced from the key SECRET_KEY in a v1/Secret with a name of hermesSecret
 secretKey: "changeme"
 
+# For tns connection and submission
+tns:
+  baseUrl: "https://sandbox.wis-tns.org/"
+  botName: "Hermes_bot"
 
 redis:
   # If enabled, an in-cluster Redis instance will be spun up.
