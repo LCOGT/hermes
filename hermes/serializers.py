@@ -605,11 +605,12 @@ class HermesMessageSerializer(serializers.Serializer):
             targets = validated_data.get('data', {}).get('targets', [])
             photometry_data = validated_data.get('data', {}).get('photometry', [])
             spectroscopy_data = validated_data.get('data', {}).get('spectroscopy', [])
-            general_errors = []
+            target_non_field_errors = []
+            photometry_non_field_errors = []
             if len(targets) == 0:
-                general_errors.append(_('Must fill in at least one target entry for TNS submission'))
+                target_non_field_errors.append(_('Must fill in at least one target entry for TNS submission'))
             if len(photometry_data) == 0 and len(spectroscopy_data) == 0:
-                general_errors.append(_('Must fill in at least one photometry or spectroscopy entry for TNS submission'))
+                photometry_non_field_errors.append(_('Must fill in at least one photometry or spectroscopy entry for TNS submission'))
 
             targets_errors = []
             for target in targets:
@@ -690,13 +691,16 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
 
             if not has_nondetection:
-                general_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+                photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+
             if not has_detection:
-                general_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
+                photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
-            if general_errors:
-                full_error['non_field_errors'] = general_errors
+            if target_non_field_errors:
+                full_error['target_non_field_errors'] = target_non_field_errors
 
+            if photometry_non_field_errors:
+                full_error['photometry_non_field_errors'] = photometry_non_field_errors
 
             if full_error:
                 raise serializers.ValidationError(full_error)
