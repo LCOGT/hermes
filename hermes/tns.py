@@ -17,6 +17,7 @@ SPOOF_USER_AGENT = 'Mozilla/5.0 (X11; Linux i686; rv:110.0) Gecko/20100101 Firef
 
 
 class BadTnsRequest(Exception):
+    """ This Exception will be raised by errors during the TNS submission process """
     pass
 
 
@@ -72,6 +73,7 @@ def reverse_tns_values(all_tns_values):
 
 
 def parse_date(date):
+    """ Turn a float / string date into a python datetime. Supports mjd, jd, and parseable date formats"""
     parsed_date = None
     try:
         parsed_date = float(date)
@@ -154,7 +156,7 @@ def convert_hermes_message_to_tns(hermes_message):
         report['proprietary_period_groups'] = [str(tns_options.get('groups', {}).get(group, -1)) for group in groups]
         if discovery_info.get('proprietary_period'):
             report['proprietary_period'] = {
-                'proprietary_period_value': str(discovery_info.get('proprietary_period')),
+                'proprietary_period_value': str(int(discovery_info.get('proprietary_period'))),
                 'proprietary_period_units': discovery_info.get('proprietary_period_units').lower()
             }
         earliest_nondetection = get_earliest_photometry(photometry_list, nondetection=True)
@@ -226,13 +228,19 @@ def submit_to_tns(at_report):
     object_name = None
     reply_url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report-reply')
     reply_data = {'api_key': settings.TNS_CREDENTIALS.get('api_token'), 'report_id': report_id}
+    # TNS Submissions return immediately with an id, which you must then check to see if the message
+    # was processed, and if it was accepted or rejected. Here we check up to 10 times, waiting 1s
+    # between checks. Under normal circumstances, it should be processed within a few seconds.
     while attempts < 10:
         response = requests.post(reply_url, headers = headers, data = reply_data)
         attempts += 1
+        # A 404 response means the report has not been processed yet
         if response.status_code == 404:
             time.sleep(1)
+        # A 400 response means the report failed with certain errors
         elif response.status_code == 400:
             raise BadTnsRequest(f"TNS submission failed with feedback: {response.json().get('data', {}).get('feedback', {})}")
+        # A 200 response means the report was successful and we can parse out the object name
         elif response.status_code == 200:
             object_name = parse_object_from_tns_response(response.json())
             break
