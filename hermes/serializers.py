@@ -1,5 +1,6 @@
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile
 from hermes.utils import TNS_TYPES
+from hermes.tns import get_reverse_tns_values
 from rest_framework import serializers
 from astropy.coordinates import Longitude, Latitude
 from astropy import units
@@ -142,7 +143,9 @@ class TargetSerializer(BaseTargetSerializer):
 
 def validate_date(date):
     try:
-        float(date)
+        fdate = float(date)
+        if not ((fdate < 2600000 and fdate > 2400000) or (fdate < 150000 and fdate > 1000)):
+            raise serializers.ValidationError(_(f"Date {fdate} in JD format must be within bounds of 2400000 to 2600000, and in MJD format within bounds of 15000 to 150000."))
     except ValueError:
         try:
             parse(date)
@@ -233,7 +236,7 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
     transient_type = serializers.ChoiceField(required=False, default='Other',
-                                             choices=['PSN', 'nuc', 'PNV', 'AGN', 'Other'])
+                                             choices=['PSN', 'NUC', 'PNV', 'AGN', 'FRB', 'Other'])
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
                                                        choices=['Days', 'Months', 'Years'])
@@ -266,7 +269,7 @@ class TargetDataSerializer(RemoveNullSerializer):
     host_name = serializers.CharField(required=False, allow_null=True)
     host_redshift = serializers.FloatField(required=False, allow_null=True)
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
-    group_associations = serializers.CharField(required=False, allow_null=True)
+    group_associations = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
 
     def validate_epoch(self, value):
         validate_date(value)
@@ -355,7 +358,6 @@ class PhotometryDataSerializer(CommonDataSerializer):
     limiting_brightness_error = serializers.FloatField(required=False, allow_null=True)
     limiting_brightness_unit = serializers.ChoiceField(required=False, default="AB mag", choices=["AB mag", "Vega mag", "mJy", "erg / s / cm² / Å"])
     catalog = serializers.CharField(required=False, allow_null=True)
-    group_associations = serializers.CharField(required=False, allow_null=True)
 
     def validate(self, data):
         validated_data = super().validate(data)
@@ -383,7 +385,6 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
                                                        choices=['Days', 'Months', 'Years'])
     comments = serializers.CharField(required=False, allow_null=True)
-    group_associations = serializers.CharField(required=False, allow_null=True)
     observer = serializers.CharField(required=False, allow_null=True)
     reducer = serializers.CharField(required=False, allow_null=True)
     spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
@@ -598,36 +599,46 @@ class HermesMessageSerializer(serializers.Serializer):
         validated_data = super().validate(data)
         if validated_data.get('submit_to_tns'):
             # Do extra TNS submission validation here
+            tns_options = get_reverse_tns_values()
             full_error = defaultdict(dict)
 
             targets = validated_data.get('data', {}).get('targets', [])
             photometry_data = validated_data.get('data', {}).get('photometry', [])
             spectroscopy_data = validated_data.get('data', {}).get('spectroscopy', [])
-            general_errors = []
+            target_non_field_errors = []
+            photometry_non_field_errors = []
             if len(targets) == 0:
-                general_errors.append(_('Must fill in at least one target entry for TNS submission'))
-            if len(photometry_data) == 0:
-                general_errors.append(_('Must fill in at least one photometry entry for TNS submission'))
-            if len(spectroscopy_data) == 0:
-                general_errors.append(_('Must fill in at least one spectroscopy entry for TNS submission'))
-            if general_errors:
-                full_error['non_field_errors'] = general_errors
+                target_non_field_errors.append(_('Must fill in at least one target entry for TNS submission'))
+            if len(photometry_data) == 0 and len(spectroscopy_data) == 0:
+                photometry_non_field_errors.append(_('Must fill in at least one photometry or spectroscopy entry for TNS submission'))
 
             targets_errors = []
             for target in targets:
                 target_error = {}
+                if not target.get('new_discovery', True):
+                    target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
                 if not target.get('ra'):
                     target_error['ra'] = [_("Target ra must be present for TNS submission")]
                 if not target.get('dec'):
                     target_error['dec'] = [_("Target dec must be present for TNS submission")]
+                if target.get('group_associations'):
+                    groups = target.get('group_associations')
+                    bad_groups = [group for group in groups if group not in tns_options.get('groups')]
+                    if bad_groups:
+                        target_error['group_associations'] = [_(f'Group associations {",".join(bad_groups)} are not valid TNS groups')]
+
                 discovery_info = target.get('discovery_info', {})
                 discovery_error = {}
                 if not discovery_info or not discovery_info.get('reporting_group'):
                     discovery_error['reporting_group'] = [_("Target must have discovery info reporting group for TNS"
                                                             " submission")]
+                elif discovery_info.get('reporting_group') not in tns_options.get('groups'):
+                    discovery_error['reporting_group'] = [_(f"Discovery reporting group {discovery_info.get('reporting_group')} is not a valid TNS group")]
                 if not discovery_info or not discovery_info.get('discovery_source'):
                     discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
                                                              " submission")]
+                elif discovery_info.get('discovery_source') not in tns_options.get('groups'):
+                    discovery_error['discovery_source'] = [_(f"Discovery source group {discovery_info.get('discovery_source')} is not a valid TNS group")]
                 if discovery_error:
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
@@ -635,12 +646,22 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['data']['targets'] = targets_errors
 
             photometry_errors = []
+            has_nondetection = False
+            has_detection = False
             for photometry in photometry_data:
                 photometry_error = {}
-                if not photometry.get('brightness'):
-                    photometry_error['brightness'] = [_('Photometry must have Brightness specified for TNS submission')]
+                if photometry.get('brightness'):
+                    has_detection = True
                 if not photometry.get('instrument'):
-                    photometry_error['instrument'] = [_('Photometry must have Instrument specified for TNS submission')]
+                    photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
+                elif photometry.get('instrument') not in tns_options.get('instruments'):
+                    photometry_error['instrument'] = [_(f'Instrument {photometry.get("instrument")} is not a valid TNS instrument')]
+                if photometry.get('bandpass') not in tns_options.get('filters'):
+                    photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
+                if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
+                    photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
+                if photometry.get('limiting_brightness'):
+                    has_nondetection = True
                 photometry_errors.append(photometry_error)
             if any(photometry_errors):
                 full_error['data']['photometry'] = photometry_errors
@@ -649,18 +670,18 @@ class HermesMessageSerializer(serializers.Serializer):
             for spectroscopy in spectroscopy_data:
                 spectroscopy_error = {}
                 classification = spectroscopy.get('classification')
-                if classification and classification not in TNS_TYPES:
-                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification types for TNS'
+                if classification and classification not in tns_options.get('object_types'):
+                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification object_types for TNS'
                                                               ' submission')]
                 if not spectroscopy.get('instrument'):
-                    spectroscopy_error['instrument'] = [_('Spectroscopy must have Instrument specified for TNS'
+                    spectroscopy_error['instrument'] = [_('Spectroscopy must have instrument specified for TNS'
                                                           ' submission')]
                 if not spectroscopy.get('observer'):
-                    spectroscopy_error['observer'] = [_('Spectroscopy must have Observer specified for TNS submission')]
+                    spectroscopy_error['observer'] = [_('Spectroscopy must have observer specified for TNS submission')]
                 if not spectroscopy.get('reducer'):
-                    spectroscopy_error['reducer'] = [_('Spectroscopy must have Reducer specified for TNS submission')]
+                    spectroscopy_error['reducer'] = [_('Spectroscopy must have reducer specified for TNS submission')]
                 if not spectroscopy.get('spec_type'):
-                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have Spec Type specified for TNS'
+                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have spec_type specified for TNS'
                                                          ' submission')]
                 spectroscopy_errors.append(spectroscopy_error)
             if any(spectroscopy_errors):
@@ -668,6 +689,18 @@ class HermesMessageSerializer(serializers.Serializer):
 
             if not validated_data.get('authors'):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
+
+            if not has_nondetection:
+                photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+
+            if not has_detection:
+                photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
+
+            if target_non_field_errors:
+                full_error['target_non_field_errors'] = target_non_field_errors
+
+            if photometry_non_field_errors:
+                full_error['photometry_non_field_errors'] = photometry_non_field_errors
 
             if full_error:
                 raise serializers.ValidationError(full_error)

@@ -205,6 +205,14 @@ AUTHENTICATION_BACKENDS = [
 # Used to tell if this should save test messages or discard them
 SAVE_TEST_MESSAGES = str2bool(os.getenv('SAVE_TEST_MESSAGES', 'true'))
 
+# For getting TNS options values and submitting messages to TNS
+TNS_BASE_URL = os.getenv('TNS_BASE_URL', 'https://sandbox.wis-tns.org/')
+TNS_CREDENTIALS = {
+    'id': int(os.getenv('TNS_BOT_ID', -1)),
+    'name': os.getenv('TNS_BOT_NAME', ''),
+    'api_token': os.getenv('TNS_BOT_API_TOKEN', '')
+}
+
 # SCiMMA Auth and Hopskotch specific configuration
 # SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
 # SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
@@ -364,7 +372,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CACHES = {
      'default': {
-         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.dummy.DummyCache'),
          'LOCATION': os.getenv('CACHE_LOCATION', 'default-cache')
      }
 }

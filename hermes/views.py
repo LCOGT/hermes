@@ -2,6 +2,7 @@ from http.client import responses
 import json
 import logging
 import uuid
+from urllib.parse import urljoin
 
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -30,6 +31,7 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
+from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_to_tns, BadTnsRequest
 from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
@@ -282,7 +284,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         'alias2',
                         ...
                     ],
-                    group_associations: <String of group associations for this target>
+                    group_associations: [
+                        'group one',
+                        'group two',
+                        ...
+                    ]
                 }
             ],
             photometry: [
@@ -302,7 +308,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     limiting_brightness: <The minimum brightness at which the target is visible>,
                     limiting_brightness_unit: <Unit for the limiting brightness>
                     catalog: <Photometric catalog used to reduce this data>,
-                    group_associations: <>
                 }
             ],
             spectroscopy: [
@@ -325,7 +330,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     observer: <The entity that observed this spectroscopic datum>,
                     reducer: <The entity that reduced this spectroscopic datum>,
                     comments: <String of comments for the spectroscopic datum>,
-                    group_associations: <>,
                     spec_type: <>
                 }
             ],
@@ -353,6 +357,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
     def create(self, request, *args, **kwargs):
         non_serialized_data = {key: val for key, val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         gcn_submit = request.data.get('submit_to_gcn', False)
+        tns_submit = request.data.get('submit_to_tns', False)
         serializer = self.serializer_class(data=request.data, context={'request': request})
 
         if serializer.is_valid():
@@ -361,6 +366,19 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 if 'data' not in data:
                     data['data'] = {}
                 data['data'].update(non_serialized_data)
+            if tns_submit:
+                try:
+                    tns_message = convert_hermes_message_to_tns(data)
+                    object_name = submit_to_tns(tns_message)
+                    if 'references' not in data['data']:
+                        data['data']['references'] = []
+                    data['data']['references'].append({
+                        'source': 'tns_object',
+                        'citation': object_name,
+                        'url': urljoin(settings.TNS_BASE_URL, f'object/{object_name}')
+                    })
+                except BadTnsRequest as btr:
+                    return Response({'error': str(btr)}, status.HTTP_400_BAD_REQUEST)
             message_uuid = submit_to_hop(request, data)
             if gcn_submit:
                 # TODO: I don't really know what we should do here if the GCN submission fails
@@ -443,6 +461,13 @@ class ProfileApiView(RetrieveAPIView):
             'profile'
         )
         return qs.first().profile
+
+
+class TNSOptionsApiView(RetrieveAPIView):
+    """ View to retrieve the set of options for TNS submission, for the hermes UI to use """
+
+    def get(self, request):
+        return JsonResponse(data=get_tns_values())
 
 
 class HeartbeatApiView(RetrieveAPIView):

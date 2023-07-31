@@ -23,6 +23,9 @@ gcnEmail: circulars@gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
+tns:
+  baseUrl: "https://www.wis-tns.org/"
+
 ingress:
   enabled: true
   annotations:
