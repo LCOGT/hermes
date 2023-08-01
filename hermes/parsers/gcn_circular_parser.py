@@ -66,6 +66,11 @@ class GCNCircularParser(BaseParser):
         parsed_fields = message.data
         if all(x.lower() in parsed_fields['title'].lower() for x in ['GCN', 'CIRCULAR']):
                 message.message_parser = repr(self)
+                data_with_link = message.data
+                data_with_link['urls'] = {
+                     'gcn': f'https://gcn.nasa.gov/circulars/{data_with_link.get("number", -1)}'
+                }
+                message.data = data_with_link
                 message.save()
                 self.link_message(message)
                 return True
