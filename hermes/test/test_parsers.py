@@ -204,8 +204,8 @@ class TestGCNCircularParser(TestCase):
         IGWNAlertParser().parse(self.message)
         self.message.refresh_from_db()
         self.event = NonLocalizedEvent.objects.get(event_id=self.event_id)
-    
-    def test_circular_message_linked_to_nonlocalizedevent(self):
+
+    def test_circular_message_add_gcn_link(self):
         author = 'Test Author <testauthor@mail.com>'
         published = datetime(2020, 1, 5, 12, 23, 44, tzinfo=timezone.utc)
         header = get_gcn_circular_header(self.event_id, author=author, published=published)
@@ -218,8 +218,13 @@ class TestGCNCircularParser(TestCase):
                 data=header
             )
         self.assertTrue(GCNCircularParser().parse(message))
-        self.assertEqual(message.id, self.event.references.first().id)
-    
+        expected_link = {
+            'urls': {
+                'gcn': f'https://gcn.nasa.gov/circulars/{header["number"]}'
+            }
+        }
+        self.assertDictContainsSubset(expected_link, message.data)
+
     def test_circular_message_creates_nonlocalized_event_if_it_doesnt_exist(self):
         event_id = 'S654321'
         with self.assertRaises(NonLocalizedEvent.DoesNotExist):
@@ -236,7 +241,7 @@ class TestGCNCircularParser(TestCase):
         self.assertTrue(GCNCircularParser().parse(message))
         event = NonLocalizedEvent.objects.get(event_id=event_id)
         self.assertEqual(message.id, event.references.first().id)
-    
+
     def test_circular_message_matches_two_nonlocalized_events(self):
         event_id2 = 'S654321'
         with self.assertRaises(NonLocalizedEvent.DoesNotExist):
@@ -255,7 +260,7 @@ class TestGCNCircularParser(TestCase):
         event2 = NonLocalizedEvent.objects.get(event_id=event_id2)
         self.assertEqual(message.id, self.event.references.first().id)
         self.assertEqual(message.id, event2.references.first().id)
-    
+
     def test_circular_message_doesnt_parse_with_bad_title(self):
         header = get_gcn_circular_header(self.event_id)
         header['title'] = 'Bad Title'

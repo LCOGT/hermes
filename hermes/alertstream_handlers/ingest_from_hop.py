@@ -200,12 +200,12 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     logger.debug(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
     # published date is in the header of the gcncircular
     published_time = parse(gcn_circular.header['date'], parserinfo=parserinfo(yearfirst=True))
-
+    message_body = gcn_circular.body.split('---\nTo unsubscribe')[0].rstrip()
     message, created = Message.objects.get_or_create(
         # fields to be compared to find existing Message (if any)
         topic=metadata.topic,
         uuid=get_or_create_uuid_from_metadata(metadata),
-        message_text=gcn_circular.body,
+        message_text=message_body,
         published=published_time,
         title=gcn_circular.header['subject'],
         submitter='Hop gcn.circular',
