@@ -1,7 +1,10 @@
 from django.core.cache import cache
+from django.http import QueryDict
+from rest_framework import parsers
 from hermes.models import Message
 from astropy.table import Table
 import io
+import json
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -141,3 +144,21 @@ def send_email(recipient_email, sender_email, sender_password,
     server.login(sender_email, sender_password)
     server.sendmail(sender_email, recipient_email, msg.as_string())
     server.quit()
+
+
+class MultipartJsonFileParser(parsers.MultiPartParser):
+    """ This Request parser is used for multipart/form-data that contains both files and json encoded data
+        A list of files is expected to be sent in the 'files' key,
+        and a json encoded data blob is expected in the 'data' key.
+    """
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        result = super().parse(
+            stream,
+            media_type=media_type,
+            parser_context=parser_context
+        )
+        data = json.loads(result.data['data'])
+        query_dict = QueryDict('', mutable=True)
+        query_dict.update(data)
+        return parsers.DataAndFiles(query_dict, result.files)

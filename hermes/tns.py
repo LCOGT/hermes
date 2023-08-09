@@ -120,7 +120,7 @@ def convert_flux_units(hermes_units):
         return '6'
 
 
-def convert_hermes_message_to_tns(hermes_message):
+def convert_hermes_message_to_tns(hermes_message, filenames):
     """ Converts from hermes message format into TNS at report format """
     # TODO: Add support for associated files
     # TODO: Add support for classification or frb reports
@@ -191,6 +191,14 @@ def convert_hermes_message_to_tns(hermes_message):
                 }
                 report['photometry']['photometry_group'][str(i)] = report_photometry
                 i += 1
+        if filenames:
+            report['related_files'] = {}
+            for i, filename in enumerate(filenames):
+                report['related_files'][str(i)] = {
+                    'related_file_name': filename,
+                    'related_file_comments': 'Submitted through Hermes'
+                }
+
         at_report[str(len(at_report))] = report
     return at_report
 
@@ -208,7 +216,30 @@ def parse_object_from_tns_response(response_json):
     return None
 
 
-def submit_to_tns(at_report):
+def submit_files_to_tns(files):
+    """ Takes in a list of Django InMemoryUploadedFile objects, and submits those to TNS.
+        Returns a list of TNS filenames for those files.
+    """
+    url = urljoin(settings.TNS_BASE_URL, 'api/file-upload')
+    headers = {'User-Agent': get_tns_marker()}
+    payload = {'api_key': settings.TNS_CREDENTIALS.get('api_token')}
+    files_data = {}
+    for i, file in enumerate(files):
+        key = f"files[{str(i)}]"
+        files_data[key] = (file.name, file.file, file.content_type)
+    try:
+        response = requests.post(url, headers=headers, data=payload, files=files_data)
+        response.raise_for_status()
+        filenames = response.json().get('data', {})
+        if not filenames:
+            raise BadTnsRequest("Failed to upload files to TNS, please contact Hermes support")
+        return filenames
+    except Exception:
+        raise BadTnsRequest("Failed to upload files to TNS, please try again later")
+    return []
+
+
+def submit_at_report_to_tns(at_report):
     """ Submit a tns formatted message to the tns server, and returns the TNS object name """
     data = {'at_report': at_report}
     payload = {
