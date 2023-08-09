@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.auth.models import User
 from rest_framework.response import Response
 from datetime import timedelta
 from copy import deepcopy
@@ -684,6 +685,7 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
 class TestTNSSubmission(TestBaseMessageApi):
     def setUp(self):
         super().setUp()
+        self.user = User.objects.create(username='testuser')
         self.basic_message = {
             'title': 'Candidate message',
             'topic': 'hermes.candidates',
@@ -707,6 +709,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.assertContains(result, 'Target must have discovery info', status_code=200)
 
     def test_good_tns_submission(self, mock_populate_tns):
+        self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
@@ -714,6 +717,15 @@ class TestTNSSubmission(TestBaseMessageApi):
         }
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.json(), {})
+
+    def test_must_be_logged_in_for_tns_submission(self, mock_populate_tns):
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds'
+        }
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertContains(result, 'Must be an authenticated user to submit to TNS', status_code=200)
 
     def test_submission_validates_group_associations_from_list(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
@@ -787,6 +799,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.assertContains(result, 'Spectroscopy must have spec_type specified for TNS submission', status_code=200)
 
     def test_group_associations_list_accepted(self, mock_populate_tns):
+        self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
