@@ -513,6 +513,7 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 class HermesMessageSerializer(serializers.Serializer):
     files = serializers.ListField(child=serializers.FileField(allow_empty_file=False, use_url=False), required=False, allow_null=True)
+    file_comments = serializers.ListField(child=serializers.CharField(default='', allow_blank=True), required=False, allow_null=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -602,10 +603,20 @@ class HermesMessageSerializer(serializers.Serializer):
             # Do extra TNS submission validation here
             tns_options = get_reverse_tns_values()
             full_error = defaultdict(dict)
+            non_field_errors = []
 
             request = self.context.get('request')
             if request and not request.user.is_authenticated:
-                full_error['non_field_errors'] = [_('Must be an authenticated user to submit to TNS')]
+                non_field_errors.append(_('Must be an authenticated user to submit to TNS'))
+
+            num_files = len(validated_data.get('files', []))
+            num_file_comments = len(validated_data.get('file_comments', []))
+
+            if num_file_comments > 0 and num_files > 0 and num_files != num_file_comments:
+                non_field_errors.append(_(f"Must have same number of file_comments ({num_file_comments}) as files ({num_files})"))
+
+            if non_field_errors:
+                full_error['non_field_errors'] = non_field_errors
 
             targets = validated_data.get('data', {}).get('targets', [])
             photometry_data = validated_data.get('data', {}).get('photometry', [])

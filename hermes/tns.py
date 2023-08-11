@@ -192,11 +192,12 @@ def convert_hermes_message_to_tns(hermes_message, filenames):
                 report['photometry']['photometry_group'][str(i)] = report_photometry
                 i += 1
         if filenames:
+            file_comments = hermes_message.get('file_comments', [])
             report['related_files'] = {}
             for i, filename in enumerate(filenames):
                 report['related_files'][str(i)] = {
                     'related_file_name': filename,
-                    'related_file_comments': 'Submitted through Hermes'
+                    'related_file_comments': file_comments[i] if file_comments else 'Submitted through Hermes'
                 }
 
         at_report[str(len(at_report))] = report
@@ -236,7 +237,6 @@ def submit_files_to_tns(files):
         return filenames
     except Exception:
         raise BadTnsRequest("Failed to upload files to TNS, please try again later")
-    return []
 
 
 def submit_at_report_to_tns(at_report):

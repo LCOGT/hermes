@@ -393,6 +393,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             try:
                 if 'files' in data:
                     del data['files']
+                if 'file_comments' in data:
+                    del data['file_comments']
                 message_uuid = submit_to_hop(request, data)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
