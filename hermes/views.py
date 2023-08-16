@@ -20,6 +20,7 @@ from rest_framework.exceptions import APIException
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.authtoken.models import Token
@@ -31,8 +32,8 @@ from hop.auth import Auth
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
 from hermes.forms import MessageForm
-from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_to_tns, BadTnsRequest
-from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email
+from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns, BadTnsRequest
+from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -214,8 +215,9 @@ def submit_to_gcn(request, message, message_uuid):
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
-    serializer_class = HermesMessageSerializer
     EXPECTED_DATA_KEYS = ['targets', 'event_id', 'references', 'photometry', 'spectroscopy', 'astrometry']
+    serializer_class = HermesMessageSerializer
+    parser_classes = (MultipartJsonFileParser, JSONParser)
 
     def get(self, request, *args, **kwargs):
         message = """This endpoint is used to send a generic hermes message
@@ -355,11 +357,17 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response({"message": message}, status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
-        non_serialized_data = {key: val for key, val in request.data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
-        gcn_submit = request.data.get('submit_to_gcn', False)
-        tns_submit = request.data.get('submit_to_tns', False)
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-
+        # This method can now handle either json encoded data, or multipart/form-data with json and files.
+        data = request.data
+        if 'multipart/form-data' in request.content_type:
+            files = request.data.getlist('files')  # Need to explicitly pull out the files since they don't translate well in .dict()
+            data = data.dict()
+            if 'files' in data:
+                data['files'] = files
+        non_serialized_data = {key: val for key, val in data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
+        gcn_submit = data.get('submit_to_gcn', False)
+        tns_submit = data.get('submit_to_tns', False)
+        serializer = self.serializer_class(data=data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data
             if non_serialized_data:
@@ -368,8 +376,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 data['data'].update(non_serialized_data)
             if tns_submit:
                 try:
-                    tns_message = convert_hermes_message_to_tns(data)
-                    object_name = submit_to_tns(tns_message)
+                    filenames = []
+                    if 'files' in data:
+                        filenames = submit_files_to_tns(data['files'])
+                    tns_message = convert_hermes_message_to_tns(data, filenames)
+                    object_name = submit_at_report_to_tns(tns_message)
                     if 'references' not in data['data']:
                         data['data']['references'] = []
                     data['data']['references'].append({
@@ -379,7 +390,14 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     })
                 except BadTnsRequest as btr:
                     return Response({'error': str(btr)}, status.HTTP_400_BAD_REQUEST)
-            message_uuid = submit_to_hop(request, data)
+            try:
+                if 'files' in data:
+                    del data['files']
+                if 'file_comments' in data:
+                    del data['file_comments']
+                message_uuid = submit_to_hop(request, data)
+            except APIException as ae:
+                return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
             if gcn_submit:
                 # TODO: I don't really know what we should do here if the GCN submission fails
                 return submit_to_gcn(request, data, message_uuid)

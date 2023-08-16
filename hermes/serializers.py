@@ -512,6 +512,8 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 
 class HermesMessageSerializer(serializers.Serializer):
+    files = serializers.ListField(child=serializers.FileField(allow_empty_file=False, use_url=False), required=False, allow_null=True)
+    file_comments = serializers.ListField(child=serializers.CharField(default='', allow_blank=True), required=False, allow_null=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -601,6 +603,20 @@ class HermesMessageSerializer(serializers.Serializer):
             # Do extra TNS submission validation here
             tns_options = get_reverse_tns_values()
             full_error = defaultdict(dict)
+            non_field_errors = []
+
+            request = self.context.get('request')
+            if request and not request.user.is_authenticated:
+                non_field_errors.append(_('Must be an authenticated user to submit to TNS'))
+
+            num_files = len(validated_data.get('files', []))
+            num_file_comments = len(validated_data.get('file_comments', []))
+
+            if num_file_comments > 0 and num_files > 0 and num_files != num_file_comments:
+                non_field_errors.append(_(f"Must have same number of file_comments ({num_file_comments}) as files ({num_files})"))
+
+            if non_field_errors:
+                full_error['non_field_errors'] = non_field_errors
 
             targets = validated_data.get('data', {}).get('targets', [])
             photometry_data = validated_data.get('data', {}).get('photometry', [])
@@ -709,20 +725,20 @@ class HermesMessageSerializer(serializers.Serializer):
             title = validated_data.get('title', '')
             full_error = defaultdict(dict)
             if len(title) == 0:
-                full_error['non_field_errors'] = [_('Title must be set to submit to GCN')]
+                full_error['title'] = [_('Title must be set to submit to GCN')]
                 raise serializers.ValidationError(full_error)
-            gcn_errors = []
+            gcn_title_errors = []
             if not any(key in title for key in self.GCN_REQUIRED_KEYS):
-                gcn_errors.append(_('Title must contain one of allowed subject keywords from the'
+                gcn_title_errors.append(_('Title must contain one of allowed subject keywords from the'
                                     ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style Guide</a>'
                                     ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
                 if key in title:
-                    gcn_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
+                    gcn_title_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
                                         ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
                                         ' Guide</a>.'.format(key)))
-            if gcn_errors:
-                full_error['non_field_errors'] = gcn_errors
+            if gcn_title_errors:
+                full_error['title'] = gcn_title_errors
                 raise serializers.ValidationError(full_error)
         # Remove the flags from the serialized response sent through hop
         if 'submit_to_tns' in validated_data:
