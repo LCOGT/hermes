@@ -125,8 +125,8 @@ class NonLocalizedEventFilter(filters.FilterSet):
 class NonLocalizedEventSequenceFilter(filters.FilterSet):
     event_id = filters.CharFilter(field_name='event__event_id', lookup_expr='icontains', label='Event Id contains')
     event_id_exact = filters.CharFilter(field_name='event__event_id', lookup_expr='exact', label='Event Id exact')
-    sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES)
-    exclude_sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES, exclude=True)
+    sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.NonLocalizedEventSequenceType.choices)
+    exclude_sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.NonLocalizedEventSequenceType.choices, exclude=True)
 
     class Meta:
         model = NonLocalizedEventSequence

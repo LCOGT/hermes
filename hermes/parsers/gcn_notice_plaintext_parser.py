@@ -101,16 +101,21 @@ class GCNNoticePlaintextParser(BaseParser):
             logger.warn(f'parse_message failed for GCN Notice Message {message.id}: {e}')
         
         if parsed_fields and all(x.lower() in parsed_fields.get('title', '').lower() for x in ['GCN', 'NOTICE']):
+            urls = self.generate_urls(parsed_fields)
+            if urls and 'urls' not in parsed_fields:
+                parsed_fields['urls'] = urls
             message.data = parsed_fields
             if 'title' in parsed_fields:
                 message.title = parsed_fields['title']
             message_date = self.parse_published(parsed_fields)
             if message_date:
                 message.published = message_date.replace(tzinfo=timezone.utc)
-            if parsed_fields.get('submitter'):
-                message.submitter = parsed_fields['submitter']
-                if not message.authors:
-                    message.authors = parsed_fields['submitter']
+            submitter = self.parse_submitter(parsed_fields)
+            if submitter:
+                message.submitter = submitter
+            authors = self.parse_authors(parsed_fields)
+            if (not message.authors) and authors:
+                message.authors = authors
             message.message_parser = repr(self)
             message.save()
             self.link_message(message)
@@ -159,6 +164,14 @@ class GCNNoticePlaintextParser(BaseParser):
             pass
         return None
 
+    def parse_submitter(self, parsed_fields):
+        return parsed_fields.get('submitter', '')
+
+    def parse_authors(self, parsed_fields):
+        return parsed_fields.get('submitter', '')
+
+    def generate_urls(self, parsed_fields):
+        return {}
 
     def parse(self, message):
         try:

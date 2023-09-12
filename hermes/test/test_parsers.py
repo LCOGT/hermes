@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from dateutil.parser import parse
 from copy import deepcopy
 import uuid
-from hermes.management.commands.inject_message import BASE_LVC_COUNTERPART, BASE_GCN_CIRCULAR, BASE_LVK_MESSAGE
+from hermes.management.commands.inject_message import BASE_LVC_COUNTERPART, BASE_GCN_CIRCULAR, BASE_LVK_MESSAGE, BASE_ICECUBE_CASCADE
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
-from hermes.parsers import GCNCircularParser, GCNNoticePlaintextParser, IGWNAlertParser
+from hermes.parsers import GCNCircularParser, GCNNoticePlaintextParser, IGWNAlertParser, IcecubeNoticePlaintextParser
 
 
 def get_lvk_notice_data(type, event_id, sequence_number=1, published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(), skymap_version=0):
@@ -22,6 +22,10 @@ def get_lvk_notice_data(type, event_id, sequence_number=1, published=datetime.ut
 
 def get_lvc_counterpart_text(type, event_id, target_ra=33.3, target_dec=22.2, source_sernum=1, author='N/A', published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
     return BASE_LVC_COUNTERPART.format(type=type, event_id=event_id, target_ra=target_ra, target_dec=target_dec, source_sernum=source_sernum, author=author, published=published)
+
+
+def get_icecube_text(type, event_id, target_ra=44.4, target_dec=55.5, sequence_number=0, published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
+    return BASE_ICECUBE_CASCADE.format(type=type, event_id=event_id, sequence_number=sequence_number, target_ra=target_ra, target_dec=target_dec, published=published)
 
 
 def get_gcn_circular_header(event_id, author='N/A', published=datetime.utcnow().replace(tzinfo=timezone.utc).isoformat()):
@@ -190,6 +194,74 @@ class TestLVCCounterpartParser(TestCase):
         message.refresh_from_db()
         self.assertIsNone(message.data)
         self.assertEqual(message.title, '')
+
+
+class TestIcecubeParser(TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.test_run_num = 138069
+
+    def test_nonlocalizedevent_and_target_created(self):
+        event_id = '11223344'
+        full_event_id = f'{self.test_run_num}_{event_id}'
+        target_ra = 44.44
+        target_dec = 55.55
+        with self.assertRaises(NonLocalizedEvent.DoesNotExist):
+            NonLocalizedEvent.objects.get(event_id=full_event_id)
+        message, _ = Message.objects.get_or_create(
+            topic='test_topic',
+            message_text=get_icecube_text(type='ICECUBE_CASCADE', event_id=event_id, target_ra=target_ra, target_dec=target_dec)
+        )
+        self.assertTrue(IcecubeNoticePlaintextParser().parse(message))
+        event = NonLocalizedEvent.objects.get(event_id=full_event_id)
+        self.assertEqual(event.event_id, full_event_id)
+
+        expected_target_name = f"icecube_{full_event_id}_src"
+        target = Target.objects.get(name=expected_target_name)
+        self.assertEqual(event.event_id, full_event_id)
+        self.assertEqual(target.coordinate.x, target_ra)
+        self.assertEqual(target.coordinate.y, target_dec)
+
+    def test_nonlocalizedevent_sequences_created(self):
+        event_id = '11223344'
+        full_event_id = f'{self.test_run_num}_{event_id}'
+        with self.assertRaises(NonLocalizedEvent.DoesNotExist):
+            NonLocalizedEvent.objects.get(event_id=full_event_id)
+        message, _ = Message.objects.get_or_create(
+            topic='test_topic',
+            message_text=get_icecube_text(type='ICECUBE_CASCADE', event_id=event_id, sequence_number=0, target_ra=12.3, target_dec=23.4)
+        )
+        self.assertTrue(IcecubeNoticePlaintextParser().parse(message))
+        message, _ = Message.objects.get_or_create(
+            topic='test_topic',
+            message_text=get_icecube_text(type='ICECUBE_CASCADE', event_id=event_id, sequence_number=1, target_ra=34.5, target_dec=45.6)
+        )
+        self.assertTrue(IcecubeNoticePlaintextParser().parse(message))
+
+        sequences = NonLocalizedEventSequence.objects.filter(event__event_id=full_event_id)
+        self.assertEqual(sequences.count(), 2)
+        self.assertEqual(sequences[0].sequence_number, 0)
+        self.assertEqual(sequences[0].sequence_type, 'INITIAL')
+        self.assertEqual(sequences[1].sequence_number, 1)
+        self.assertEqual(sequences[1].sequence_type, 'UPDATE')
+
+    def test_gcn_url_is_added_on_ingestion(self):
+        # Expected 'alert_type', 'superevent_id', 'time_created', and 'sequence_num' in data
+        event_id = '11223344'
+        full_event_id = f'{self.test_run_num}_{event_id}'
+        with self.assertRaises(NonLocalizedEvent.DoesNotExist):
+            NonLocalizedEvent.objects.get(event_id=full_event_id)
+        message, _ = Message.objects.get_or_create(
+            topic='test_topic',
+            message_text=get_icecube_text(type='ICECUBE_CASCADE', event_id=event_id, sequence_number=0, target_ra=12.3, target_dec=23.4)
+        )
+        self.assertTrue(IcecubeNoticePlaintextParser().parse(message))
+        expected_link = {
+            'urls': {
+                'gcn': f'https://gcn.gsfc.nasa.gov/notices_amon_icecube_cascade/{full_event_id}.amon'
+            }
+        }
+        self.assertDictContainsSubset(expected_link, message.data)
 
 
 class TestGCNCircularParser(TestCase):
