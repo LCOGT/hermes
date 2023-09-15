@@ -277,12 +277,12 @@ class TargetDataSerializer(RemoveNullSerializer):
 
     def validate(self, data):
         validated_data = super().validate(data)
-        if not (validated_data.get('ra') and validated_data.get('dec')):
-            if validated_data.get('ra'):
+        if (validated_data.get('ra') is None or validated_data.get('dec') is None):
+            if validated_data.get('ra') is not None:
                 raise serializers.ValidationError({
                     'dec': ['Must set dec if ra is set']
                 })
-            elif validated_data.get('dec'):
+            elif validated_data.get('dec') is not None:
                 raise serializers.ValidationError({
                     'ra': ['Must set ra if dec is set']
                 })
@@ -633,9 +633,9 @@ class HermesMessageSerializer(serializers.Serializer):
                 target_error = {}
                 if not target.get('new_discovery', True):
                     target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
-                if not target.get('ra'):
+                if target.get('ra') is None:
                     target_error['ra'] = [_("Target ra must be present for TNS submission")]
-                if not target.get('dec'):
+                if target.get('dec') is None:
                     target_error['dec'] = [_("Target dec must be present for TNS submission")]
                 if target.get('group_associations'):
                     groups = target.get('group_associations')
