@@ -738,7 +738,8 @@ class HermesMessageSerializer(serializers.Serializer):
                                         ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
                                         ' Guide</a>.'.format(key)))
             if gcn_title_errors:
-                full_error['title'] = gcn_title_errors
+                # Set the gcn title errors to non field errors to correctly render the html in the error message
+                full_error['non_field_errors'] = gcn_title_errors
                 raise serializers.ValidationError(full_error)
         # Remove the flags from the serialized response sent through hop
         if 'submit_to_tns' in validated_data:
