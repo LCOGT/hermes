@@ -100,6 +100,32 @@ spec:
               mountPath: /tmp
               readOnly: false
         {{- end }}
+        - name: django-collectstatic
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python
+            - manage.py
+            - collectstatic
+            - --no-input
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+          env:
+            {{- include "hermes.backendEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.hermesSecretName }}
+          resources: {{- toYaml .Values.hermes.resources | nindent 12 }}
+          volumeMounts:
+            - name: static
+              mountPath: /static
+              readOnly: false
+            - name: tmp
+              mountPath: /tmp
+              readOnly: false
 
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -109,6 +135,45 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 10
+            httpGet:
+              path: /healthz
+              port: http
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            readOnlyRootFilesystem: true
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: app-configuration
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: static
+              mountPath: /static
+              readOnly: true
+            - name: nginx-var-cache-nginx
+              mountPath: /var/cache/nginx
+              readOnly: false
+            - name: nginx-var-run
+              mountPath: /var/run
+              readOnly: false
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -156,10 +221,6 @@ spec:
         - name: app-configuration
           configMap:
             name: {{ include "hermes.fullname" . }}
-        - name: tmp
-          emptyDir:
-            medium: Memory
-            sizeLimit: 16Mi
         - name: specutils
           emptyDir:
             medium: Memory
@@ -168,6 +229,20 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 16Mi
+        - name: nginx-var-cache-nginx
+          emptyDir:
+        - name: nginx-var-run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+        - name: static
+          emptyDir:
+            sizeLimit: 128Mi
+        # Gunicorn requires /tmp
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Mi
 
       {{- with .Values.nodeSelector }}
       nodeSelector:

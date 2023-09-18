@@ -14,4 +14,41 @@ data:
     {
       "hermesApiUrl": {{ include "hermes.mainDeployUrl" . | quote }}
     }
-  HERMES_TEST_API_URL: http://hermes-dev.lco.gtn
+  HERMES_TEST_API_URL: https://hermes-dev.lco.global
+  default.conf: |
+    # Global NGINX performance tuning
+    tcp_nopush on;
+    tcp_nodelay on;
+
+    server {
+        listen 8000;
+        server_name _;
+        root /usr/share/nginx/html;
+
+        # django application
+        location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_read_timeout 500;
+            proxy_send_timeout 500;
+            proxy_buffers 16 1M;
+            proxy_buffer_size 1M;
+            client_body_buffer_size 10M;
+            client_max_body_size 10M;
+            proxy_set_header Connection "";
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # static files
+        location /static/ {
+            alias /static/;
+        }
+
+        # Kubernetes health check (fixed response)
+        location = /healthz {
+          access_log off;
+          return 200 "Healthy!\n";
+        }
+    }

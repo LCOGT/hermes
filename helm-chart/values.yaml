@@ -156,6 +156,20 @@ redis:
     # idle client timeout after 600 seconds
     timeout 600
 
+# NGINX container configuration
+nginx:
+  image:
+    repository: "nginx"
+    tag: "1.16-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
 loadInitialData:
   enabled: false
 
