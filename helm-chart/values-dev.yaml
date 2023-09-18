@@ -27,7 +27,6 @@ ingress:
   hosts:
     - host: hermes-dev.lco.global
       paths:
-        - "/messages"
         - "/api"
         - "/admin"
         - "/auth"
