@@ -118,7 +118,8 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.hermesSecretName }}
-          resources: {{- toYaml .Values.hermes.resources | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: static
               mountPath: /static
