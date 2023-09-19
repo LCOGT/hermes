@@ -33,7 +33,7 @@ ingress:
   hosts:
     - host: hermes.lco.global
       paths:
-        - "/messages"
+        - "/static"
         - "/admin"
         - "/api"
         - "/auth"
