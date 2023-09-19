@@ -163,7 +163,7 @@ spec:
           resources:
             {{- toYaml .Values.nginx.resources | nindent 12 }}
           volumeMounts:
-            - name: app-configuration
+            - name: nginx-confd
               mountPath: /etc/nginx/conf.d
               readOnly: true
             - name: static
@@ -230,6 +230,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 16Mi
+        - name: nginx-confd
+          configMap:
+            name: nginx-configmap-{{ include "hermes.fullname" . }}
         - name: nginx-var-cache-nginx
           emptyDir:
         - name: nginx-var-run
