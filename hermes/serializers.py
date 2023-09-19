@@ -13,11 +13,11 @@ from collections import OrderedDict, defaultdict
 class RemoveNullSerializer(serializers.Serializer):
     def to_internal_value(self, data):
         data = super().to_internal_value(data)
-        return OrderedDict([(key, data[key]) for key in data if data[key]])
+        return OrderedDict([(key, data[key]) for key in data if data[key] or data[key] == 0 or data[key] == False])
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        return OrderedDict([(key, data[key]) for key in data if data[key]])
+        return OrderedDict([(key, data[key]) for key in data if data[key] or data[key] == 0 or data[key] == False])
 
 
 class ProfileSerializer(serializers.ModelSerializer):
