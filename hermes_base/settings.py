@@ -154,7 +154,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_ROOT = '/static/'
 
 
 # OpenID Connect (OIDC) Provider (OP) Configuration
