@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 GENERIC_NOTICE_PARSER = parsers.GCNNoticePlaintextParser()
 TOPICS_TO_PARSERS = {
-    'gcn.classic.text.ICECUBE_ASTROTRACK_GOLD': parsers.IcecubeNoticePlaintextParser,
-    'gcn.classic.text.ICECUBE_ASTROTRACK_BRONZE': parsers.IcecubeNoticePlaintextParser,
-    'gcn.classic.text.ICECUBE_CASCADE': parsers.IcecubeNoticePlaintextParser,
+    'gcn.classic.text.ICECUBE_ASTROTRACK_GOLD': parsers.IcecubeNoticePlaintextParser(),
+    'gcn.classic.text.ICECUBE_ASTROTRACK_BRONZE': parsers.IcecubeNoticePlaintextParser(),
+    'gcn.classic.text.ICECUBE_CASCADE': parsers.IcecubeNoticePlaintextParser(),
 }
 
 def handle_message(message):
