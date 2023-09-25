@@ -14,4 +14,4 @@ data:
     {
       "hermesApiUrl": {{ include "hermes.mainDeployUrl" . | quote }}
     }
-  HERMES_TEST_API_URL: http://hermes-dev.lco.gtn
+  HERMES_TEST_API_URL: https://hermes-dev.lco.global

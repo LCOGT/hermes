@@ -1,6 +1,6 @@
 # Helm chart values for Development Deployment
 
-replicaCount: 1
+replicaCount: 2
 
 resources:
   requests:
@@ -27,10 +27,10 @@ ingress:
   hosts:
     - host: hermes-dev.lco.global
       paths:
-        - "/messages"
         - "/api"
         - "/admin"
         - "/auth"
+        - "/static"
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"

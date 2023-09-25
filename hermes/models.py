@@ -54,24 +54,36 @@ class Target(models.Model):
 
 
 class NonLocalizedEvent(models.Model):
+    class NonLocalizedEventType(models.TextChoices):
+        GRAVITATIONAL_WAVE = 'GW', 'Gravitational Wave'
+        GAMMA_RAY_BURST = 'GRB', 'Gamma-ray Burst'
+        NEUTRINO = 'NU', 'Neutrino'
+        UNKNOWN = 'UNK', 'Unknown'
+
     event_id = models.CharField(
         max_length=64,
         default='',
         primary_key=True,
         db_index=True,
-        help_text='The GraceDB event id. Sometimes reffered to as TRIGGER_NUM in LVC notices.'
+        help_text='The GraceDB event id for GW events, sometimes reffered to as TRIGGER_NUM in LVC notices. Or the Icecube runnum_eventnum for NU events'
+    )
+    event_type = models.CharField(
+        max_length=32,
+        choices=NonLocalizedEventType.choices,
+        default=NonLocalizedEventType.GRAVITATIONAL_WAVE,
+        help_text='The type of NonLocalizedEvent'
     )
     references = models.ManyToManyField(Message, related_name='nonlocalizedevents')
 
 
 class NonLocalizedEventSequence(models.Model):
-    SEQUENCE_TYPES = (
-        ('EARLY_WARNING', 'EARLY_WARNING'),
-        ('RETRACTION', 'RETRACTION'),
-        ('PRELIMINARY', 'PRELIMINARY'),
-        ('INITIAL', 'INITIAL'),
-        ('UPDATE', 'UPDATE')
-    )
+    class NonLocalizedEventSequenceType(models.TextChoices):
+        EARLY_WARNING = 'EARLY_WARNING', 'EARLY_WARNING'
+        RETRACTION = 'RETRACTION', 'RETRACTION'
+        PRELIMINARY = 'PRELIMINARY', 'PRELIMINARY'
+        INITIAL = 'INITIAL', 'INITIAL'
+        UPDATE = 'UPDATE', 'UPDATE'
+
     message = models.ForeignKey(Message, related_name='sequences', on_delete=models.CASCADE)
     event = models.ForeignKey(NonLocalizedEvent, related_name='sequences', on_delete=models.CASCADE)
     sequence_number = models.PositiveSmallIntegerField(
@@ -94,4 +106,4 @@ class NonLocalizedEventSequence(models.Model):
         null=True, blank=True,
         help_text='A UUID from an md5 hash of the raw combined skymap file contents, used to detect when the skymap has changed'
     )
-    sequence_type = models.CharField(max_length=64, default='', blank=True, choices=SEQUENCE_TYPES, help_text='The alert type for this sequence')
+    sequence_type = models.CharField(max_length=64, default='', blank=True, choices=NonLocalizedEventSequenceType.choices, help_text='The alert type for this sequence')

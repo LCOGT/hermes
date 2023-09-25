@@ -77,6 +77,8 @@ def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         latest_sequence = nle.sequences.last()
+        if latest_sequence == None:
+            return 0
         if latest_sequence.skymap_version != None and latest_sequence.skymap_hash != skymap_hash:
             return latest_sequence.skymap_version + 1
         if latest_sequence.skymap_version:
@@ -198,12 +200,12 @@ def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
     logger.debug(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
     # published date is in the header of the gcncircular
     published_time = parse(gcn_circular.header['date'], parserinfo=parserinfo(yearfirst=True))
-
+    message_body = gcn_circular.body.split('---\nTo unsubscribe')[0].rstrip()
     message, created = Message.objects.get_or_create(
         # fields to be compared to find existing Message (if any)
         topic=metadata.topic,
         uuid=get_or_create_uuid_from_metadata(metadata),
-        message_text=gcn_circular.body,
+        message_text=message_body,
         published=published_time,
         title=gcn_circular.header['subject'],
         submitter='Hop gcn.circular',
@@ -271,9 +273,8 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
             title=title,
             submitter=get_sender_from_metadata(metadata),
             authors='LVK',
-            data=alert,
             message_text='',
-            defaults={'published': published_time}
+            defaults={'published': published_time, 'data': alert}
         )
     except KeyError as err:
         logger.error(f'Required key not found in {metadata.topic} alert: {alert_uuid}.')

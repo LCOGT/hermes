@@ -106,6 +106,10 @@ build it here and use it everywhere.
   value: "/tmp"
 - name: DEBUG
   value: {{ .Values.djangoDebug | quote }}
+- name: TNS_BASE_URL
+  value: {{ .Values.tns.baseUrl | quote }}
+- name: TNS_BOT_NAME
+  value: {{ .Values.tns.botName | quote }}
 - name: SAVE_TEST_MESSAGES
   value: {{ .Values.saveTestMessages | quote }}
 - name: CACHE_BACKEND

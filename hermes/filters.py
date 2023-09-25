@@ -38,7 +38,7 @@ class MessageFilter(filters.FilterSet):
         # not possible in class variable assignment of MultipleChoiceFilter.
         # see https://github.com/carltongibson/django-filter/blob/main/django_filters/filterset.py#L309
         # see https://github.com/carltongibson/django-filter/blob/main/django_filters/fields.py#L253
-        self.get_filters()['topic'].field.choices = [(t, t) for t in get_all_public_topics()]
+        self.filters['topic'].extra['choices'] = [(t, t) for t in get_all_public_topics()]
 
     class Meta:
         model = Message
@@ -92,6 +92,7 @@ class MessageFilter(filters.FilterSet):
             aggregate_keyword_query = aggregate_keyword_query | Q(message_text__icontains=term)
             aggregate_keyword_query = aggregate_keyword_query | Q(targets__name__iexact=term)
             aggregate_keyword_query = aggregate_keyword_query | Q(nonlocalizedevents__event_id__iexact=term)
+            aggregate_keyword_query = aggregate_keyword_query | Q(sequences__event__event_id__iexact=term)
 
         return queryset.filter(aggregate_keyword_query)
 
@@ -124,8 +125,8 @@ class NonLocalizedEventFilter(filters.FilterSet):
 class NonLocalizedEventSequenceFilter(filters.FilterSet):
     event_id = filters.CharFilter(field_name='event__event_id', lookup_expr='icontains', label='Event Id contains')
     event_id_exact = filters.CharFilter(field_name='event__event_id', lookup_expr='exact', label='Event Id exact')
-    sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES)
-    exclude_sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.SEQUENCE_TYPES, exclude=True)
+    sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.NonLocalizedEventSequenceType.choices)
+    exclude_sequence_type = filters.MultipleChoiceFilter(field_name='sequence_type', choices=NonLocalizedEventSequence.NonLocalizedEventSequenceType.choices, exclude=True)
 
     class Meta:
         model = NonLocalizedEventSequence

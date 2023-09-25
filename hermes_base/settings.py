@@ -154,7 +154,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 # STATIC_ROOT tells collectstatic where to copy all the static files that it collects.
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+STATIC_ROOT = '/static/'
 
 
 # OpenID Connect (OIDC) Provider (OP) Configuration
@@ -204,6 +204,14 @@ AUTHENTICATION_BACKENDS = [
 
 # Used to tell if this should save test messages or discard them
 SAVE_TEST_MESSAGES = str2bool(os.getenv('SAVE_TEST_MESSAGES', 'true'))
+
+# For getting TNS options values and submitting messages to TNS
+TNS_BASE_URL = os.getenv('TNS_BASE_URL', 'https://sandbox.wis-tns.org/')
+TNS_CREDENTIALS = {
+    'id': int(os.getenv('TNS_BOT_ID', -1)),
+    'name': os.getenv('TNS_BOT_NAME', ''),
+    'api_token': os.getenv('TNS_BOT_API_TOKEN', '')
+}
 
 # SCiMMA Auth and Hopskotch specific configuration
 # SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
@@ -269,7 +277,7 @@ ALERT_STREAMS = [
         },
     },
     {
-        'ACTIVE': False,
+        'ACTIVE': True,
         'NAME': 'tom_alertstreams.alertstreams.gcn.GCNClassicAlertStream',
         # The keys of the OPTIONS dictionary become (lower-case) properties of the AlertStream instance.
         'OPTIONS': {
@@ -283,16 +291,63 @@ ALERT_STREAMS = [
                 # 'enable.auto.commit': False
             },
             'TOPIC_HANDLERS': {
-                # 'gcn.classic.text.FERMI_GBM_ALERT': 'tom_demo.log_stuff.handle_message',
-                # 'gcn.classic.text.SWIFT_BAT_GRB_ALERT': 'tom_demo.log_stuff.handle_message',
-                # 'gcn.classic.text.SWIFT_POINTDIR': 'tom_demo.log_stuff.handle_message',
-                # 'gcn.classic.text.LVC_INITIAL': 'tom_demo.log_stuff.handle_message',
-                # 'gcn.classic.text.LVC_INITIAL': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
                 'gcn.classic.text.LVC_COUNTERPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                # 'gcn.classic.text.LVC_PRELIMINARY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                # 'gcn.classic.text.LVC_RETRACTION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                # 'gcn.classic.text.LVC_TEST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
-                # 'gcn.classic.text.LVC_UPDATE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.ICECUBE_ASTROTRACK_BRONZE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.ICECUBE_ASTROTRACK_GOLD': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                'gcn.classic.text.ICECUBE_CASCADE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_POINTDIR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_GBM_ALERT': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.AGILE_MCAL_ALERT': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_DBURST': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_POINTDIR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_ACTUAL_POINTDIR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.GRB_CNTRPART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.AMON_NU_EM_COINC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.COINCIDENCE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_GBM_FIN_POS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_GBM_FLT_POS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_GBM_GND_POS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_GBM_SUBTHRESH': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_LAT_MONITOR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_LAT_OFFLINE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.FERMI_POINTDIR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.GECAM_FLT': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.GECAM_GND': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.HAWC_BURST_MONITOR': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_OFFLINE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_REFINED': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_SPIACS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_WAKEUP': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.INTEGRAL_WEAK': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.KONUS_LC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.MAXI_KNOWN': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.MAXI_UNKNOWN': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SK_SN': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SNEWS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_GRB_LC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_QL_POS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_SCALEDMAP': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_BAT_TRANS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_FOM_OBS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_SC_SLEW': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_TOO_FOM': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_TOO_SC_SLEW': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_DBURST_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_EMERGENCY': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_FCHART': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_FCHART_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_UVOT_POS': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_CENTROID': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_IMAGE': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_IMAGE_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_LC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_POSITION': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_SPECTRUM': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_SPECTRUM_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_SPER': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_SPER_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_THRESHPIX': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message',
+                # 'gcn.classic.text.SWIFT_XRT_THRESHPIX_PROC': 'hermes.alertstream_handlers.ingest_from_gcn_classic.handle_message'
             },
         },
     }
@@ -318,7 +373,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CACHES = {
      'default': {
-         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.locmem.LocMemCache'),
+         'BACKEND': os.getenv('CACHE_BACKEND', 'django.core.cache.backends.dummy.DummyCache'),
          'LOCATION': os.getenv('CACHE_LOCATION', 'default-cache')
      }
 }

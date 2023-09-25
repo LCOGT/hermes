@@ -9,6 +9,7 @@ from astropy.io import fits
 import healpy as hp
 import numpy as np
 
+from hermes.models import NonLocalizedEventSequence
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +71,15 @@ class BaseParser(ABC):
     @staticmethod
     def convert_notice_type(notice_type):
         if 'warning' in notice_type.lower():
-            return 'EARLY_WARNING'
+            return NonLocalizedEventSequence.NonLocalizedEventSequenceType.EARLY_WARNING
         if 'initial' in notice_type.lower():
-            return 'INITIAL'
+            return NonLocalizedEventSequence.NonLocalizedEventSequenceType.INITIAL
         elif 'preliminary' in notice_type.lower():
-            return 'PRELIMINARY'
+            return NonLocalizedEventSequence.NonLocalizedEventSequenceType.PRELIMINARY
         elif 'update' in notice_type.lower():
-            return 'UPDATE'
+            return NonLocalizedEventSequence.NonLocalizedEventSequenceType.UPDATE
         elif 'retraction' in notice_type.lower():
-            return 'RETRACTION'
+            return NonLocalizedEventSequence.NonLocalizedEventSequenceType.RETRACTION
         return ''
 
     @staticmethod

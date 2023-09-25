@@ -3,7 +3,7 @@
 djangoDebug: false
 saveTestMessages: false
 
-replicaCount: 1
+replicaCount: 3
 
 resources:
   requests:
@@ -23,6 +23,9 @@ gcnEmail: circulars@gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
+tns:
+  baseUrl: "https://www.wis-tns.org/"
+
 ingress:
   enabled: true
   annotations:
@@ -30,7 +33,7 @@ ingress:
   hosts:
     - host: hermes.lco.global
       paths:
-        - "/messages"
+        - "/static"
         - "/admin"
         - "/api"
         - "/auth"

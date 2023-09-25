@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.auth.models import User
 from rest_framework.response import Response
 from datetime import timedelta
 from copy import deepcopy
@@ -10,6 +11,7 @@ import math
 from unittest.mock import patch, ANY
 from hermes.models import Message, NonLocalizedEvent, Target
 from hermes.serializers import HermesMessageSerializer
+from hermes.test.test_tns import populate_test_tns_options
 
 class TestApiFiltering(TestCase):
     @classmethod
@@ -144,7 +146,7 @@ class TestApiFiltering(TestCase):
         result = self.client.get(reverse('messages-list') + '?search=GCN CIRCULAR')
         self.assertEqual(result.status_code, 200)
         # All 10 test messages have either GCN or CIRCULAR in them
-        self.assertEqual(len(result.json()['results']), 10)
+        self.assertEqual(len(result.json()['results']), 5)
 
 
 class TestSubmitBasicMessageApi(TestCase):
@@ -199,8 +201,8 @@ class TestSubmitBasicMessageApi(TestCase):
     def test_submit_to_flags_are_removed(self, mock_submit):
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
-        good_message['submit_to_tns'] = 'false'
-        good_message['submit_to_mpc'] = 'false'
+        good_message['submit_to_tns'] = False
+        good_message['submit_to_mpc'] = False
         result = self.client.post(reverse('submit_message-list'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         del good_message['submit_to_tns']
@@ -255,6 +257,16 @@ class TestBaseMessageApi(TestCase):
             'brightness': 22.5,
             'brightness_error': 1.5,
             'brightness_unit': 'AB mag'
+        }
+        self.limiting_photometry = {
+            'target_name': 'test target 1',
+            'date_obs': (timezone.now() - timedelta(days=7)).isoformat(),
+            'telescope': '1m0a.doma.elp.lco',
+            'instrument': 'fa16',
+            'bandpass': 'g',
+            'limiting_brightness': 20.2,
+            'limiting_brightness_error': 0.5,
+            'limiting_brightness_unit': 'AB mag'
         }
         self.spectroscopy = {
             'target_name': 'test target 1',
@@ -491,6 +503,17 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
 
+    def test_aliases_list_accepted(self):
+        good_message = deepcopy(self.good_message)
+        good_message['data']['targets'][0]['aliases'] = [
+            'special_target1',
+            'my favorite target',
+            'xb22021'
+        ]
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
+
 
 class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
     def setUp(self):
@@ -517,7 +540,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
 
     def test_message_time_mjd_submission_accepted(self):
         good_message = deepcopy(self.good_message)
-        good_message['data']['photometry'][0]['date_obs'] = '2348532.241'
+        good_message['data']['photometry'][0]['date_obs'] = 2440532.241
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
@@ -527,6 +550,12 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
         bad_message['data']['photometry'][0]['date_obs'] = '23-not-valid-date:22.2'
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'does not parse', status_code=200)
+
+    def test_message_out_of_bounds_jd_rejected(self):
+        bad_message = deepcopy(self.good_message)
+        bad_message['data']['photometry'][0]['date_obs'] = 24453250.241
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'within bounds of 2400000 to 2600000', status_code=200)
 
     def test_message_brightness_error_nan_rejected(self):
         bad_message = deepcopy(self.good_message)
@@ -652,9 +681,11 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         self.assertContains(result, 'Must have same number of datapoints for flux and flux_error', status_code=200)
 
 
+@patch('hermes.tns.populate_tns_values', return_value=populate_test_tns_options())
 class TestTNSSubmission(TestBaseMessageApi):
     def setUp(self):
         super().setUp()
+        self.user = User.objects.create(username='testuser')
         self.basic_message = {
             'title': 'Candidate message',
             'topic': 'hermes.candidates',
@@ -666,18 +697,19 @@ class TestTNSSubmission(TestBaseMessageApi):
                 'event_id': 'S123456',
                 'references': [],
                 'targets': [self.ra_target1],
-                'photometry': [self.photometry],
+                'photometry': [self.photometry, self.limiting_photometry],
                 'spectroscopy': [self.spectroscopy],
                 'test_key': 'test_value'
             }
         }
     
-    def test_submission_requires_discovery_info(self):
+    def test_submission_requires_discovery_info(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Target must have discovery info', status_code=200)
 
-    def test_good_tns_submission(self):
+    def test_good_tns_submission(self, mock_populate_tns):
+        self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
@@ -686,17 +718,64 @@ class TestTNSSubmission(TestBaseMessageApi):
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.json(), {})
 
-    def test_submission_requires_at_least_one_target_photometry_spectroscopy(self):
+    def test_must_be_logged_in_for_tns_submission(self, mock_populate_tns):
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds'
+        }
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertContains(result, 'Must be an authenticated user to submit to TNS', status_code=200)
+
+    def test_submission_validates_group_associations_from_list(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        bad_message['data']['targets'][0]['group_associations'] = [
+            'SNEX',
+            'NotAGroup',
+            'LCO Floyds'
+        ]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Group associations NotAGroup are not valid TNS groups', status_code=200)
+
+    def test_submission_validates_fields_from_tns_options(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        bad_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'Notagroup',
+            'discovery_source': 'Also Notagroup'
+        }
+        bad_message['data']['photometry'][0]['bandpass'] = 'NotAFilter'
+        bad_message['data']['photometry'][0]['telescope'] = 'NotATelescope'
+        bad_message['data']['photometry'][0]['instrument'] = 'NotAnInstrument'
+
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Discovery reporting group Notagroup is not a valid TNS group', status_code=200)
+        self.assertContains(result, 'Discovery source group Also Notagroup is not a valid TNS group', status_code=200)
+        self.assertContains(result, 'Bandpass NotAFilter is not a valid TNS filter', status_code=200)
+        self.assertContains(result, 'Telescope NotATelescope is not a valid TNS telescope', status_code=200)
+        self.assertContains(result, 'Instrument NotAnInstrument is not a valid TNS instrument', status_code=200)
+
+    def test_submission_requires_at_least_one_target_photometry_spectroscopy(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['targets']
         del bad_message['data']['photometry']
         del bad_message['data']['spectroscopy']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must fill in at least one target entry for TNS submission', status_code=200)
-        self.assertContains(result, 'Must fill in at least one photometry entry for TNS submission', status_code=200)
-        self.assertContains(result, 'Must fill in at least one spectroscopy entry for TNS submission', status_code=200)
+        self.assertContains(result, 'Must fill in at least one photometry or spectroscopy entry for TNS submission', status_code=200)
 
-    def test_submission_requires_ra_dec_targets_only(self):
+    def test_submission_requires_at_least_one_photometry_nondetection(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['photometry'][1]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'At least one photometry nondetection / limiting_brightness must be specified for TNS submission', status_code=200)
+
+    def test_submission_requires_at_least_one_photometry_detection(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        del bad_message['data']['photometry'][0]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'At least one photometry detection / brightness must be specified for TNS submission', status_code=200)
+
+    def test_submission_requires_ra_dec_targets_only(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
         bad_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
@@ -707,14 +786,30 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.assertContains(result, 'Target ra must be present for TNS submission', status_code=200)
         self.assertContains(result, 'Target dec must be present for TNS submission', status_code=200)
 
-    def test_submission_requires_spectroscopy_fields(self):
+    def test_submission_requires_spectroscopy_fields(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['spectroscopy'][0]['observer']
         del bad_message['data']['spectroscopy'][0]['reducer']
         bad_message['data']['spectroscopy'][0]['classification'] = 'Not a TNS Type'
         del bad_message['data']['spectroscopy'][0]['spec_type']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Spectroscopy must have Observer specified for TNS submission', status_code=200)
-        self.assertContains(result, 'Spectroscopy must have Reducer specified for TNS submission', status_code=200)
-        self.assertContains(result, 'Must be one of the TNS classification types for TNS submission', status_code=200)
-        self.assertContains(result, 'Spectroscopy must have Spec Type specified for TNS submission', status_code=200)
+        self.assertContains(result, 'Spectroscopy must have observer specified for TNS submission', status_code=200)
+        self.assertContains(result, 'Spectroscopy must have reducer specified for TNS submission', status_code=200)
+        self.assertContains(result, 'Must be one of the TNS classification object_types for TNS submission', status_code=200)
+        self.assertContains(result, 'Spectroscopy must have spec_type specified for TNS submission', status_code=200)
+
+    def test_group_associations_list_accepted(self, mock_populate_tns):
+        self.client.force_login(self.user)
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds'
+        }
+        good_message['data']['targets'][0]['group_associations'] = [
+            'SNEX',
+            'LCO',
+            'LCO Floyds'
+        ]
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
