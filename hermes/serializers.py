@@ -6,6 +6,8 @@ from astropy.coordinates import Longitude, Latitude
 from astropy import units
 from dateutil.parser import parse
 from django.utils.translation import gettext as _
+from django.conf import settings
+
 import math
 from collections import OrderedDict, defaultdict
 
@@ -737,6 +739,8 @@ class HermesMessageSerializer(serializers.Serializer):
                     gcn_title_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
                                         ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
                                         ' Guide</a>.'.format(key)))
+            if 'dev.gcn.nasa.gov' not in settings.GCN_EMAIL:
+                gcn_title_errors.append(_('GCN submission currently disabled in production'))
             if gcn_title_errors:
                 # Set the gcn title errors to non field errors to correctly render the html in the error message
                 full_error['non_field_errors'] = gcn_title_errors
