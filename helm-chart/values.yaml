@@ -130,6 +130,9 @@ tns:
   baseUrl: "https://sandbox.wis-tns.org/"
   botName: "Hermes_bot"
 
+gcn:
+  submissionUrl: "https://test.gcn.nasa.gov/api/circulars"
+
 redis:
   # If enabled, an in-cluster Redis instance will be spun up.
   # Otherwise, redisURL will be used.

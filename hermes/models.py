@@ -1,10 +1,14 @@
 import uuid
+import logging
 from pydoc_data.topics import topics
 from django.db import models
+from django.utils import timezone
 from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_token
+
+logger = logging.getLogger(__name__)
 
 
 class Profile(models.Model):
@@ -21,8 +25,37 @@ class Profile(models.Model):
 
     @property
     def writable_topics(self):
-        user_api_token = get_user_api_token(self.user.username)
+        try:
+            user_api_token = get_user_api_token(self.user.username)
+        except Exception as e:
+            logger.warning(f"Failed to retrieve user api token: {repr(e)}")
+            return []
         return get_user_writable_topics(self.user.username, self.hop_user_pk, self.credential_name, self.credential_pk, user_api_token, exclude_groups=['sys'])
+
+
+class OAuthToken(models.Model):
+    class IntegratedApps(models.TextChoices):
+        GCN = 'GCN', 'GCN'
+
+    integrated_app = models.CharField(max_length=32, choices=IntegratedApps.choices, default=IntegratedApps.GCN)
+    token_type = models.CharField(max_length=40)
+    access_token=models.CharField(max_length=2048)
+    refresh_token=models.CharField(max_length=2048)
+    expires_at=models.DateTimeField(null=True)
+    expires_in = models.PositiveIntegerField(null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
+
+    def is_expired(self):
+        return self.expires_at > timezone.now()
+
+    def to_token(self):
+        return dict(
+            access_token=self.access_token,
+            token_type=self.token_type,
+            refresh_token=self.refresh_token,
+            expires_at=self.expires_at,
+            expires_in=self.expires_in,
+        )
 
 
 class Message(models.Model):
