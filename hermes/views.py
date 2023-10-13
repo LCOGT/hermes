@@ -3,9 +3,11 @@ import json
 import logging
 import uuid
 from urllib.parse import urljoin
+import requests
 
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.http import HttpResponse
 
 #from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -30,13 +32,14 @@ from hop import Stream
 from hop.auth import Auth
 
 from hermes.brokers import hopskotch
-from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
+from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.forms import MessageForm
 from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns, BadTnsRequest
 from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
+from hermes.oauth_clients import oauth, update_token, get_access_token
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -208,9 +211,21 @@ def submit_to_gcn(request, message, message_uuid):
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
                          'https://hermes.lco.global/messages/' + str(message_uuid)
     # Then submit the plaintext message to gcn via email
-    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL_USERNAME, settings.HERMES_EMAIL_PASSWORD,
-               message['title'], message_plaintext)
-    return Response({"message": "GCN Submission successful"},
+    message_data = {'subject': message['title'], 'body': message_plaintext}
+    access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
+
+    headers =  {'Authorization': f'Bearer {access_token}'}
+    try:
+        response = requests.post(settings.GCN_SUBMISSION_URL, headers=headers, json=message_data)
+        logger.warning(f"Submitted to GCN response: {response.content}")
+        response.raise_for_status()
+        logger.warning(f"GCN submission successful: {response.json()}")
+    except Exception as e:
+        logger.warning(f"Failed to submit to GCN: {repr(e)}")
+        return Response({"message":  f"Submitted message with uuid {message_uuid} to Hop, GCN submission failed."},
+                        status=status.HTTP_200_OK)
+
+    return Response({"message":  f"Submitted message with uuid {message_uuid} to Hop and GCN"},
                     status=status.HTTP_200_OK)
 
 
@@ -422,6 +437,26 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         plaintext_message = convert_to_plaintext(request.data)
 
         return Response(plaintext_message, status=status.HTTP_200_OK)
+
+
+class GcnLoginRedirectView(RedirectView):
+    pattern_name = 'gcn-login-redirect'
+
+    def get(self, request, *args, **kwargs):
+        redirect_uri = request.build_absolute_uri('/gcn-auth/authorize')
+        return oauth.gcn.authorize_redirect(request, redirect_uri)
+
+
+class GcnAuthorizeView(RedirectView):
+    pattern_name = 'gcn-authorize'
+
+    def get(self, request, *args, **kwargs):
+        print(f"authorize view called with request {request}")
+        token = oauth.gcn.authorize_access_token(request)
+        print(f"authorize view called with token = {token}")
+        update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
+        self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
+        return super().get(request, *args, **kwargs)
 
 
 class LoginRedirectView(RedirectView):

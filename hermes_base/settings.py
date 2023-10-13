@@ -220,6 +220,7 @@ SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 
 GCN_EMAIL = os.getenv('GCN_EMAIL', 'circulars@dev.gcn.nasa.gov')
+GCN_SUBMISSION_URL = os.getenv('GCN_SUBMISSION_URL', 'https://dev.gcn.nasa.gov/api/circulars')
 HERMES_EMAIL_USERNAME = os.getenv('HERMES_EMAIL_USERNAME', 'hermes@lco.global')
 HERMES_EMAIL_PASSWORD = os.getenv('HERMES_EMAIL_PASSWORD', "please set HERMES_EMAIL_PASSWORD env var")
 
@@ -352,6 +353,16 @@ ALERT_STREAMS = [
         },
     }
 ]
+
+
+# Other OAuth Client definitions
+AUTHLIB_OAUTH_CLIENTS = {
+    'gcn': {
+        'client_id': os.getenv('GCN_OAUTH_CLIENT_ID', ''),
+        'client_secret': os.getenv('GCN_OAUTH_CLIENT_SECRET', ''),
+        'server_metadata_url': os.getenv('GCN_OAUTH_SERVER_METADATA_URL', ''),
+    }
+}
 
 
 #

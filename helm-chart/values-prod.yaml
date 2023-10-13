@@ -26,6 +26,9 @@ hermesFrontEndBaseUrl: https://hermes.lco.global/
 tns:
   baseUrl: "https://www.wis-tns.org/"
 
+gcn:
+  submissionUrl: "https://gcn.nasa.gov/api/circulars"
+
 ingress:
   enabled: true
   annotations:
