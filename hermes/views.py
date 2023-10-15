@@ -451,9 +451,8 @@ class GcnAuthorizeView(RedirectView):
     pattern_name = 'gcn-authorize'
 
     def get(self, request, *args, **kwargs):
-        print(f"authorize view called with request {request}")
         token = oauth.gcn.authorize_access_token(request)
-        print(f"authorize view called with token = {token}")
+        logger.info(f"Authorize View called with token: {token}")
         update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
         self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
         return super().get(request, *args, **kwargs)
