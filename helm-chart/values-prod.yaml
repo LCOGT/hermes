@@ -40,6 +40,7 @@ ingress:
         - "/admin"
         - "/api"
         - "/auth"
+        - "/gcn-auth"
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"

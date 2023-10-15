@@ -439,7 +439,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         return Response(plaintext_message, status=status.HTTP_200_OK)
 
 
-class GcnLoginRedirectView(RedirectView):
+class GcnLoginRedirectView(View):
     pattern_name = 'gcn-login-redirect'
 
     def get(self, request, *args, **kwargs):
