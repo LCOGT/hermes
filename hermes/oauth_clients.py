@@ -70,5 +70,5 @@ gcn_client = oauth.register(
 
 # Clients can either be called using oauth.gcn, gcn_client, or by adding them to this oauth_clients dict
 oauth_clients = {
-    'gcn': gcn_client
+    OAuthToken.IntegratedApps.GCN: gcn_client
 }
