@@ -46,7 +46,7 @@ class OAuthToken(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
 
     def is_expired(self):
-        return self.expires_at > timezone.now()
+        return self.expires_at <= timezone.now()
 
     def to_token(self):
         return dict(
