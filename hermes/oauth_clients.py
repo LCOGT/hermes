@@ -65,7 +65,7 @@ oauth = OAuth()
 gcn_client = oauth.register(
     name='gcn',
     server_metadata_url=settings.AUTHLIB_OAUTH_CLIENTS.get('gcn', {}).get('server_metadata_url'),
-    client_kwargs={'scope': 'openid gcn.nasa.gov/circular-submitter email'}
+    client_kwargs={'scope': 'openid gcn.nasa.gov/circular-submitter email profile'}
 )
 
 # Clients can either be called using oauth.gcn, gcn_client, or by adding them to this oauth_clients dict
