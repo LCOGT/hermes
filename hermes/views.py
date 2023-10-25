@@ -7,6 +7,7 @@ import requests
 
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.contrib import messages
 from django.http import HttpResponse
 
 #from django.views.decorators.csrf import csrf_exempt
@@ -209,7 +210,7 @@ def submit_to_gcn(request, message, message_uuid):
     # First add the uuid into the message, then transfer the message into plaintext format
     message_plaintext = convert_to_plaintext(message)
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
-                         'https://hermes.lco.global/messages/' + str(message_uuid)
+                         + urljoin(settings.HERMES_FRONT_END_BASE_URL, f'messages/{str(message_uuid)}')
     # Then submit the plaintext message to gcn via email
     message_data = {'subject': message['title'], 'body': message_plaintext}
     access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
@@ -453,7 +454,11 @@ class GcnAuthorizeView(RedirectView):
     def get(self, request, *args, **kwargs):
         token = oauth.gcn.authorize_access_token(request)
         logger.info(f"Authorize View called with token: {token}")
-        update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
+        if token.get('userinfo', {}).get('existingIdp'):
+            messages.error(request, 'GCN Authorization failed. Please try again using the same authentication method ' \
+                           f'that was used to create your GCN account ({token["userinfo"]["existingIdp"]}).')
+        else:
+            update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
         self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
         return super().get(request, *args, **kwargs)
 
