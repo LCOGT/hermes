@@ -7,7 +7,6 @@ import requests
 
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.contrib import messages
 from django.http import HttpResponse
 
 #from django.views.decorators.csrf import csrf_exempt
@@ -453,13 +452,14 @@ class GcnAuthorizeView(RedirectView):
 
     def get(self, request, *args, **kwargs):
         token = oauth.gcn.authorize_access_token(request)
+        self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
         logger.info(f"Authorize View called with token: {token}")
         if token.get('userinfo', {}).get('existingIdp'):
-            messages.error(request, 'GCN Authorization failed. Please try again using the same authentication method ' \
-                           f'that was used to create your GCN account ({token["userinfo"]["existingIdp"]}).')
+            error = 'GCN Authorization failed. Please try again using the same authentication method ' \
+                    f'that was used to create your GCN account ({token["userinfo"]["existingIdp"]}).'
+            self.url += f'?alert={error}'
         else:
             update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
-        self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
         return super().get(request, *args, **kwargs)
 
 
