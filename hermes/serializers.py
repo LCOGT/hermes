@@ -24,18 +24,24 @@ class RemoveNullSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
     api_token = serializers.CharField()
+    can_submit_to_gcn = serializers.SerializerMethodField()
     integrated_apps = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = (
-            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps'
+            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn'
         )
 
     def get_integrated_apps(self, obj):
         tokens = OAuthToken.objects.filter(user=obj.user)
         integrated_apps = [token.integrated_app for token in tokens]
         return integrated_apps
+
+    def get_can_submit_to_gcn(self, obj):
+        return OAuthToken.objects.filter(
+            user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circulars-submitter']
+        ).exists()
 
 
 class BaseTargetSerializer(serializers.ModelSerializer):

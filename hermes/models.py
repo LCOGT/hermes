@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import ArrayField
 from rest_framework.authtoken.models import Token
 from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_token
 
@@ -43,6 +44,8 @@ class OAuthToken(models.Model):
     refresh_token=models.CharField(max_length=2048)
     expires_at=models.DateTimeField(null=True)
     expires_in = models.PositiveIntegerField(null=True, blank=True)
+    group_permissions = ArrayField(models.CharField(max_length=255, blank=True), default=list, blank=True,
+                                          help_text='List of permissions associated with this token')
     user = models.ForeignKey(User, on_delete=models.CASCADE, default=1)
 
     def is_expired(self):

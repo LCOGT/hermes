@@ -8,7 +8,7 @@ from hermes.models import OAuthToken
 logger = logging.getLogger(__name__)
 
 
-def update_token(user, integrated_app, token_details):
+def update_token(user, integrated_app, token_details, group_permissions=[]):
     """ Called on authentication of an oauth service, this method creates or updates the already
         created OAuthToken with the details received from the authentication service.
     """
@@ -17,6 +17,7 @@ def update_token(user, integrated_app, token_details):
         'access_token': token_details.get('access_token'),
         'refresh_token': token_details.get('refresh_token'),
         'token_type': token_details.get('token_type'),
+        'group_permissions': group_permissions,
         'expires_at': datetime.fromtimestamp(token_details.get('expires_at')).replace(tzinfo=timezone.utc),
         'expires_in': token_details.get('expires_in')
     })
@@ -32,10 +33,19 @@ def refresh_token(user, token):
     oauth_client = oauth_clients.get(token.integrated_app)
     if oauth_client:
         # The refreshed token details contain only an access token and expiration
-        token_details = oauth_client.fetch_access_token(refresh_token=token.refresh_token, grant_type='refresh_token')
-        if not token_details:
-            # If the token_details are not returned, assume the refresh token is bad and delete the entire OAuthToken
-            # TODO: I don't actually know what is returned if the refresh_token expires so this might not work!
+        try:
+            token_details = oauth_client.fetch_access_token(
+                refresh_token=token.refresh_token, grant_type='refresh_token'
+            )
+            if not token_details:
+                # If the token_details are not returned, assume the refresh token is bad and delete the entire
+                # OAuthToken
+                # TODO: I don't actually know what is returned if the refresh_token expires so this might not work!
+                token.delete()
+                return None
+        except Exception as e:
+            # If the call to fetch an access token throws an exception, delete the token because we will assume the
+            # entire OAuthToken is bad
             token.delete()
             return None
         token.access_token = token_details.get('access_token')

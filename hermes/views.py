@@ -30,6 +30,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from hop import Stream
 from hop.auth import Auth
+from hop.io import Producer
 
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
@@ -163,7 +164,7 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(request, message):
+def submit_to_hop(request, payload, headers):
     """Open the Hopskotch kafka stream for write and publish an Alert
 
     The request holds the Session dict which has the 'hop_user_auth_json` key
@@ -181,27 +182,17 @@ def submit_to_hop(request, message):
         hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
-
     logger.debug(f'submit_to_hop request: {request}')
     logger.debug(f'submit_to_hop request.data: {request.data}')
-    logger.debug(f'submit_to_hop s.write => message: {message}')
 
     try:
         topic = request.data['topic']
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
-            metadata = {'topic': topic}
-            payload, headers = producer.pack(message, metadata)
-            message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
-            message_uuid = None
-            if message_uuid_tuple:
-                message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
             producer.write_raw(payload, headers)
     except Exception as e:
         raise APIException(f'Error posting message to kafka: {e}')
-
-    return message_uuid
 
 
 def submit_to_gcn(request, message, message_uuid):
@@ -222,11 +213,7 @@ def submit_to_gcn(request, message, message_uuid):
         logger.warning(f"GCN submission successful: {response.json()}")
     except Exception as e:
         logger.warning(f"Failed to submit to GCN: {repr(e)}")
-        return Response({"message":  f"Submitted message with uuid {message_uuid} to Hop, GCN submission failed."},
-                        status=status.HTTP_200_OK)
-
-    return Response({"message":  f"Submitted message with uuid {message_uuid} to Hop and GCN"},
-                    status=status.HTTP_200_OK)
+        raise APIException(f"Failed to submit message to GCN: {repr(e)}")
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
@@ -410,7 +397,17 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     del data['files']
                 if 'file_comments' in data:
                     del data['file_comments']
-                message_uuid = submit_to_hop(request, data)
+                metadata = {'topic': data['topic']}
+                payload, headers = Producer.pack(data, metadata)
+                message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
+                message_uuid = None
+                if message_uuid_tuple:
+                    message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
+                if not message_uuid:
+                    raise APIException('Error generating uuid for message through hop client')
+                if gcn_submit:
+                    submit_to_gcn(request, data, message_uuid)
+                submit_to_hop(request, payload, headers)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
             if gcn_submit:
@@ -455,11 +452,14 @@ class GcnAuthorizeView(RedirectView):
         self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
         logger.info(f"Authorize View called with token: {token}")
         if token.get('userinfo', {}).get('existingIdp'):
-            error = 'GCN Authorization failed. Please try again using the same authentication method ' \
-                    f'that was used to create your GCN account ({token["userinfo"]["existingIdp"]}).'
+            error = 'GCN Authorization failed. Please clear your session and try again using the same ' \
+                    'authentication method that was used to create your GCN account ' \
+                    f'({token["userinfo"]["existingIdp"]}).'
             self.url += f'?alert={error}'
         else:
-            update_token(request.user, OAuthToken.IntegratedApps.GCN, token)
+            # Pull out the permissions here since I think the key 'cognito:groups' is specific to AWS cognito oauth servers...
+            permissions = token.get('userinfo', {}).get('cognito:groups', [])
+            update_token(request.user, OAuthToken.IntegratedApps.GCN, token, group_permissions=permissions)
         return super().get(request, *args, **kwargs)
 
 
