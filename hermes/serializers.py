@@ -40,7 +40,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_can_submit_to_gcn(self, obj):
         return OAuthToken.objects.filter(
-            user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circulars-submitter']
+            user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circular-submitter']
         ).exists()
 
 
