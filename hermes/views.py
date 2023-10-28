@@ -31,6 +31,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from hop import Stream
 from hop.auth import Auth
 from hop.io import Producer
+from hop.models import JSONBlob
 
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
@@ -187,6 +188,8 @@ def submit_to_hop(request, payload, headers):
 
     try:
         topic = request.data['topic']
+        # Add the _sender in the header with our auth here since we originally generate it without an auth
+        headers.append(("_sender", hop_auth.username.encode("utf-8")))
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
@@ -207,10 +210,11 @@ def submit_to_gcn(request, message, message_uuid):
 
     headers =  {'Authorization': f'Bearer {access_token}'}
     try:
-        response = requests.post(settings.GCN_SUBMISSION_URL, headers=headers, json=message_data)
-        logger.warning(f"Submitted to GCN response: {response.content}")
+        submission_url = urljoin(settings.GCN_BASE_URL, '/api/circulars')
+        response = requests.post(submission_url, headers=headers, json=message_data)
         response.raise_for_status()
-        logger.warning(f"GCN submission successful: {response.json()}")
+        logger.info(f"GCN submission successful: {response.json()}")
+        return response.json().get('circularId')
     except Exception as e:
         logger.warning(f"Failed to submit to GCN: {repr(e)}")
         raise APIException(f"Failed to submit message to GCN: {repr(e)}")
@@ -398,6 +402,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 if 'file_comments' in data:
                     del data['file_comments']
                 metadata = {'topic': data['topic']}
+                # Do this to generate the uuid early so we can send it with the gcn.
                 payload, headers = Producer.pack(data, metadata)
                 message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
                 message_uuid = None
@@ -406,15 +411,25 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 if not message_uuid:
                     raise APIException('Error generating uuid for message through hop client')
                 if gcn_submit:
-                    submit_to_gcn(request, data, message_uuid)
+                    gcn_circular_id = submit_to_gcn(request, data, message_uuid)
+                    if gcn_circular_id:
+                        if 'references' not in data['data']:
+                            data['data']['references'] = []
+                        data['data']['references'].append({
+                            'source': 'gcn_circular',
+                            'citation': gcn_circular_id,
+                            'url': urljoin(settings.GCN_BASE_URL, f'/circulars/{gcn_circular_id}')
+                        })
+                        # Must re-serialize the payload to pass to the hop client if we modified it
+                        # This is safe to do since we know the message/payload is json
+                        blob = JSONBlob(content=data)
+                        encoded = blob.serialize()
+                        payload = encoded["content"]
                 submit_to_hop(request, payload, headers)
+                return Response({"message": f"Submitted message with uuid {message_uuid}"},
+                                status=status.HTTP_200_OK)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
-            if gcn_submit:
-                # TODO: I don't really know what we should do here if the GCN submission fails
-                return submit_to_gcn(request, data, message_uuid)
-            return Response({"message": f"Submitted message with uuid {message_uuid}"},
-                            status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 

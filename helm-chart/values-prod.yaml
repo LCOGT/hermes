@@ -27,7 +27,7 @@ tns:
   baseUrl: "https://www.wis-tns.org/"
 
 gcn:
-  submissionUrl: "https://gcn.nasa.gov/api/circulars"
+  baseUrl: "https://gcn.nasa.gov/"
 
 ingress:
   enabled: true
