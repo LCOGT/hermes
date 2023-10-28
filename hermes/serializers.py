@@ -7,6 +7,8 @@ from astropy.coordinates import Longitude, Latitude
 from astropy import units
 from dateutil.parser import parse
 from django.utils.translation import gettext as _
+from django.conf import settings
+
 import math
 from collections import OrderedDict, defaultdict
 
