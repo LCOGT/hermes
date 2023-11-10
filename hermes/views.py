@@ -331,6 +331,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                                current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
                     wavelength: [<Wavelength values for this spectroscopic datum>],
                     wavelength_units: <Units for the wavelength>,
+                    files: [{
+                        name: <file name>,
+                        description: <file description>,
+                        url: <url to access file>
+                    }]
                     classification: <TNS classification for this specotroscopic datum>,
                     proprietary_period: <>,
                     proprietary_period_units: <>,
@@ -376,6 +381,16 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         serializer = self.serializer_class(data=data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data
+            # Check that if files are specified in spectroscopy sections, they match top level files uploaded here
+            filenames = [file.name for file in data.get('files', [])]
+            spectro_files_not_found = []
+            for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
+                for file in spectroscopy_datum.get('files', []):
+                    if file.get('name') not in filenames and not file.get('url'):
+                        spectro_files_not_found.append(file.get('name'))
+            if spectro_files_not_found:
+                return Response({'error': f'Files {",".join(spectro_files_not_found)} referenced in spectroscopy section but not uploaded in files section.'})
+
             if non_serialized_data:
                 if 'data' not in data:
                     data['data'] = {}
@@ -399,8 +414,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             try:
                 if 'files' in data:
                     del data['files']
-                if 'file_comments' in data:
-                    del data['file_comments']
+                if 'file_descriptions' in data:
+                    del data['file_descriptions']
                 metadata = {'topic': data['topic']}
                 # Do this to generate the uuid early so we can send it with the gcn.
                 payload, headers = Producer.pack(data, metadata)
