@@ -372,24 +372,37 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         data = request.data
         if 'multipart/form-data' in request.content_type:
             files = request.data.getlist('files')  # Need to explicitly pull out the files since they don't translate well in .dict()
+            files_by_name = {file.name: file for file in files}
             data = data.dict()
-            if 'files' in data:
-                data['files'] = files
+
         non_serialized_data = {key: val for key, val in data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         gcn_submit = data.get('submit_to_gcn', False)
         tns_submit = data.get('submit_to_tns', False)
         serializer = self.serializer_class(data=data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data
+            general_files = []
+            spectroscopy_files = []
+            referenced_files_not_found = []
+            # Check that if files are specified in the general message, they match top level files uploaded here
+            for file in data.get('file_info', []):
+                if not file.get('url'):
+                    if file.get('name') not in files_by_name:
+                        referenced_files_not_found.append(file.get('name'))
+                    else:
+                        general_files.append(files_by_name[file.get('name')])
+
             # Check that if files are specified in spectroscopy sections, they match top level files uploaded here
-            filenames = [file.name for file in data.get('files', [])]
-            spectro_files_not_found = []
             for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
-                for file in spectroscopy_datum.get('files', []):
-                    if file.get('name') not in filenames and not file.get('url'):
-                        spectro_files_not_found.append(file.get('name'))
-            if spectro_files_not_found:
-                return Response({'error': f'Files {",".join(spectro_files_not_found)} referenced in spectroscopy section but not uploaded in files section.'})
+                for file in spectroscopy_datum.get('file_info', []):
+                    if not file.get('url'):
+                        if file.get('name') not in files_by_name:
+                            referenced_files_not_found.append(file.get('name'))
+                        else:
+                            spectroscopy_files.append(files_by_name[file.get('name')])
+
+            if referenced_files_not_found:
+                return Response({'error': f'Files {",".join(referenced_files_not_found)} referenced in message but not uploaded in files section.'})
 
             if non_serialized_data:
                 if 'data' not in data:
@@ -397,10 +410,10 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 data['data'].update(non_serialized_data)
             if tns_submit:
                 try:
-                    filenames = []
-                    if 'files' in data:
-                        filenames = submit_files_to_tns(data['files'])
-                    tns_message = convert_hermes_message_to_tns(data, filenames)
+                    filenames_mapping = {}
+                    if general_files:
+                        filenames_mapping = submit_files_to_tns(general_files)
+                    tns_message = convert_hermes_message_to_tns(data, filenames_mapping)
                     object_name = submit_at_report_to_tns(tns_message)
                     if 'references' not in data['data']:
                         data['data']['references'] = []
@@ -414,8 +427,6 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             try:
                 if 'files' in data:
                     del data['files']
-                if 'file_descriptions' in data:
-                    del data['file_descriptions']
                 metadata = {'topic': data['topic']}
                 # Do this to generate the uuid early so we can send it with the gcn.
                 payload, headers = Producer.pack(data, metadata)

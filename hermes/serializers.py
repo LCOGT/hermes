@@ -409,14 +409,14 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     observer = serializers.CharField(required=False, allow_null=True)
     reducer = serializers.CharField(required=False, allow_null=True)
     spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
-    files = FileInfoSerializer(required=False, many=True)
+    file_info = FileInfoSerializer(required=False, many=True)
 
     def validate(self, data):
         validated_data = super().validate(data)
         if ('flux' not in validated_data or validated_data['flux'] == None or len(validated_data['flux']) == 0):
-            if ('files' not in validated_data or len(validated_data['files']) == 0):
+            if ('file_info' not in validated_data or len(validated_data['file_info']) == 0):
                 raise serializers.ValidationError({
-                    'files': [_("Must specify a spectroscopy file to upload or specify one or more flux values")],
+                    'file_info': [_("Must specify a spectroscopy file to upload or specify one or more flux values")],
                     'flux': [_("Must specify a spectroscopy file to upload or specify one or more flux values")]
                 })
         if 'flux_error' in validated_data:
@@ -540,8 +540,7 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 
 class HermesMessageSerializer(serializers.Serializer):
-    files = serializers.ListField(child=serializers.FileField(allow_empty_file=False, use_url=False), required=False, allow_null=True)
-    file_descriptions = serializers.ListField(child=serializers.CharField(default='', allow_blank=True), required=False, allow_null=True)
+    file_info = FileInfoSerializer(required=False, many=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -637,12 +636,6 @@ class HermesMessageSerializer(serializers.Serializer):
 
             if not request or not request.user.is_authenticated:
                 non_field_errors.append(_('Must be an authenticated user to submit to TNS'))
-
-            num_files = len(validated_data.get('files', []))
-            num_file_descriptions = len(validated_data.get('file_descriptions', []))
-
-            if num_file_descriptions > 0 and num_files > 0 and num_files != num_file_descriptions:
-                non_field_errors.append(_(f"Must have same number of file_descriptions ({num_file_descriptions}) as files ({num_files})"))
 
             if non_field_errors:
                 full_error['non_field_errors'] = non_field_errors
