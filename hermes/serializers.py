@@ -1,6 +1,7 @@
-from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile
+from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile, OAuthToken
 from hermes.utils import TNS_TYPES
 from hermes.tns import get_reverse_tns_values
+from hermes.oauth_clients import get_access_token
 from rest_framework import serializers
 from astropy.coordinates import Longitude, Latitude
 from astropy import units
@@ -25,12 +26,24 @@ class RemoveNullSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
     api_token = serializers.CharField()
+    can_submit_to_gcn = serializers.SerializerMethodField()
+    integrated_apps = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = (
-            'api_token', 'email', 'credential_name', 'writable_topics'
+            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn'
         )
+
+    def get_integrated_apps(self, obj):
+        tokens = OAuthToken.objects.filter(user=obj.user)
+        integrated_apps = [token.integrated_app for token in tokens]
+        return integrated_apps
+
+    def get_can_submit_to_gcn(self, obj):
+        return OAuthToken.objects.filter(
+            user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circular-submitter']
+        ).exists()
 
 
 class BaseTargetSerializer(serializers.ModelSerializer):
@@ -601,14 +614,15 @@ class HermesMessageSerializer(serializers.Serializer):
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
+        request = self.context.get('request')
+
         if validated_data.get('submit_to_tns'):
             # Do extra TNS submission validation here
             tns_options = get_reverse_tns_values()
             full_error = defaultdict(dict)
             non_field_errors = []
 
-            request = self.context.get('request')
-            if request and not request.user.is_authenticated:
+            if not request or not request.user.is_authenticated:
                 non_field_errors.append(_('Must be an authenticated user to submit to TNS'))
 
             num_files = len(validated_data.get('files', []))
@@ -723,27 +737,34 @@ class HermesMessageSerializer(serializers.Serializer):
             if full_error:
                 raise serializers.ValidationError(full_error)
         if validated_data.get('submit_to_gcn'):
+            non_field_errors = []
+
+            if not request or not request.user.is_authenticated:
+                non_field_errors.append(_('Must be an authenticated user to submit to GCN'))
+
+            # Verify that the user has a valid GCN integration oauth access_token to submit with:
+            token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
+            if not token:
+                non_field_errors.append(_('Must register a valid GCN account on your Profile page to submit to GCN'))
+
             # Validate the title for GCN submission (which appears to be the only form validation the GCN does)
             title = validated_data.get('title', '')
             full_error = defaultdict(dict)
             if len(title) == 0:
                 full_error['title'] = [_('Title must be set to submit to GCN')]
                 raise serializers.ValidationError(full_error)
-            gcn_title_errors = []
             if not any(key in title for key in self.GCN_REQUIRED_KEYS):
-                gcn_title_errors.append(_('Title must contain one of allowed subject keywords from the'
+                # Set the gcn title errors to non field errors to correctly render the html in the error message
+                non_field_errors.append(_('Title must contain one of allowed subject keywords from the'
                                     ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style Guide</a>'
                                     ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
                 if key in title:
-                    gcn_title_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
+                    non_field_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
                                         ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
                                         ' Guide</a>.'.format(key)))
-            if 'dev.gcn.nasa.gov' not in settings.GCN_EMAIL:
-                gcn_title_errors.append(_('GCN submission currently disabled in production'))
-            if gcn_title_errors:
-                # Set the gcn title errors to non field errors to correctly render the html in the error message
-                full_error['non_field_errors'] = gcn_title_errors
+            if non_field_errors:
+                full_error['non_field_errors'] = non_field_errors
                 raise serializers.ValidationError(full_error)
         # Remove the flags from the serialized response sent through hop
         if 'submit_to_tns' in validated_data:

@@ -26,6 +26,9 @@ hermesFrontEndBaseUrl: https://hermes.lco.global/
 tns:
   baseUrl: "https://www.wis-tns.org/"
 
+gcn:
+  baseUrl: "https://gcn.nasa.gov/"
+
 ingress:
   enabled: true
   annotations:
@@ -37,6 +40,7 @@ ingress:
         - "/admin"
         - "/api"
         - "/auth"
+        - "/gcn-auth"
         - "/get-csrf-token"
         - "/login-redirect"
         - "/logout-redirect"

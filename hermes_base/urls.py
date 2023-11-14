@@ -36,6 +36,8 @@ urlpatterns = [
     path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
     path('auth/', include('mozilla_django_oidc.urls')),
+    path('gcn-auth/login', views.GcnLoginRedirectView.as_view(), name='gcn-login'),
+    path('gcn-auth/authorize', views.GcnAuthorizeView.as_view(), name='gcn-authorize'),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
     path('api/v0/heartbeat/', views.HeartbeatApiView.as_view(), name='heartbeat'),

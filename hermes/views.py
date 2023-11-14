@@ -3,9 +3,11 @@ import json
 import logging
 import uuid
 from urllib.parse import urljoin
+import requests
 
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.http import HttpResponse
 
 #from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -28,15 +30,18 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from hop import Stream
 from hop.auth import Auth
+from hop.io import Producer
+from hop.models import JSONBlob
 
 from hermes.brokers import hopskotch
-from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence
+from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.forms import MessageForm
 from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns, BadTnsRequest
 from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
+from hermes.oauth_clients import oauth, update_token, get_access_token
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -160,7 +165,7 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(request, message):
+def submit_to_hop(request, payload, headers):
     """Open the Hopskotch kafka stream for write and publish an Alert
 
     The request holds the Session dict which has the 'hop_user_auth_json` key
@@ -178,27 +183,19 @@ def submit_to_hop(request, message):
         hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
 
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
-
     logger.debug(f'submit_to_hop request: {request}')
     logger.debug(f'submit_to_hop request.data: {request.data}')
-    logger.debug(f'submit_to_hop s.write => message: {message}')
 
     try:
         topic = request.data['topic']
+        # Add the _sender in the header with our auth here since we originally generate it without an auth
+        headers.append(("_sender", hop_auth.username.encode("utf-8")))
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
-            metadata = {'topic': topic}
-            payload, headers = producer.pack(message, metadata)
-            message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
-            message_uuid = None
-            if message_uuid_tuple:
-                message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
             producer.write_raw(payload, headers)
     except Exception as e:
         raise APIException(f'Error posting message to kafka: {e}')
-
-    return message_uuid
 
 
 def submit_to_gcn(request, message, message_uuid):
@@ -206,12 +203,21 @@ def submit_to_gcn(request, message, message_uuid):
     # First add the uuid into the message, then transfer the message into plaintext format
     message_plaintext = convert_to_plaintext(message)
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
-                         'https://hermes.lco.global/messages/' + str(message_uuid)
+                         + urljoin(settings.HERMES_FRONT_END_BASE_URL, f'message/{str(message_uuid)}')
     # Then submit the plaintext message to gcn via email
-    send_email(settings.GCN_EMAIL, settings.HERMES_EMAIL_USERNAME, settings.HERMES_EMAIL_PASSWORD,
-               message['title'], message_plaintext)
-    return Response({"message": "GCN Submission successful"},
-                    status=status.HTTP_200_OK)
+    message_data = {'subject': message['title'], 'body': message_plaintext}
+    access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
+
+    headers =  {'Authorization': f'Bearer {access_token}'}
+    try:
+        submission_url = urljoin(settings.GCN_BASE_URL, '/api/circulars')
+        response = requests.post(submission_url, headers=headers, json=message_data)
+        response.raise_for_status()
+        logger.info(f"GCN submission successful: {response.json()}")
+        return response.json().get('circularId')
+    except Exception as e:
+        logger.warning(f"Failed to submit to GCN: {repr(e)}")
+        raise APIException(f"Failed to submit message to GCN: {repr(e)}")
 
 
 class SubmitHermesMessageViewSet(viewsets.ViewSet):
@@ -395,14 +401,35 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     del data['files']
                 if 'file_comments' in data:
                     del data['file_comments']
-                message_uuid = submit_to_hop(request, data)
+                metadata = {'topic': data['topic']}
+                # Do this to generate the uuid early so we can send it with the gcn.
+                payload, headers = Producer.pack(data, metadata)
+                message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
+                message_uuid = None
+                if message_uuid_tuple:
+                    message_uuid = uuid.UUID(bytes=message_uuid_tuple[1])
+                if not message_uuid:
+                    raise APIException('Error generating uuid for message through hop client')
+                if gcn_submit:
+                    gcn_circular_id = submit_to_gcn(request, data, message_uuid)
+                    if gcn_circular_id:
+                        if 'references' not in data['data']:
+                            data['data']['references'] = []
+                        data['data']['references'].append({
+                            'source': 'gcn_circular',
+                            'citation': gcn_circular_id,
+                            'url': urljoin(settings.GCN_BASE_URL, f'/circulars/{gcn_circular_id}')
+                        })
+                        # Must re-serialize the payload to pass to the hop client if we modified it
+                        # This is safe to do since we know the message/payload is json
+                        blob = JSONBlob(content=data)
+                        encoded = blob.serialize()
+                        payload = encoded["content"]
+                submit_to_hop(request, payload, headers)
+                return Response({"message": f"Submitted message with uuid {message_uuid}"},
+                                status=status.HTTP_200_OK)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
-            if gcn_submit:
-                # TODO: I don't really know what we should do here if the GCN submission fails
-                return submit_to_gcn(request, data, message_uuid)
-            return Response({"message": f"Submitted message with uuid {message_uuid}"},
-                            status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status.HTTP_400_BAD_REQUEST)
 
@@ -422,6 +449,33 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         plaintext_message = convert_to_plaintext(request.data)
 
         return Response(plaintext_message, status=status.HTTP_200_OK)
+
+
+class GcnLoginRedirectView(View):
+    pattern_name = 'gcn-login-redirect'
+
+    def get(self, request, *args, **kwargs):
+        redirect_uri = request.build_absolute_uri('/gcn-auth/authorize')
+        return oauth.gcn.authorize_redirect(request, redirect_uri)
+
+
+class GcnAuthorizeView(RedirectView):
+    pattern_name = 'gcn-authorize'
+
+    def get(self, request, *args, **kwargs):
+        token = oauth.gcn.authorize_access_token(request)
+        self.url = urljoin(f'{settings.HERMES_FRONT_END_BASE_URL}', 'profile')
+        logger.info(f"Authorize View called with token: {token}")
+        if token.get('userinfo', {}).get('existingIdp'):
+            error = 'GCN Authorization failed. Please clear your session and try again using the same ' \
+                    'authentication method that was used to create your GCN account ' \
+                    f'({token["userinfo"]["existingIdp"]}).'
+            self.url += f'?alert={error}'
+        else:
+            # Pull out the permissions here since I think the key 'cognito:groups' is specific to AWS cognito oauth servers...
+            permissions = token.get('userinfo', {}).get('cognito:groups', [])
+            update_token(request.user, OAuthToken.IntegratedApps.GCN, token, group_permissions=permissions)
+        return super().get(request, *args, **kwargs)
 
 
 class LoginRedirectView(RedirectView):

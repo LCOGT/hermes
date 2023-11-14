@@ -126,6 +126,8 @@ build it here and use it everywhere.
   value: {{ .Values.brokers.hopskotch.groupId | quote }}
 - name: GCN_EMAIL
   value: {{ .Values.gcnEmail }}
+- name: GCN_BASE_URL
+  value: {{ .Values.gcn.baseUrl }}
 {{- end }}
 
 {{/*
