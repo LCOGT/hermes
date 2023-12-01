@@ -756,12 +756,12 @@ class HermesMessageSerializer(serializers.Serializer):
             if not any(key in title for key in self.GCN_REQUIRED_KEYS):
                 # Set the gcn title errors to non field errors to correctly render the html in the error message
                 non_field_errors.append(_('Title must contain one of allowed subject keywords from the'
-                                    ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style Guide</a>'
+                                    ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide#message-content" target="_blank">GCN Style Guide</a>'
                                     ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
                 if key in title:
                     non_field_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
-                                        ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide">GCN Style'
+                                        ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide#message-content" target="_blank">GCN Style'
                                         ' Guide</a>.'.format(key)))
             if non_field_errors:
                 full_error['non_field_errors'] = non_field_errors
