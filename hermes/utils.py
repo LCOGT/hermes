@@ -131,7 +131,7 @@ def get_all_public_topics():
 
 
 def convert_list_to_markdown_table(name, data, key_ordering):
-    output = f'#### {name}:\n'
+    output = f'# {name}\n'
 
     # Only add keys present in the ordering into the markdown table so it is manageable
     keys_present = {key for datum in data for key in datum.keys() if key in key_ordering}
@@ -155,7 +155,7 @@ def convert_list_to_markdown_table(name, data, key_ordering):
 
 def convert_to_plaintext(message):
     # TODO: Incorporate the message uuid into here somewhere
-    formatted_message = """{authors}\n\n{message}\n\n""".format(
+    formatted_message = """{authors} reports:\n\n{message}\n\n""".format(
         authors=message.get('authors'),
         message=message.get('message_text')
     )
