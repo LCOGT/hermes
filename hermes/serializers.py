@@ -742,11 +742,11 @@ class HermesMessageSerializer(serializers.Serializer):
 
             if not request or not request.user.is_authenticated:
                 non_field_errors.append(_('Must be an authenticated user to submit to GCN'))
-
-            # Verify that the user has a valid GCN integration oauth access_token to submit with:
-            token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
-            if not token:
-                non_field_errors.append(_('Must register a valid GCN account on your Profile page to submit to GCN'))
+            else:
+                # Verify that the user has a valid GCN integration oauth access_token to submit with:
+                token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
+                if not token:
+                    non_field_errors.append(_('Must register a valid GCN account on your Profile page to submit to GCN'))
 
             full_error = defaultdict(dict)
             # Validate that there is an author and message text set
