@@ -605,10 +605,11 @@ class HermesMessageSerializer(serializers.Serializer):
                            "saxzlcnkgzmfpbhvyzsbub",
                            "ponse_automatique",
                            "off-line re:",
-                           "re:",
-                           "fwd:",
-                           "r:",
-                           "ris:",
+                           "re: ",
+                           "fwd: ",
+                           " r: ",
+                           " ris: ",
+                           "subject:"
                            ]
 
     def validate(self, data):
@@ -747,24 +748,31 @@ class HermesMessageSerializer(serializers.Serializer):
             if not token:
                 non_field_errors.append(_('Must register a valid GCN account on your Profile page to submit to GCN'))
 
+            full_error = defaultdict(dict)
+            # Validate that there is an author and message text set
+            if not validated_data.get('authors'):
+                full_error['authors'] = [_('Authors must be set to submit to GCN')]
+
+            if not validated_data.get('message_text'):
+                full_error['message_text'] = [_('Message text must be set to submit to GCN')]
+
             # Validate the title for GCN submission (which appears to be the only form validation the GCN does)
             title = validated_data.get('title', '')
-            full_error = defaultdict(dict)
             if len(title) == 0:
                 full_error['title'] = [_('Title must be set to submit to GCN')]
-                raise serializers.ValidationError(full_error)
-            if not any(key in title for key in self.GCN_REQUIRED_KEYS):
+            if not any(key.lower() in title.lower() for key in self.GCN_REQUIRED_KEYS):
                 # Set the gcn title errors to non field errors to correctly render the html in the error message
                 non_field_errors.append(_('Title must contain one of allowed subject keywords from the'
                                     ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide#message-content" target="_blank">GCN Style Guide</a>'
                                     ' to submit to GCN.'))
             for key in self.GCN_PROHIBITED_KEYS:
-                if key in title:
+                if key in title.lower():
                     non_field_errors.append(_('Title cannot contain the prohibited keyword "{}". Please see the'
                                         ' <a href="https://gcn.nasa.gov/docs/circulars/styleguide#message-content" target="_blank">GCN Style'
                                         ' Guide</a>.'.format(key)))
             if non_field_errors:
                 full_error['non_field_errors'] = non_field_errors
+            if full_error:
                 raise serializers.ValidationError(full_error)
         # Remove the flags from the serialized response sent through hop
         if 'submit_to_tns' in validated_data:

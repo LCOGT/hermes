@@ -3,6 +3,7 @@ from django.http import QueryDict
 from rest_framework import parsers
 from hermes.models import Message
 import json
+from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import smtplib
@@ -137,17 +138,24 @@ def convert_list_to_markdown_table(name, data, key_ordering):
     keys_present = {key for datum in data for key in datum.keys() if key in key_ordering}
     ordered_keys = sorted(keys_present, key=key_ordering.index)
 
+    # Calculate the max character length (min 3) for each key to pad whitespace to that value
+    whitespace = defaultdict(lambda: 3)
+    for key in keys_present:
+        whitespace[key] = max(len(str(key)), whitespace[key])
+        for datum in data:
+            whitespace[key] = max(len(str(datum.get(key, ''))), whitespace[key])
+
     # Add the header line for the markdown table
-    output += f"| {' | '.join(ordered_keys)} |\n"
+    output += f"| {' | '.join([key.ljust(whitespace[key]) for key in ordered_keys])} |\n"
 
     # Add the mardown dashed line row below the header
-    output += f"| {' | '.join(['---' for key in ordered_keys])} |\n"
+    output += f"| {' | '.join(['---'.ljust(whitespace[key], '-') for key in ordered_keys])} |\n"
 
     # Now add the table values for each row
     for datum in data:
         output += '|'
         for key in ordered_keys:
-            output += f" {datum.get(key, '')} |"
+            output += f" {str(datum.get(key, '')).ljust(whitespace[key])} |"
         output += '\n'
 
     return output
@@ -155,8 +163,13 @@ def convert_list_to_markdown_table(name, data, key_ordering):
 
 def convert_to_plaintext(message):
     # TODO: Incorporate the message uuid into here somewhere
-    formatted_message = """{authors} reports:\n\n{message}\n\n""".format(
+    authors = message.get('authors')
+    pluralized_reports = 'reports'
+    if ' and ' in authors or ',' in authors:
+        pluralized_reports = 'report'
+    formatted_message = """{authors} {reports}:\n\n{message}\n\n""".format(
         authors=message.get('authors'),
+        reports=pluralized_reports,
         message=message.get('message_text')
     )
     if len(message['data'].get('targets', [])) > 0:
