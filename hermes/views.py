@@ -546,10 +546,15 @@ class HeartbeatApiView(RetrieveAPIView):
     """ View to retrieve last timestamps for data received per stream """
 
     def get(self, request):
+        # Also include if the user is logged in, for the frontend as well
         last_timestamps = {
             'hop': cache.get('hop_stream_heartbeat')
         }
-        return Response(last_timestamps)
+        response = {
+            'last_timestamps': last_timestamps,
+            'is_authenticated': request.user.is_authenticated
+        }
+        return Response(response)
 
 
 class RevokeApiTokenApiView(APIView):
