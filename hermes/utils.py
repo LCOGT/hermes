@@ -2,14 +2,11 @@ from django.core.cache import cache
 from django.http import QueryDict
 from rest_framework import parsers
 from hermes.models import Message
-from astropy.table import Table
-import io
 import json
+from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
 import smtplib
-import datetime
 
 
 TNS_TYPES = [
@@ -84,6 +81,48 @@ TNS_TYPES = [
 ]
 
 
+TARGET_ORDER = [
+    'name',
+    'ra',
+    'dec',
+    'pm_ra',
+    'pm_dec',
+    'epoch',
+    'new_discovery',
+    'redshift',
+    'host_name',
+    'host_redshift'
+]
+
+ASTROMETRY_ORDER = [
+    'target_name',
+    'date_obs',
+    'ra',
+    'ra_error',
+    'dec',
+    'dec_error',
+    'telescope',
+    'instrument'
+]
+
+PHOTOMETRY_ORDER = [
+    'target_name',
+    'date_obs',
+    'brightness',
+    'brightness_error',
+    'limiting_brightness',
+    'limiting_brightness_error',
+    'bandpass',
+    'telescope',
+    'instrument'
+]
+
+REFERENCES_ORDER = [
+    'source',
+    'citation',
+    'url'
+]
+
 def get_all_public_topics():
     all_topics = cache.get("all_public_topics", None)
     if not all_topics:
@@ -92,21 +131,72 @@ def get_all_public_topics():
     return all_topics
 
 
+def convert_list_to_markdown_table(name, data, key_ordering):
+    output = f'# {name}\n'
+
+    # Only add keys present in the ordering into the markdown table so it is manageable
+    keys_present = {key for datum in data for key in datum.keys() if key in key_ordering}
+    ordered_keys = sorted(keys_present, key=key_ordering.index)
+
+    # Calculate the max character length (min 3) for each key to pad whitespace to that value
+    whitespace = defaultdict(lambda: 3)
+    for key in keys_present:
+        whitespace[key] = max(len(str(key)), whitespace[key])
+        for datum in data:
+            whitespace[key] = max(len(str(datum.get(key, ''))), whitespace[key])
+
+    # Add the header line for the markdown table
+    output += f"| {' | '.join([key.ljust(whitespace[key]) for key in ordered_keys])} |\n"
+
+    # Add the mardown dashed line row below the header
+    output += f"| {' | '.join(['---'.ljust(whitespace[key], '-') for key in ordered_keys])} |\n"
+
+    # Now add the table values for each row
+    for datum in data:
+        output += '|'
+        for key in ordered_keys:
+            output += f" {str(datum.get(key, '')).ljust(whitespace[key])} |"
+        output += '\n'
+
+    return output
+
+
 def convert_to_plaintext(message):
     # TODO: Incorporate the message uuid into here somewhere
-    formatted_message = """{title}
+    authors = message.get('authors')
+    pluralized_reports = 'reports'
+    if ' and ' in authors or ',' in authors:
+        pluralized_reports = 'report'
+    formatted_message = """{authors} {reports}:\n\n{message}\n\n""".format(
+        authors=message.get('authors'),
+        reports=pluralized_reports,
+        message=message.get('message_text')
+    )
+    if len(message['data'].get('targets', [])) > 0:
+        formatted_message += convert_list_to_markdown_table(
+            name='Targets', data=message['data']['targets'],
+            key_ordering=TARGET_ORDER
+        )
+        formatted_message += '\n'
+    if len(message['data'].get('photometry', [])) > 0:
+        formatted_message += convert_list_to_markdown_table(
+            name='Photometry', data=message['data']['photometry'],
+            key_ordering=PHOTOMETRY_ORDER
+        )
+        formatted_message += '\n'
+    if len(message['data'].get('astrometry', [])) > 0:
+        formatted_message += convert_list_to_markdown_table(
+            name='Astrometry', data=message['data']['astrometry'],
+            key_ordering=ASTROMETRY_ORDER
+        )
+        formatted_message += '\n'
+    if len(message['data'].get('references', [])) > 0:
+        formatted_message += convert_list_to_markdown_table(
+            name='References', data=message['data']['references'],
+            key_ordering=REFERENCES_ORDER
+        )
+        formatted_message += '\n'
 
-{authors}
-
-{message}""".format(title=message.get('title'),
-                    authors=message.get('authors'),
-                    message=message.get('message_text'))
-    for table in ['target', 'photometry', 'astrometry', 'references']:
-        if len(message['data'].get(table, [])) > 0:
-            formatted_message += "\n\n"
-            string_buffer = io.StringIO()
-            Table(message['data'][table]).write(string_buffer, format='ascii.basic')
-            formatted_message += string_buffer.getvalue()
     return formatted_message
 
 
