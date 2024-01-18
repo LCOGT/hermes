@@ -23,6 +23,11 @@ gcnEmail: circulars@gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
+scimma:
+  authBaseUrl: https://my.hop.scimma.org/hopauth
+  archiveBaseUrl: https://archive-api.dev.hop.scimma.org/
+  kafkaBaseUrl: kafka://dev.hop.scimma.org/
+
 tns:
   baseUrl: "https://www.wis-tns.org/"
 
@@ -33,6 +38,12 @@ ingress:
   enabled: true
   annotations:
     kubernetes.io/ingress.class: nginx-ingress-public
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "16"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "5M"
+    nginx.ingress.kubernetes.io/large-client-header-buffers: 16 5M
+    nginx.ingress.kubernetes.io/server-snippet: | # this is where the magic happens
+      client_header_buffer_size 5M;
+      large_client_header_buffers 16 5M;
   hosts:
     - host: hermes.lco.global
       paths:
