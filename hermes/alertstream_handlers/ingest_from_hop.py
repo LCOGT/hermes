@@ -170,18 +170,21 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
         logger.debug(f'updating db with generic hop message for topic {topic}')
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
         published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
-        message, created = Message.objects.update_or_create(
-            # these fields must match for update...
-            topic=topic,
-            title='Generic Message',
-            uuid=get_or_create_uuid_from_metadata(metadata),
-            published=published_time,
-            data=message.content
-        )
-        if created:
-            logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
-        else:
-            logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
+        try:
+            message, created = Message.objects.update_or_create(
+                # these fields must match for update...
+                topic=topic,
+                title='Generic Message',
+                uuid=get_or_create_uuid_from_metadata(metadata),
+                published=published_time,
+                data=message.content
+            )
+            if created:
+                logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
+            else:
+                logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
+        except Exception as ex:
+            logger.warning(f"Failed to ingest message from topic {topic}: {repr(ex)}")
 
 
 def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):

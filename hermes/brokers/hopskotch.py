@@ -57,8 +57,9 @@ logger = logging.getLogger(__name__)
 #  not in settings.py
 
 #  from the environment, get the HERMES service account credentials for SCiMMA Auth (scimma-admin).
-HERMES_USERNAME = os.getenv('HERMES_USERNAME', None)
-HERMES_PASSWORD = os.getenv('HERMES_PASSWORD', None)
+HERMES_USERNAME = settings.SCIMMA_AUTH_USERNAME
+HERMES_PASSWORD = settings.SCIMMA_AUTH_PASSWORD
+
 
  # this API client was written against this version of the API
 SCIMMA_AUTH_API_VERSION = 0
@@ -75,16 +76,13 @@ def get_hermes_hop_authorization() -> Auth:
     The HERMES_USERNAME and HERMES_PASSWORD are module level varialbes. (see above).
     They are environment variables and should enter the environmnet as k8s secrets.
     """
-    username = HERMES_USERNAME
-    password = HERMES_PASSWORD
-
-    if username is None or password is None:
-        error_message = 'Supply HERMES service account credentials: set HERMES_USERNAME and HERMES_PASSWORD environment variables.'
+    if (not HERMES_USERNAME or not HERMES_PASSWORD):
+        error_message = 'Supply HERMES service account credentials: set SCIMMA_AUTH_USERNAME and SCIMMA_AUTH_PASSWORD environment variables.'
         logger.error(error_message)
         return Response({'message': 'HERMES service account credentials for SCiMMA Auth are not set correctly on the server'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    hop_auth: Auth = Auth(username, password)
+    hop_auth: Auth = Auth(HERMES_USERNAME, HERMES_PASSWORD)
     return hop_auth
 
 
@@ -92,9 +90,7 @@ def get_hermes_api_token():
     hermes_api_token = cache.get('hermes_api_token', None)
     if not hermes_api_token:
         logger.debug("Hermes api token doesn't exist in cache, regenerating it now.")
-        username = HERMES_USERNAME
-        password = HERMES_PASSWORD
-        hermes_api_token, hermes_api_token_expiration = _get_hermes_api_token(username, password)
+        hermes_api_token, hermes_api_token_expiration = _get_hermes_api_token(HERMES_USERNAME, HERMES_PASSWORD)
         expiration_date = dateparse.parse_datetime(hermes_api_token_expiration)
         # Subtract a small amount from timeout to ensure credential is available when retrieved
         timeout = (expiration_date - timezone.now()).total_seconds() - 60
@@ -304,6 +300,7 @@ def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes
         # must get the hermes_group_pk from ALL the groups, not just the user_groups
         hermes_group_pk = _get_hop_group_pk(hermes_group_name, user_api_token=user_api_token)
         add_user_to_group(user_pk, hermes_group_pk, hermes_api_token)
+        user_group_pks.append(hermes_group_pk)
     else:
         logger.info(f'add_permissions_to_credential User (pk={user_pk}) already a member of group {hermes_group_name}')
 

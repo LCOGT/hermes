@@ -214,10 +214,13 @@ TNS_CREDENTIALS = {
 }
 
 # SCiMMA Auth and Hopskotch specific configuration
-# SCIMMA_AUTH_BASE_URL = 'http://127.0.0.1:8000/hopauth'  # for local development of SCiMMA Auth (scimma_admin)
-# SCIMMA_AUTH_BASE_URL = 'https://admin.dev.hop.scimma.org/hopauth'  # for dev deployment of SCiMMA Auth (scimma_admin)
-SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://my.hop.scimma.org/hopauth')  # for production
+SCIMMA_AUTH_BASE_URL = os.getenv('SCIMMA_AUTH_BASE_URL', default='https://admin.dev.hop.scimma.org/hopauth')  # for production
+SCIMMA_AUTH_USERNAME = os.getenv('SCIMMA_AUTH_USERNAME', '')
+SCIMMA_AUTH_PASSWORD = os.getenv('SCIMMA_AUTH_PASSWORD', '')
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
+SCIMMA_KAFKA_BASE_URL = os.getenv("SCIMMA_KAFKA_BASE_URL", default="kafka://dev.hop.scimma.org/")
+SCIMMA_ARCHIVE_BASE_URL = os.getenv("SCIMMA_ARCHIVE_BASE_URL", default="https://archive-api.dev.hop.scimma.org/")
+
 
 GCN_EMAIL = os.getenv('GCN_EMAIL', 'circulars@dev.gcn.nasa.gov')
 GCN_BASE_URL = os.getenv('GCN_BASE_URL', 'https://dev.gcn.nasa.gov/')
@@ -262,18 +265,17 @@ ALERT_STREAMS = [
         'ACTIVE': True,
         'NAME': 'tom_alertstreams.alertstreams.hopskotch.HopskotchAlertStream',
         'OPTIONS': {
-            'URL': 'kafka://kafka.scimma.org/',
-            'USERNAME': os.getenv('SCIMMA_AUTH_USERNAME', ''),
-            'PASSWORD': os.getenv('SCIMMA_AUTH_PASSWORD', ''),
+            'URL': SCIMMA_KAFKA_BASE_URL,
+            'USERNAME': SCIMMA_AUTH_USERNAME,
+            'PASSWORD': SCIMMA_AUTH_PASSWORD,
             # Group ID must be prefixed with SCiMMA SCRAM credential username to open the SCiMMA kafka stream
-            'GROUP_ID': os.getenv('SCIMMA_AUTH_USERNAME', '') + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
+            'GROUP_ID': SCIMMA_AUTH_USERNAME + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes-dev'),
             'TOPIC_HANDLERS': {
                 '*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
                 'hermes.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'microlensing.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'tomtoolkit.test': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
-                'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
-                'igwn.gwalert': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message'
+                'gcn.circular*': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
+                'igwn.gwalert*': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message'
             },
         },
     },
