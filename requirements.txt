@@ -1,5 +1,6 @@
 numpy~=1.24.0
 Django>=4
+bson>=0.5.10
 djangorestframework>=3.14
 django-filter>=2.4
 redis>=3
