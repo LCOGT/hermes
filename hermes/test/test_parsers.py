@@ -292,7 +292,7 @@ class TestGCNCircularParser(TestCase):
         self.assertTrue(GCNCircularParser().parse(message))
         expected_link = {
             'urls': {
-                'gcn': f'https://gcn.nasa.gov/circulars/{header["number"]}'
+                'gcn_circular': f'https://gcn.nasa.gov/circulars/{header["number"]}'
             }
         }
         self.assertDictContainsSubset(expected_link, message.data)

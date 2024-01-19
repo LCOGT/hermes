@@ -120,7 +120,7 @@ def convert_flux_units(hermes_units):
         return '6'
 
 
-def convert_hermes_message_to_tns(hermes_message, filenames):
+def convert_hermes_message_to_tns(hermes_message, filenames_mapping):
     """ Converts from hermes message format into TNS at report format """
     # TODO: Add support for associated files
     # TODO: Add support for classification or frb reports
@@ -191,13 +191,16 @@ def convert_hermes_message_to_tns(hermes_message, filenames):
                 }
                 report['photometry']['photometry_group'][str(i)] = report_photometry
                 i += 1
-        if filenames:
-            file_comments = hermes_message.get('file_comments', [])
+        if filenames_mapping:
+            file_descriptions_by_name = {
+                file.get('name'): file.get(
+                    'description', 'Submitted through Hermes') for file in hermes_message.get('file_info', [])
+            }
             report['related_files'] = {}
-            for i, filename in enumerate(filenames):
+            for i, filename in enumerate(filenames_mapping.keys()):
                 report['related_files'][str(i)] = {
-                    'related_file_name': filename,
-                    'related_file_comments': file_comments[i] if file_comments else 'Submitted through Hermes'
+                    'related_file_name': filenames_mapping[filename],
+                    'related_file_comments': file_descriptions_by_name[filename]
                 }
 
         at_report[str(len(at_report))] = report
@@ -219,7 +222,7 @@ def parse_object_from_tns_response(response_json):
 
 def submit_files_to_tns(files):
     """ Takes in a list of Django InMemoryUploadedFile objects, and submits those to TNS.
-        Returns a list of TNS filenames for those files.
+        Returns a dict of raw filenames to TNS filenames for those files.
     """
     url = urljoin(settings.TNS_BASE_URL, 'api/file-upload')
     headers = {'User-Agent': get_tns_marker()}
@@ -231,10 +234,13 @@ def submit_files_to_tns(files):
     try:
         response = requests.post(url, headers=headers, data=payload, files=files_data)
         response.raise_for_status()
-        filenames = response.json().get('data', {})
+        filenames = response.json().get('data', [])
         if not filenames:
             raise BadTnsRequest("Failed to upload files to TNS, please contact Hermes support")
-        return filenames
+        raw_filenames_to_tns_filenames = {}
+        for i, file in enumerate(files):
+            raw_filenames_to_tns_filenames[file.name] = filenames[i]
+        return raw_filenames_to_tns_filenames
     except Exception:
         raise BadTnsRequest("Failed to upload files to TNS, please try again later")
 
