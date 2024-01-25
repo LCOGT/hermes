@@ -472,6 +472,33 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             errors = serializer.errors
         return Response(errors, status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def preload(self, request):
+        """ Temporarily store a message payload to preload into the frontends submission form.
+            Returns a unique uuid that will be passed to the frontend to retrieve this.
+            It should be valid for 15 minutes from creation, and stored in the cache.
+        """
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            data = serializer.validated_data
+            key = uuid.uuid4()
+            cache.set(f'preload_{key}', data, 900)
+            return Response({'key': key}, status.HTTP_201_CREATED)
+        else:
+            errors = serializer.errors
+            print(errors)
+            return Response(errors, status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path=r'load/(?P<preload_uuid>[-\w]+)')
+    def load(self, request, preload_uuid):
+        """ Loads a temporarily stored message from the cache if it exists
+        """
+        message_data = cache.get(f'preload_{preload_uuid}')
+        if message_data:
+            return Response(message_data, status.HTTP_200_OK)
+        else:
+            return Response({'error': 'No preloaded data was found with that id'}, status.HTTP_404_NOT_FOUND)
+
     @action(detail=False, methods=['post'])
     def plaintext(self, request):
         plaintext_message = convert_to_plaintext(request.data)
