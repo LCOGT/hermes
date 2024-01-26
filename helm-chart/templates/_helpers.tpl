@@ -118,8 +118,12 @@ build it here and use it everywhere.
   value: {{ include "hermes.cacheLocation" . | quote }}
 - name: HERMES_FRONT_END_BASE_URL
   value: {{ .Values.hermesFrontEndBaseUrl | quote }}
-- name: HOP_AUTH_BASE_URL
-  value: {{ .Values.hopAuthBaseUrl | quote }}
+- name: SCIMMA_AUTH_BASE_URL
+  value: {{ .Values.scimma.authBaseUrl | quote }}
+- name: SCIMMA_KAFKA_BASE_URL
+  value: {{ .Values.scimma.kafkaBaseUrl | quote }}
+- name: SCIMMA_ARCHIVE_BASE_URL
+  value: {{ .Values.scimma.archiveBaseUrl | quote }}
 - name: GCN_CLASSIC_OVER_KAFKA_GROUP_ID
   value: {{ .Values.brokers.gcnClassicOverKafka.groupId | quote }}
 - name: HOPSKOTCH_GROUP_ID
