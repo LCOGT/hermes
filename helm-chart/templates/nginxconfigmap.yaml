@@ -19,7 +19,6 @@ data:
         listen 8000;
         server_name _;
         root /usr/share/nginx/html;
-        large_client_header_buffers 16 5M;
 
         # django application
         location / {
@@ -27,8 +26,8 @@ data:
             proxy_http_version 1.1;
             proxy_read_timeout 500;
             proxy_send_timeout 500;
-            proxy_buffers 16 5M;
-            proxy_buffer_size 5M;
+            proxy_buffers 16 1M;
+            proxy_buffer_size 1M;
             client_body_buffer_size 10M;
             client_max_body_size 10M;
             proxy_set_header Connection "";

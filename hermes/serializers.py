@@ -624,6 +624,12 @@ class HermesMessageSerializer(serializers.Serializer):
                            "subject:"
                            ]
 
+    def validate_topic(self, value):
+        # When running in dev mode, only allow submissions to hermes.test topic
+        if settings.SAVE_TEST_MESSAGES and value != 'hermes.test':
+            raise serializers.ValidationError(_("Hermes Dev can only submit to the hermes.test topic."))
+        return value
+
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
