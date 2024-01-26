@@ -6,9 +6,9 @@
 # SCiMMA Auth (Hop Auth, scimma-admin) config
 #
 scimma:
-  authBaseUrl: https://admin.dev.hop.scimma.org/hopauth
+  authBaseUrl: https://my.hop.scimma.org/hopauth
   archiveBaseUrl: https://archive-api.dev.hop.scimma.org/
-  kafkaBaseUrl: kafka://dev.hop.scimma.org/
+  kafkaBaseUrl: kafka://kafka.scimma.org/
 
 djangoDebug: true
 saveTestMessages: true
