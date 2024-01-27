@@ -1,6 +1,6 @@
 # Helm chart values for Development Deployment
 
-replicaCount: 2
+replicaCount: 1
 
 scimma:
   authBaseUrl: https://my.hop.scimma.org/hopauth

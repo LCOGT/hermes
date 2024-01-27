@@ -481,13 +481,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         serializer = self.serializer_class(data=request.data, context={'request': request})
         if serializer.is_valid():
             data = serializer.validated_data
-            key = uuid.uuid4()
-            cache.set(f'preload_{key}', data, 900)
-            return Response({'key': key}, status.HTTP_201_CREATED)
         else:
-            errors = serializer.errors
-            print(errors)
-            return Response(errors, status.HTTP_400_BAD_REQUEST)
+            data = request.data
+        key = uuid.uuid4()
+        cache.set(f'preload_{key}', data, 900)
+        return Response({'key': key}, status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path=r'load/(?P<preload_uuid>[-\w]+)')
     def load(self, request, preload_uuid):
