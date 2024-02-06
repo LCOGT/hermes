@@ -24,7 +24,7 @@ class TestTNS(TestCase):
         super().setUp()
         self.hermes_message = {
             'title': 'Test TNS submission message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'submit_to_tns': True,

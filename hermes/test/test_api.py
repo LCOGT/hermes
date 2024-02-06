@@ -6,10 +6,9 @@ from django.contrib.auth.models import User
 from rest_framework.response import Response
 from datetime import timedelta
 from copy import deepcopy
-from collections import OrderedDict
 import math
 from unittest.mock import patch, ANY
-from hermes.models import Message, NonLocalizedEvent, Target
+from hermes.models import Message, NonLocalizedEvent, Target, Profile
 from hermes.serializers import HermesMessageSerializer
 from hermes.test.test_tns import populate_test_tns_options
 from hop.io import Producer
@@ -154,9 +153,13 @@ class TestApiFiltering(TestCase):
 class TestSubmitBasicMessageApi(TestCase):
     def setUp(self):
         super().setUp()
+        self.user = User.objects.create(username='testuser')
+        self.profile = Profile.objects.create(
+            user=self.user, hop_user_pk=2, credential_pk=2, credential_name='abc', credential_password='abc'
+        )
         self.generic_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -186,6 +189,7 @@ class TestSubmitBasicMessageApi(TestCase):
 
     @patch('hermes.views.submit_to_hop')
     def test_arbitrary_fields_are_accepted(self, mock_submit):
+        self.client.force_login(self.user)
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
         good_message['data'] = {
@@ -198,10 +202,11 @@ class TestSubmitBasicMessageApi(TestCase):
         self.assertEqual(result.status_code, 200)
         metadata = {'topic': good_message['topic']}
         payload, _ = Producer.pack(good_message, metadata)
-        mock_submit.assert_called_with(ANY, payload, ANY)
+        mock_submit.assert_called_with(ANY, payload, ANY, ANY)
 
     @patch('hermes.views.submit_to_hop')
     def test_submit_to_flags_are_removed(self, mock_submit):
+        self.client.force_login(self.user)
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
         good_message['submit_to_tns'] = False
@@ -212,7 +217,7 @@ class TestSubmitBasicMessageApi(TestCase):
         del good_message['submit_to_mpc']
         metadata = {'topic': good_message['topic']}
         payload, _ = Producer.pack(good_message, metadata)
-        mock_submit.assert_called_with(ANY, payload, ANY)
+        mock_submit.assert_called_with(ANY, payload, ANY, ANY)
 
 
 class TestBaseMessageApi(TestCase):
@@ -308,7 +313,7 @@ class TestSubmitReferencesMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -349,7 +354,7 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -524,7 +529,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate FloatField',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -652,7 +657,7 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -707,7 +712,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.user = User.objects.create(username='testuser')
         self.basic_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'submit_to_tns': True,
