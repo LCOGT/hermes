@@ -343,6 +343,12 @@ class TargetDataSerializer(RemoveNullSerializer):
         return dec_angle.deg
 
 
+class FileInfoSerializer(RemoveNullSerializer):
+    name = serializers.CharField(required=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    url = serializers.URLField(required=False)
+
+
 class CommonDataSerializer(RemoveNullSerializer):
     target_name = serializers.CharField(required=True)
     date_obs = serializers.CharField(required=True)
@@ -388,10 +394,10 @@ class PhotometryDataSerializer(CommonDataSerializer):
 class SpectroscopyDataSerializer(CommonDataSerializer):
     setup = serializers.CharField(required=False, allow_null=True)
     exposure_time = serializers.FloatField(required=False, allow_null=True)
-    flux = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
+    flux = serializers.ListField(child=serializers.FloatField(), min_length=1, required=False)
     flux_error = serializers.ListField(child=serializers.FloatField(), required=False)
     flux_units = serializers.ChoiceField(required=False, default="mJy", choices=["mJy", "erg / s / cm² / Å"])
-    wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=True)
+    wavelength = serializers.ListField(child=serializers.FloatField(), min_length=1, required=False)
     wavelength_units = serializers.ChoiceField(required=False, default='nm',
                                                choices=['Å', 'nm', 'µm', 'Hz', 'GHz', 'THz'])
     flux_type = serializers.ChoiceField(required=False, default='Fλ', choices=['Fλ', 'Flambda', 'Fν', 'Fnu'])
@@ -403,13 +409,20 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     observer = serializers.CharField(required=False, allow_null=True)
     reducer = serializers.CharField(required=False, allow_null=True)
     spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
+    file_info = FileInfoSerializer(required=False, many=True)
 
     def validate(self, data):
         validated_data = super().validate(data)
+        if ('flux' not in validated_data or validated_data['flux'] == None or len(validated_data['flux']) == 0):
+            if ('file_info' not in validated_data or len(validated_data['file_info']) == 0):
+                raise serializers.ValidationError({
+                    'file_info': [_("Must specify a spectroscopy file to upload or specify one or more flux values")],
+                    'flux': [_("Must specify a spectroscopy file to upload or specify one or more flux values")]
+                })
         if 'flux_error' in validated_data:
-            if len(validated_data['flux_error']) != len(validated_data['flux']):
+            if len(validated_data.get('flux_error', [])) != len(validated_data.get('flux', [])):
                 raise serializers.ValidationError(_('Must have same number of datapoints for flux and flux_error'))
-        if len(validated_data['flux']) != len(validated_data['wavelength']):
+        if len(validated_data.get('flux', [])) != len(validated_data.get('wavelength', [])):
             raise serializers.ValidationError(_('Must have same number of datapoints for flux and wavelength'))
 
         return validated_data
@@ -527,8 +540,7 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 
 class HermesMessageSerializer(serializers.Serializer):
-    files = serializers.ListField(child=serializers.FileField(allow_empty_file=False, use_url=False), required=False, allow_null=True)
-    file_comments = serializers.ListField(child=serializers.CharField(default='', allow_blank=True), required=False, allow_null=True)
+    file_info = FileInfoSerializer(required=False, many=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -612,6 +624,12 @@ class HermesMessageSerializer(serializers.Serializer):
                            "subject:"
                            ]
 
+    def validate_topic(self, value):
+        # When running in dev mode, only allow submissions to hermes.test topic
+        if settings.SAVE_TEST_MESSAGES and value != 'hermes.test':
+            raise serializers.ValidationError(_("Hermes Dev can only submit to the hermes.test topic."))
+        return value
+
     def validate(self, data):
         # TODO: Add validation if submit_to_mpc is set that required fields are set
         validated_data = super().validate(data)
@@ -625,12 +643,6 @@ class HermesMessageSerializer(serializers.Serializer):
 
             if not request or not request.user.is_authenticated:
                 non_field_errors.append(_('Must be an authenticated user to submit to TNS'))
-
-            num_files = len(validated_data.get('files', []))
-            num_file_comments = len(validated_data.get('file_comments', []))
-
-            if num_file_comments > 0 and num_files > 0 and num_files != num_file_comments:
-                non_field_errors.append(_(f"Must have same number of file_comments ({num_file_comments}) as files ({num_files})"))
 
             if non_field_errors:
                 full_error['non_field_errors'] = non_field_errors

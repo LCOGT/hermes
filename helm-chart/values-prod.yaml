@@ -23,6 +23,11 @@ gcnEmail: circulars@gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
+scimma:
+  authBaseUrl: https://my.hop.scimma.org/hopauth
+  archiveBaseUrl: https://archive-api.hop.scimma.org/
+  kafkaBaseUrl: kafka://kafka.scimma.org/
+
 tns:
   baseUrl: "https://www.wis-tns.org/"
 

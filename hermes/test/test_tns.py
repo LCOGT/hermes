@@ -24,7 +24,7 @@ class TestTNS(TestCase):
         super().setUp()
         self.hermes_message = {
             'title': 'Test TNS submission message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'submit_to_tns': True,
@@ -81,7 +81,7 @@ class TestTNS(TestCase):
         }
 
     def test_tns_conversion(self, mock_populate_tns):
-        tns_message = convert_hermes_message_to_tns(self.hermes_message, filenames=[])
+        tns_message = convert_hermes_message_to_tns(self.hermes_message, filenames_mapping={})
         expected_tns_message = {'0': {'at_type': '1',
        'dec': {'error': None, 'units': None, 'value': '42.2'},
        'discovery_data_source_id': '5',

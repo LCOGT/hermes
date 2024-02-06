@@ -1,6 +1,11 @@
 # Helm chart values for Development Deployment
 
-replicaCount: 2
+replicaCount: 1
+
+scimma:
+  authBaseUrl: https://my.hop.scimma.org/hopauth
+  archiveBaseUrl: https://archive-api.dev.hop.scimma.org/
+  kafkaBaseUrl: kafka://kafka.scimma.org/
 
 resources:
   requests:

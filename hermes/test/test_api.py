@@ -6,12 +6,13 @@ from django.contrib.auth.models import User
 from rest_framework.response import Response
 from datetime import timedelta
 from copy import deepcopy
-from collections import OrderedDict
 import math
 from unittest.mock import patch, ANY
-from hermes.models import Message, NonLocalizedEvent, Target
+from hermes.models import Message, NonLocalizedEvent, Target, Profile
 from hermes.serializers import HermesMessageSerializer
 from hermes.test.test_tns import populate_test_tns_options
+from hop.io import Producer
+
 
 class TestApiFiltering(TestCase):
     @classmethod
@@ -152,9 +153,13 @@ class TestApiFiltering(TestCase):
 class TestSubmitBasicMessageApi(TestCase):
     def setUp(self):
         super().setUp()
+        self.user = User.objects.create(username='testuser')
+        self.profile = Profile.objects.create(
+            user=self.user, hop_user_pk=2, credential_pk=2, credential_name='abc', credential_password='abc'
+        )
         self.generic_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -184,6 +189,7 @@ class TestSubmitBasicMessageApi(TestCase):
 
     @patch('hermes.views.submit_to_hop')
     def test_arbitrary_fields_are_accepted(self, mock_submit):
+        self.client.force_login(self.user)
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
         good_message['data'] = {
@@ -194,11 +200,13 @@ class TestSubmitBasicMessageApi(TestCase):
         }
         result = self.client.post(reverse('submit_message-list'), good_message, content_type="application/json")
         self.assertEqual(result.status_code, 200)
-        good_message['data'] = OrderedDict(good_message['data'])
-        mock_submit.assert_called_with(ANY, OrderedDict(good_message))
+        metadata = {'topic': good_message['topic']}
+        payload, _ = Producer.pack(good_message, metadata)
+        mock_submit.assert_called_with(ANY, payload, ANY, ANY)
 
     @patch('hermes.views.submit_to_hop')
     def test_submit_to_flags_are_removed(self, mock_submit):
+        self.client.force_login(self.user)
         mock_submit.return_value = Response({"message": "Message was submitted successfully."}, status=200)
         good_message = deepcopy(self.generic_message)
         good_message['submit_to_tns'] = False
@@ -207,8 +215,9 @@ class TestSubmitBasicMessageApi(TestCase):
         self.assertEqual(result.status_code, 200)
         del good_message['submit_to_tns']
         del good_message['submit_to_mpc']
-        good_message['data'] = OrderedDict(good_message['data'])
-        mock_submit.assert_called_with(ANY, OrderedDict(good_message))
+        metadata = {'topic': good_message['topic']}
+        payload, _ = Producer.pack(good_message, metadata)
+        mock_submit.assert_called_with(ANY, payload, ANY, ANY)
 
 
 class TestBaseMessageApi(TestCase):
@@ -304,7 +313,7 @@ class TestSubmitReferencesMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -345,7 +354,7 @@ class TestSubmitTargetMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -520,7 +529,7 @@ class TestSubmitPhotometryMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate FloatField',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -648,7 +657,7 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         super().setUp()
         self.good_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -666,13 +675,28 @@ class TestSubmitSpectroscopyMessageApi(TestBaseMessageApi):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {})
 
-    def test_spectroscopy_requires_flux_and_wavelength(self):
+    def test_spectroscopy_requires_flux_and_wavelength_or_file(self):
         bad_message = deepcopy(self.good_message)
         del bad_message['data']['spectroscopy'][0]['flux']
         del bad_message['data']['spectroscopy'][0]['wavelength']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'flux', status_code=200)
-        self.assertContains(result, 'wavelength', status_code=200)
+        self.assertContains(result, 'Must specify a spectroscopy file to upload or specify one or more flux values',
+                            status_code=200)
+
+    def test_spectroscopy_accepts_files(self):
+        good_message = deepcopy(self.good_message)
+        del good_message['data']['spectroscopy'][0]['flux']
+        del good_message['data']['spectroscopy'][0]['wavelength']
+        good_message['data']['spectroscopy'][0]['files'] = [
+            {
+                'name': 'MyFile1.fits',
+                'description': 'This is my first spectrum file.',
+                'url': 'http://myserver.org/mypath/MyFile1.fits'
+            }
+        ]
+        result = self.client.post(reverse('submit_message-validate'), self.good_message, content_type="application/json")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {})
 
     def test_spectroscopy_flux_and_wavelength_list_sizes_must_match(self):
         bad_message = deepcopy(self.good_message)
@@ -688,7 +712,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.user = User.objects.create(username='testuser')
         self.basic_message = {
             'title': 'Candidate message',
-            'topic': 'hermes.candidates',
+            'topic': 'hermes.test',
             'message_text': 'This is a candidate message.',
             'submitter': 'Hermes Guest',
             'submit_to_tns': True,
@@ -711,6 +735,7 @@ class TestTNSSubmission(TestBaseMessageApi):
     def test_good_tns_submission(self, mock_populate_tns):
         self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
             'discovery_source': 'LCO Floyds'
@@ -720,6 +745,7 @@ class TestTNSSubmission(TestBaseMessageApi):
 
     def test_must_be_logged_in_for_tns_submission(self, mock_populate_tns):
         good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
             'discovery_source': 'LCO Floyds'
@@ -801,6 +827,7 @@ class TestTNSSubmission(TestBaseMessageApi):
     def test_group_associations_list_accepted(self, mock_populate_tns):
         self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
             'discovery_source': 'LCO Floyds'

@@ -37,7 +37,7 @@ from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.forms import MessageForm
 from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns, BadTnsRequest
-from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser
+from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser, upload_file_to_hop
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -142,6 +142,7 @@ class MessageDetailView(DetailView):
 
 
 class MessageFormView(FormView):
+    permission_classes = [IsAuthenticated]
     template_name = "hermes/generic_message.html"
     form_class = MessageForm
     success_url = reverse_lazy('index')
@@ -165,34 +166,19 @@ class MessageFormView(FormView):
         return redirect(self.get_success_url())
 
 
-def submit_to_hop(request, payload, headers):
+def submit_to_hop(request, payload, headers, hop_auth):
     """Open the Hopskotch kafka stream for write and publish an Alert
-
-    The request holds the Session dict which has the 'hop_user_auth_json` key
-    whose value can be deserialized into a hop.auth.Auth instance to open the
-    stream with. (The hop.auth.Auth instance was added to the Session dict upon
-    logon via the HopskotchOIDCAuthenticationBackend.authenticate method).
     """
-    if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-        hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-    else:
-        logger.error(f'Hopskotch Authorization for User {request.user.username} not found.')
-        # TODO: REMOVE THE FOLLOWING CODE AFTER TESTING!!
-        # use the Hermes service account temporarily while testing...
-        logger.warning(f'Submitting with Hermes service account authorization (testing only)')
-        hop_auth: Auth = hopskotch.get_hermes_hop_authorization()
-
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
     logger.debug(f'submit_to_hop request: {request}')
     logger.debug(f'submit_to_hop request.data: {request.data}')
-
     try:
         topic = request.data['topic']
         # Add the _sender in the header with our auth here since we originally generate it without an auth
         headers.append(("_sender", hop_auth.username.encode("utf-8")))
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
-        with stream.open(f'kafka://kafka.scimma.org/{topic}', 'w') as producer:
+        with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w') as producer:
             producer.write_raw(payload, headers)
     except Exception as e:
         raise APIException(f'Error posting message to kafka: {e}')
@@ -331,6 +317,11 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                                current supported values: [AB mag, Vega mag, mJy, erg / s / cm² / Å]>
                     wavelength: [<Wavelength values for this spectroscopic datum>],
                     wavelength_units: <Units for the wavelength>,
+                    file_info: [{
+                        name: <file name>,
+                        description: <file description>,
+                        url: <url to access file> (optional)
+                    }]
                     classification: <TNS classification for this specotroscopic datum>,
                     proprietary_period: <>,
                     proprietary_period_units: <>,
@@ -367,25 +358,54 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         data = request.data
         if 'multipart/form-data' in request.content_type:
             files = request.data.getlist('files')  # Need to explicitly pull out the files since they don't translate well in .dict()
+            files_by_name = {file.name: file for file in files}
             data = data.dict()
-            if 'files' in data:
-                data['files'] = files
+
         non_serialized_data = {key: val for key, val in data.get('data', {}).items() if key not in self.EXPECTED_DATA_KEYS}
         gcn_submit = data.get('submit_to_gcn', False)
         tns_submit = data.get('submit_to_tns', False)
         serializer = self.serializer_class(data=data, context={'request': request})
         if serializer.is_valid():
+            # Get the hop_auth for the user, or return an error
+            if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+                hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+            else:
+                return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+
             data = serializer.validated_data
+            general_files = []
+            spectroscopy_files = {}
+            referenced_files_not_found = []
+            # Check that if files are specified in the general message, they match top level files uploaded here
+            for file in data.get('file_info', []):
+                if not file.get('url'):
+                    if file.get('name') not in files_by_name:
+                        referenced_files_not_found.append(file.get('name'))
+                    else:
+                        general_files.append(files_by_name[file.get('name')])
+
+            # Check that if files are specified in spectroscopy sections, they match top level files uploaded here
+            for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
+                for file in spectroscopy_datum.get('file_info', []):
+                    if not file.get('url'):
+                        if file.get('name') not in files_by_name:
+                            referenced_files_not_found.append(file.get('name'))
+                        else:
+                            spectroscopy_files[file.get('name')] = files_by_name[file.get('name')]
+
+            if referenced_files_not_found:
+                return Response({'error': f'Files {",".join(referenced_files_not_found)} referenced in message but not uploaded in files section.'})
+
             if non_serialized_data:
                 if 'data' not in data:
                     data['data'] = {}
                 data['data'].update(non_serialized_data)
             if tns_submit:
                 try:
-                    filenames = []
-                    if 'files' in data:
-                        filenames = submit_files_to_tns(data['files'])
-                    tns_message = convert_hermes_message_to_tns(data, filenames)
+                    filenames_mapping = {}
+                    if general_files:
+                        filenames_mapping = submit_files_to_tns(general_files)
+                    tns_message = convert_hermes_message_to_tns(data, filenames_mapping)
                     object_name = submit_at_report_to_tns(tns_message)
                     if 'references' not in data['data']:
                         data['data']['references'] = []
@@ -399,9 +419,17 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
             try:
                 if 'files' in data:
                     del data['files']
-                if 'file_comments' in data:
-                    del data['file_comments']
                 metadata = {'topic': data['topic']}
+                # Check if there are spectroscopy files and upload them here, getting back a url to them
+                # Then store the reference in the messages data for the file_info->url
+                for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
+                    for file in spectroscopy_datum.get('file_info', []):
+                        if not file.get('url'):
+                            filename = file.get('name')
+                            file_contents = spectroscopy_files[filename]
+                            download_url = upload_file_to_hop(file_contents, data['topic'], hop_auth)
+                            file['url'] = download_url
+                # return Response({'error': 'Temporarily stopped sending messages for testing'}, status.HTTP_400_BAD_REQUEST)
                 # Do this to generate the uuid early so we can send it with the gcn.
                 payload, headers = Producer.pack(data, metadata)
                 message_uuid_tuple = next((item for item in headers if item[0] == '_id'), None)
@@ -425,7 +453,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         blob = JSONBlob(content=data)
                         encoded = blob.serialize()
                         payload = encoded["content"]
-                submit_to_hop(request, payload, headers)
+                submit_to_hop(request, payload, headers, hop_auth)
                 return Response({"message": f"Submitted message with uuid {message_uuid}"},
                                 status=status.HTTP_200_OK)
             except APIException as ae:
@@ -443,6 +471,31 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
         else:
             errors = serializer.errors
         return Response(errors, status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    def preload(self, request):
+        """ Temporarily store a message payload to preload into the frontends submission form.
+            Returns a unique uuid that will be passed to the frontend to retrieve this.
+            It should be valid for 15 minutes from creation, and stored in the cache.
+        """
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            data = serializer.validated_data
+        else:
+            data = request.data
+        key = uuid.uuid4()
+        cache.set(f'preload_{key}', data, 900)
+        return Response({'key': key}, status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated], url_path=r'load/(?P<preload_uuid>[-\w]+)')
+    def load(self, request, preload_uuid):
+        """ Loads a temporarily stored message from the cache if it exists
+        """
+        message_data = cache.get(f'preload_{preload_uuid}')
+        if message_data:
+            return Response(message_data, status.HTTP_200_OK)
+        else:
+            return Response({'error': 'No preloaded data was found with that id'}, status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['post'])
     def plaintext(self, request):
@@ -546,10 +599,15 @@ class HeartbeatApiView(RetrieveAPIView):
     """ View to retrieve last timestamps for data received per stream """
 
     def get(self, request):
+        # Also include if the user is logged in, for the frontend as well
         last_timestamps = {
             'hop': cache.get('hop_stream_heartbeat')
         }
-        return Response(last_timestamps)
+        response = {
+            'last_timestamps': last_timestamps,
+            'is_authenticated': request.user.is_authenticated
+        }
+        return Response(response)
 
 
 class RevokeApiTokenApiView(APIView):
