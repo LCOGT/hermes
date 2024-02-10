@@ -25,25 +25,44 @@ class RemoveNullSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
-    api_token = serializers.CharField()
+    api_token = serializers.CharField(read_only=True)
     can_submit_to_gcn = serializers.SerializerMethodField()
     integrated_apps = serializers.SerializerMethodField()
+    tns_bot_api_token = serializers.CharField(required=False, write_only=True)
 
     class Meta:
         model = Profile
         fields = (
-            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn'
+            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn', 'tns_bot_id',
+            'tns_bot_name', 'tns_bot_api_token'
         )
 
     def get_integrated_apps(self, obj):
         tokens = OAuthToken.objects.filter(user=obj.user)
         integrated_apps = [token.integrated_app for token in tokens]
+        if obj.tns_bot_api_token and obj.tns_bot_name and obj.tns_bot_id != -1:
+            integrated_apps.append('TNS')
         return integrated_apps
 
     def get_can_submit_to_gcn(self, obj):
         return OAuthToken.objects.filter(
             user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circular-submitter']
         ).exists()
+
+    def validate(self, data):
+        validated_data = super().validate(data)
+        if self.context.get('request').method == 'PATCH':
+            update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            update_fields_present = [field in validated_data for field in update_fields]
+            if any(update_fields_present) and not all(update_fields_present):
+                raise serializers.ValidationError(_(
+                    'Must update tns_bot_id, tns_bot_name, and tns_bot_api_token all together'
+                ))
+            if any([field not in update_fields for field in validated_data]):
+                raise serializers.ValidationError(_(
+                    f"Can only update profile fields: {', '.join(update_fields)}"
+                ))
+        return validated_data
 
 
 class BaseTargetSerializer(serializers.ModelSerializer):
