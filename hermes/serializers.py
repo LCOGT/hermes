@@ -28,7 +28,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     api_token = serializers.CharField(read_only=True)
     can_submit_to_gcn = serializers.SerializerMethodField()
     integrated_apps = serializers.SerializerMethodField()
-    tns_bot_api_token = serializers.CharField(required=False, write_only=True)
+    tns_bot_api_token = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     class Meta:
         model = Profile

@@ -207,9 +207,21 @@ def convert_hermes_message_to_tns(hermes_message, filenames_mapping):
     return at_report
 
 
-def get_tns_marker():
-    tns_marker = 'tns_marker{"tns_id": "' + str(settings.TNS_CREDENTIALS.get('id')) + '", "type": "bot", "name": "' + settings.TNS_CREDENTIALS.get('name') + '"}'
+def get_tns_marker(request):
+    if (request.user.is_authenticated and request.user.profile.tns_bot_id != -1
+        and request.user.profile.tns_bot_name and request.user.profile.tns_bot_api_token):
+        tns_marker = 'tns_marker{"tns_id": "' + str(request.user.profile.tns_bot_id) + '", "type": "bot", "name": "' + request.user.profile.tns_bot_name + '"}'
+    else:
+        tns_marker = 'tns_marker{"tns_id": "' + str(settings.TNS_CREDENTIALS.get('id')) + '", "type": "bot", "name": "' + settings.TNS_CREDENTIALS.get('name') + '"}'
     return tns_marker
+
+
+def get_tns_api_token(request):
+    if (request.user.is_authenticated and request.user.profile.tns_bot_id != -1
+        and request.user.profile.tns_bot_name and request.user.profile.tns_bot_api_token):
+        return request.user.profile.tns_bot_api_token
+    else:
+        return settings.TNS_CREDENTIALS.get('api_token')
 
 
 def parse_object_from_tns_response(response_json):
@@ -220,13 +232,13 @@ def parse_object_from_tns_response(response_json):
     return None
 
 
-def submit_files_to_tns(files):
+def submit_files_to_tns(request, files):
     """ Takes in a list of Django InMemoryUploadedFile objects, and submits those to TNS.
         Returns a dict of raw filenames to TNS filenames for those files.
     """
     url = urljoin(settings.TNS_BASE_URL, 'api/file-upload')
-    headers = {'User-Agent': get_tns_marker()}
-    payload = {'api_key': settings.TNS_CREDENTIALS.get('api_token')}
+    headers = {'User-Agent': get_tns_marker(request)}
+    payload = {'api_key': get_tns_api_token(request)}
     files_data = {}
     for i, file in enumerate(files):
         key = f"files[{str(i)}]"
@@ -245,15 +257,15 @@ def submit_files_to_tns(files):
         raise BadTnsRequest("Failed to upload files to TNS, please try again later")
 
 
-def submit_at_report_to_tns(at_report):
+def submit_at_report_to_tns(request, at_report):
     """ Submit a tns formatted message to the tns server, and returns the TNS object name """
     data = {'at_report': at_report}
     payload = {
-        'api_key': settings.TNS_CREDENTIALS.get('api_token'),
+        'api_key': get_tns_api_token(request),
         'data': json.dumps(data, indent=4)
     }
     url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report')
-    headers = {'User-Agent': get_tns_marker()}
+    headers = {'User-Agent': get_tns_marker(request)}
     try:
         response = requests.post(url, headers = headers, data = payload)
         response.raise_for_status()
@@ -264,7 +276,7 @@ def submit_at_report_to_tns(at_report):
     attempts = 0
     object_name = None
     reply_url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report-reply')
-    reply_data = {'api_key': settings.TNS_CREDENTIALS.get('api_token'), 'report_id': report_id}
+    reply_data = {'api_key': get_tns_api_token(request), 'report_id': report_id}
     # TNS Submissions return immediately with an id, which you must then check to see if the message
     # was processed, and if it was accepted or rejected. Here we check up to 10 times, waiting 1s
     # between checks. Under normal circumstances, it should be processed within a few seconds.
