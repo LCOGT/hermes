@@ -722,10 +722,10 @@ class TestTNSSubmission(TestBaseMessageApi):
                 'references': [],
                 'targets': [self.ra_target1],
                 'photometry': [self.photometry, self.limiting_photometry],
-                'spectroscopy': [self.spectroscopy],
                 'test_key': 'test_value'
             }
         }
+        self.client.force_login(self.user)
     
     def test_submission_requires_discovery_info(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
@@ -744,6 +744,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.assertEqual(result.json(), {})
 
     def test_must_be_logged_in_for_tns_submission(self, mock_populate_tns):
+        self.client.logout()
         good_message = deepcopy(self.basic_message)
         good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
@@ -784,10 +785,12 @@ class TestTNSSubmission(TestBaseMessageApi):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['targets']
         del bad_message['data']['photometry']
-        del bad_message['data']['spectroscopy']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
         self.assertContains(result, 'Must fill in at least one target entry for TNS submission', status_code=200)
-        self.assertContains(result, 'Must fill in at least one photometry or spectroscopy entry for TNS submission', status_code=200)
+        self.assertContains(result,
+            'Should either fill in photometry (new discovery) or spectroscopy (classification) for TNS submission',
+            status_code=200
+        )
 
     def test_submission_requires_at_least_one_photometry_nondetection(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
@@ -812,20 +815,57 @@ class TestTNSSubmission(TestBaseMessageApi):
         self.assertContains(result, 'Target ra must be present for TNS submission', status_code=200)
         self.assertContains(result, 'Target dec must be present for TNS submission', status_code=200)
 
+    def test_submission_can_have_either_spectroscopy_or_photometry_not_both(self, mock_populate_tns):
+        bad_message = deepcopy(self.basic_message)
+        bad_message['data']['spectroscopy'] = [deepcopy(self.spectroscopy)]
+        result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result,
+            'Should either fill in photometry (new discovery) or spectroscopy (classification) for TNS submission',
+            status_code=200
+        )
+
+    def test_submission_with_spectroscopy_requires_less_target_fields(self, mock_populate_tns):
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['spectroscopy'] = [deepcopy(self.spectroscopy)]
+        del good_message['data']['photometry']
+        good_message['data']['spectroscopy'][0]['classification'] = 'SN Ic'
+        good_message['data']['spectroscopy'][0]['file_info'] = [{
+            'name': 'test.ascii',
+            'description': 'This is my spectrum'
+        }]
+        good_message['data']['targets'][0]['new_discovery'] = False
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+        }
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.json(), {})
+
     def test_submission_requires_spectroscopy_fields(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)
+        bad_message['data']['spectroscopy'] = [deepcopy(self.spectroscopy)]
+        del bad_message['data']['photometry']
         del bad_message['data']['spectroscopy'][0]['observer']
         del bad_message['data']['spectroscopy'][0]['reducer']
+        bad_message['data']['spectroscopy'][0]['instrument'] = 'Not a Valid Instrument'
         bad_message['data']['spectroscopy'][0]['classification'] = 'Not a TNS Type'
         del bad_message['data']['spectroscopy'][0]['spec_type']
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result,
+            'Instrument Not a Valid Instrument is not a valid TNS instrument',
+            status_code=200
+        )
+        self.assertContains(result,
+            'Must specify a .ascii or .fits spectrum file for each spectrum in a TNS classification submission',
+            status_code=200
+        )
         self.assertContains(result, 'Spectroscopy must have observer specified for TNS submission', status_code=200)
-        self.assertContains(result, 'Spectroscopy must have reducer specified for TNS submission', status_code=200)
-        self.assertContains(result, 'Must be one of the TNS classification object_types for TNS submission', status_code=200)
+        self.assertContains(result,
+            'Classification Not a TNS Type is not a valid TNS classification object_type',
+            status_code=200
+        )
         self.assertContains(result, 'Spectroscopy must have spec_type specified for TNS submission', status_code=200)
 
     def test_group_associations_list_accepted(self, mock_populate_tns):
-        self.client.force_login(self.user)
         good_message = deepcopy(self.basic_message)
         good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
