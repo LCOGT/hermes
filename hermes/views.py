@@ -190,7 +190,7 @@ def submit_to_gcn(request, message, message_uuid):
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
                          + urljoin(settings.HERMES_FRONT_END_BASE_URL, f'message/{str(message_uuid)}')
     # Then submit the plaintext message to gcn via email
-    message_data = {'subject': message['title'], 'body': message_plaintext}
+    message_data = {'subject': message['title'], 'body': message_plaintext, "format": "text/markdown"}
     access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
 
     headers =  {'Authorization': f'Bearer {access_token}'}
@@ -428,7 +428,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                             spectroscopy_filenames_mapping = submit_files_to_tns(request, spectroscopy_files.values())
                         tns_message = convert_classification_hermes_message_to_tns(
                             data, target_filenames_mapping, spectroscopy_filenames_mapping)
-                        output = submit_classification_report_to_tns(request, tns_message)
+                        submit_classification_report_to_tns(request, tns_message)
                         object_names = list(
                             {spectra.get('target_name') for spectra in data.get('data', {}).get('spectroscopy', [])}
                         )
@@ -463,7 +463,7 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 # Do the same for target related files
                 for target in data.get('data', {}).get('targets', []):
                     # Only publicly upload target related file if the proprietary period is 0 or not set
-                    if target.get('discovery_info', {}).get('proprietary_period', 0):
+                    if target.get('discovery_info', {}).get('proprietary_period', 0) == 0:
                         for file in target.get('file_info', []):
                             if not file.get('url'):
                                 filename = file.get('name')
