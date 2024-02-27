@@ -3,7 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from unittest.mock import patch, ANY
 
-from hermes.tns import reverse_tns_values, convert_hermes_message_to_tns, parse_date
+from hermes.tns import reverse_tns_values, convert_discovery_hermes_message_to_tns, parse_date
 
 import json
 import os
@@ -25,7 +25,7 @@ class TestTNS(TestCase):
         self.hermes_message = {
             'title': 'Test TNS submission message',
             'topic': 'hermes.test',
-            'message_text': 'This is a candidate message.',
+            'message_text': 'This isnt used by TNS.',
             'submitter': 'Hermes Guest',
             'submit_to_tns': True,
             'authors': 'Test Person1 <testperson1@gmail.com>, Test Person2 <testperson2@gmail.com>',
@@ -46,6 +46,7 @@ class TestTNS(TestCase):
                         'proprietary_period': 1,
                         'proprietary_period_units': 'years'
                     },
+                    'comments': 'This is a candidate message.',
                     'host_name': 'm33',
                     'host_redshift': 23,
                     'redshift': 17
@@ -81,7 +82,7 @@ class TestTNS(TestCase):
         }
 
     def test_tns_conversion(self, mock_populate_tns):
-        tns_message = convert_hermes_message_to_tns(self.hermes_message, filenames_mapping={})
+        tns_message = convert_discovery_hermes_message_to_tns(self.hermes_message, filenames_mapping={})
         expected_tns_message = {'0': {'at_type': '1',
        'dec': {'error': None, 'units': None, 'value': '42.2'},
        'discovery_data_source_id': '5',
@@ -115,6 +116,7 @@ class TestTNS(TestCase):
                               'proprietary_period_value': '1'},
        'proprietary_period_groups': ['1', '2', '5'],
        'ra': {'error': None, 'units': None, 'value': '33.2'},
+       'related_files': {},
        'remarks': 'This is a candidate message.',
        'reporter': 'Test Person1 <testperson1@gmail.com>, Test Person2 '
                    '<testperson2@gmail.com>',

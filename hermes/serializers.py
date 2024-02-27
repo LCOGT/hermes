@@ -1,5 +1,4 @@
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile, OAuthToken
-from hermes.utils import TNS_TYPES
 from hermes.tns import get_reverse_tns_values
 from hermes.oauth_clients import get_access_token
 from rest_framework import serializers
@@ -276,6 +275,12 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
                                                        choices=['Days', 'Months', 'Years'])
 
 
+class FileInfoSerializer(RemoveNullSerializer):
+    name = serializers.CharField(required=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    url = serializers.URLField(required=False)
+
+
 class TargetDataSerializer(RemoveNullSerializer):
     name = serializers.CharField(required=True)
     ra = serializers.CharField(required=False, allow_null=True)
@@ -304,6 +309,8 @@ class TargetDataSerializer(RemoveNullSerializer):
     host_redshift = serializers.FloatField(required=False, allow_null=True)
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
     group_associations = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
+    file_info = FileInfoSerializer(required=False, many=True)
+    comments = serializers.CharField(required=False, allow_null=True)
 
     def validate_epoch(self, value):
         validate_date(value)
@@ -360,12 +367,6 @@ class TargetDataSerializer(RemoveNullSerializer):
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg
-
-
-class FileInfoSerializer(RemoveNullSerializer):
-    name = serializers.CharField(required=True)
-    description = serializers.CharField(required=False, allow_blank=True)
-    url = serializers.URLField(required=False)
 
 
 class CommonDataSerializer(RemoveNullSerializer):
@@ -559,7 +560,6 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 
 class HermesMessageSerializer(serializers.Serializer):
-    file_info = FileInfoSerializer(required=False, many=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -697,8 +697,8 @@ class HermesMessageSerializer(serializers.Serializer):
                 if target.get('dec') is None:
                     target_error['dec'] = [_("Target dec must be present for TNS submission")]
                 if target.get('group_associations'):
-                    groups = target.get('group_associations')
-                    bad_groups = [group for group in groups if group not in tns_options.get('groups')]
+                    groups = target.get('group_associations', [])
+                    bad_groups = [group for group in groups if group not in tns_options.get('groups', [])]
                     if bad_groups:
                         target_error['group_associations'] = [_(f'Group associations {",".join(bad_groups)} are not valid TNS groups')]
 
@@ -759,11 +759,11 @@ class HermesMessageSerializer(serializers.Serializer):
                                                                 ' submission')]
 
                     file_info = spectroscopy.get('file_info', [])
-                    file_error_msg = 'Must specify a .ascii or .fits spectrum file for each spectrum in a TNS classification submission'
+                    file_error_msg = 'Must specify a .ascii or .txt spectrum file for each spectrum in a TNS classification submission'
                     if len(file_info) == 0:
                         spectroscopy_error['files'] = [_(file_error_msg)]
                     else:
-                        if not any(['.fits' in file.get('name') or '.ascii' in file.get('name') for file in file_info]):
+                        if not any(['.ascii' in file.get('name') or '.txt' in file.get('name') for file in file_info]):
                             spectroscopy_error['files'] = [_(file_error_msg)]
                     if not spectroscopy.get('instrument'):
                         spectroscopy_error['instrument'] = [_('Spectroscopy must have instrument specified for TNS'

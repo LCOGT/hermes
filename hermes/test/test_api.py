@@ -855,7 +855,7 @@ class TestTNSSubmission(TestBaseMessageApi):
             status_code=200
         )
         self.assertContains(result,
-            'Must specify a .ascii or .fits spectrum file for each spectrum in a TNS classification submission',
+            'Must specify a .ascii or .txt spectrum file for each spectrum in a TNS classification submission',
             status_code=200
         )
         self.assertContains(result, 'Spectroscopy must have observer specified for TNS submission', status_code=200)
