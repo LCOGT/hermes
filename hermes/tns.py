@@ -127,6 +127,8 @@ def convert_classification_hermes_message_to_tns(hermes_message, target_filename
     """ Converts from a hermes message format into a TNS classification report format """
     report_payload = {}
     tns_options = get_reverse_tns_values()
+    if not tns_options:
+        raise BadTnsRequest("Failed to retrieve TNS options, please try again later")
     data = hermes_message.get('data', {})
     spectroscopy_by_target = defaultdict(list)
     for spectra in data.get('spectroscopy', []):
@@ -198,6 +200,8 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
     """ Converts from a hermes message format into a TNS AT (new discovery) report format """
     at_report = {}
     tns_options = get_reverse_tns_values()
+    if not tns_options:
+        raise BadTnsRequest("Failed to retrieve TNS options, please try again later")
     data = hermes_message.get('data', {})
     for target in data.get('targets', []):
         photometry_list = [photometry for photometry in data.get('photometry', []) if photometry.get('target_name') == target.get('name')]
