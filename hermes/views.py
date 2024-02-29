@@ -1,4 +1,3 @@
-from http.client import responses
 import json
 import logging
 import uuid
@@ -7,7 +6,6 @@ import requests
 
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.http import HttpResponse
 
 #from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -36,8 +34,9 @@ from hop.models import JSONBlob
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.forms import MessageForm
-from hermes.tns import get_tns_values, convert_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns, BadTnsRequest
-from hermes.utils import get_all_public_topics, convert_to_plaintext, send_email, MultipartJsonFileParser, upload_file_to_hop
+from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns,
+                        convert_classification_hermes_message_to_tns, submit_classification_report_to_tns, BadTnsRequest)
+from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -191,7 +190,7 @@ def submit_to_gcn(request, message, message_uuid):
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
                          + urljoin(settings.HERMES_FRONT_END_BASE_URL, f'message/{str(message_uuid)}')
     # Then submit the plaintext message to gcn via email
-    message_data = {'subject': message['title'], 'body': message_plaintext}
+    message_data = {'subject': message['title'], 'body': message_plaintext, "format": "text/markdown"}
     access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
 
     headers =  {'Authorization': f'Bearer {access_token}'}
@@ -282,7 +281,13 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         'group one',
                         'group two',
                         ...
-                    ]
+                    ],
+                    file_info: [{
+                        name: <file name>,
+                        description: <file description>,
+                        url: <url to access file> (optional)
+                    }],
+                    comments: <String of comments for the target>,
                 }
             ],
             photometry: [
@@ -373,17 +378,17 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
 
             data = serializer.validated_data
-            general_files = []
+            target_files = {}
             spectroscopy_files = {}
             referenced_files_not_found = []
-            # Check that if files are specified in the general message, they match top level files uploaded here
-            for file in data.get('file_info', []):
-                if not file.get('url'):
-                    if file.get('name') not in files_by_name:
-                        referenced_files_not_found.append(file.get('name'))
-                    else:
-                        general_files.append(files_by_name[file.get('name')])
-
+            # Check that if files are specified in the target section, they match top level files uploaded here
+            for target in data.get('data', {}).get('targets', []):
+                for file in target.get('file_info', []):
+                    if not file.get('url'):
+                        if file.get('name') not in files_by_name:
+                            referenced_files_not_found.append(file.get('name'))
+                        else:
+                            target_files[file.get('name')] = files_by_name[file.get('name')]
             # Check that if files are specified in spectroscopy sections, they match top level files uploaded here
             for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
                 for file in spectroscopy_datum.get('file_info', []):
@@ -393,8 +398,18 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         else:
                             spectroscopy_files[file.get('name')] = files_by_name[file.get('name')]
 
+            # Check that there are no files that were uploaded but not referenced in the messages data
+            files_not_referenced = []
+            if target_files or spectroscopy_files:
+                for filename in files_by_name.keys():
+                    if ((filename not in target_files) and (filename not in spectroscopy_files)):
+                        files_not_referenced.append(filename)
+
+            if files_not_referenced:
+                return Response({'error': f'Files {",".join(files_not_referenced)} sent but not referenced in the messages target or spectroscopy sections.'}, status.HTTP_400_BAD_REQUEST)
+
             if referenced_files_not_found:
-                return Response({'error': f'Files {",".join(referenced_files_not_found)} referenced in message but not uploaded in files section.'})
+                return Response({'error': f'Files {",".join(referenced_files_not_found)} referenced in message but not uploaded in files section.'}, status.HTTP_400_BAD_REQUEST)
 
             if non_serialized_data:
                 if 'data' not in data:
@@ -402,18 +417,32 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 data['data'].update(non_serialized_data)
             if tns_submit:
                 try:
-                    filenames_mapping = {}
-                    if general_files:
-                        filenames_mapping = submit_files_to_tns(general_files)
-                    tns_message = convert_hermes_message_to_tns(data, filenames_mapping)
-                    object_name = submit_at_report_to_tns(tns_message)
+                    target_filenames_mapping = {}
+                    spectroscopy_filenames_mapping = {}
+                    if target_files:
+                        target_filenames_mapping = submit_files_to_tns(request, target_files.values())
+                    object_names = []
+                    if len(data.get('data', {}).get('spectroscopy', [])) > 0:
+                        # This is a classification message
+                        if spectroscopy_files:
+                            spectroscopy_filenames_mapping = submit_files_to_tns(request, spectroscopy_files.values())
+                        tns_message = convert_classification_hermes_message_to_tns(
+                            data, target_filenames_mapping, spectroscopy_filenames_mapping)
+                        submit_classification_report_to_tns(request, tns_message)
+                        object_names = list(
+                            {spectra.get('target_name') for spectra in data.get('data', {}).get('spectroscopy', [])}
+                        )
+                    else:
+                        tns_message = convert_discovery_hermes_message_to_tns(data, target_filenames_mapping)
+                        object_names = submit_at_report_to_tns(request, tns_message)
                     if 'references' not in data['data']:
                         data['data']['references'] = []
-                    data['data']['references'].append({
-                        'source': 'tns_object',
-                        'citation': object_name,
-                        'url': urljoin(settings.TNS_BASE_URL, f'object/{object_name}')
-                    })
+                    for object_name in object_names:
+                        data['data']['references'].append({
+                            'source': 'tns_object',
+                            'citation': object_name,
+                            'url': urljoin(settings.TNS_BASE_URL, f'object/{object_name}')
+                        })
                 except BadTnsRequest as btr:
                     return Response({'error': str(btr)}, status.HTTP_400_BAD_REQUEST)
             try:
@@ -423,12 +452,24 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                 # Check if there are spectroscopy files and upload them here, getting back a url to them
                 # Then store the reference in the messages data for the file_info->url
                 for spectroscopy_datum in data.get('data', {}).get('spectroscopy', []):
-                    for file in spectroscopy_datum.get('file_info', []):
-                        if not file.get('url'):
-                            filename = file.get('name')
-                            file_contents = spectroscopy_files[filename]
-                            download_url = upload_file_to_hop(file_contents, data['topic'], hop_auth)
-                            file['url'] = download_url
+                    # Only publicly upload spectrum file if the proprietary period is 0 or not set
+                    if spectroscopy_datum.get('proprietary_period', 0) == 0:
+                        for file in spectroscopy_datum.get('file_info', []):
+                            if not file.get('url'):
+                                filename = file.get('name')
+                                file_contents = spectroscopy_files[filename]
+                                download_url = upload_file_to_hop(file_contents, data['topic'], hop_auth)
+                                file['url'] = download_url
+                # Do the same for target related files
+                for target in data.get('data', {}).get('targets', []):
+                    # Only publicly upload target related file if the proprietary period is 0 or not set
+                    if target.get('discovery_info', {}).get('proprietary_period', 0) == 0:
+                        for file in target.get('file_info', []):
+                            if not file.get('url'):
+                                filename = file.get('name')
+                                file_contents = target_files[filename]
+                                download_url = upload_file_to_hop(file_contents, data['topic'], hop_auth)
+                                file['url'] = download_url
                 # return Response({'error': 'Temporarily stopped sending messages for testing'}, status.HTTP_400_BAD_REQUEST)
                 # Do this to generate the uuid early so we can send it with the gcn.
                 payload, headers = Producer.pack(data, metadata)
