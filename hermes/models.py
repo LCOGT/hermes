@@ -20,6 +20,12 @@ class Profile(models.Model):
     credential_name = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential name')
     credential_password = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential password')
 
+    tns_bot_id = models.BigIntegerField(default=-1, blank=True, help_text='TNS Bot ID to use when submitting to TNS from this user')
+    tns_bot_name = models.CharField(max_length=64, default='', blank=True,
+                                    help_text='TNS Bot Name to use when submitting to TNS from this user')
+    tns_bot_api_token = models.CharField(max_length=64, default='', blank=True,
+                                         help_text='TNS Bot API Token to use when submitting to TNS from this user')
+
     @property
     def api_token(self):
         return Token.objects.get_or_create(user=self.user)[0]
