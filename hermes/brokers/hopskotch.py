@@ -62,7 +62,7 @@ HERMES_PASSWORD = settings.SCIMMA_AUTH_PASSWORD
 
 
  # this API client was written against this version of the API
-SCIMMA_AUTH_API_VERSION = 0
+SCIMMA_AUTH_API_VERSION = 1
 
 def get_hop_auth_api_url(api_version=SCIMMA_AUTH_API_VERSION) -> str:
     """Use the SCIMMA_AUTH_BASE_URL from settings.py and construct the API url from that.
@@ -198,19 +198,20 @@ def get_or_create_user(claims: dict):
         response = requests.post(url, json=claims,
                                  headers={'Authorization': hermes_api_token,
                                           'Content-Type': 'application/json'})
-        hop_user = json.loads(response.text)
-
-        logger.debug(f'get_or_create_user {responses[response.status_code]} [{response.status_code}]')
-        logger.debug(f'get_or_create_user response.text: {response.text} type: {type(response.text)}')
-        logger.debug(f'get_or_create_user new hop_user: {hop_user} type: {type(hop_user)}')
+        if response.status_code == 201:
+            hop_user = response.json()
+            logger.debug(f'get_or_create_user new hop_user: {hop_user} type: {type(hop_user)}')
+        else:
+            logger.debug(f'get_or_create_user failed with status {response.status_code} and content {response.text}')
 
         return hop_user, True
 
 
-def verify_credential_for_user(username: str, user_pk: int, credential_name: str, credential_pk: int):
+def verify_credential_for_user(username: str, credential_name: str):
     """
+        Attempt to retrieve an existing credential to verify that it exists on the server
     """
-    url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials/{credential_pk}'
+    url = get_hop_auth_api_url() + f'/users/{username}/credentials/{credential_name}'
     user_api_token = get_user_api_token(username)
 
     try:
@@ -222,9 +223,9 @@ def verify_credential_for_user(username: str, user_pk: int, credential_name: str
         if credential.get('username') == credential_name:
             return True
         else:
-            logger.warning(f"Credential with pk {credential_pk} for user {username} does not match credential name {credential_name}")
+            logger.warning(f"Credential with name {credential_name} for user {username} does not match")
     except Exception as e:
-        logger.warning(f"Failed to verify credential with pk {credential_pk} for user {username}")
+        logger.warning(f"Failed to verify credential with name {credential_name} for user {username}")
 
     return False
 
@@ -233,17 +234,14 @@ def check_and_regenerate_hop_credential(user: User):
     """ Check that the Django model user profile has a valid credential, and if not, generate a new one
     """
     if ((not user.profile.credential_name or not user.profile.credential_password) or
-        not verify_credential_for_user(user.username, user.profile.hop_user_pk,
-                                       user.profile.credential_name, user.profile.credential_pk)):
+        not verify_credential_for_user(user.username, user.profile.credential_name)):
         regenerate_hop_credential(user)
 
 
 def regenerate_hop_credential(user: User):
     """ Create hop credential for django model user
     """
-    hop_auth, user_pk, credential_pk = create_credential_for_user(user.get_username())
-    user.profile.hop_user_pk = user_pk
-    user.profile.credential_pk = credential_pk
+    hop_auth = create_credential_for_user(user.get_username())
     user.profile.credential_name = hop_auth.username
     user.profile.credential_password = hop_auth.password
     user.profile.save()
@@ -265,50 +263,45 @@ def create_credential_for_user(username: str, hermes_api_token: str = None) -> A
         hermes_api_token = get_hermes_api_token()
 
     user_api_token = get_user_api_token(username, hermes_api_token=hermes_api_token)
-    hop_user = get_hop_user(username, user_api_token)
-    user_pk = hop_user['pk']
 
     # create user SCRAM credential (hop.auth.Auth instance)
-    user_hop_auth: Auth = get_user_hop_authorization(hop_user, user_api_token)
-    logger.info(f'create_credential_for_user SCRAM credential created for {username}:  {user_hop_auth.username}')
-    credential_pk = _get_hop_credential_pk(username, user_hop_auth.username, user_api_token=user_api_token, user_pk=user_pk)
+    user_hop_auth = _create_credential_for_user(username, user_api_token)
+    logger.info(f'create_credential_for_user SCRAM credential {user_hop_auth.username} created for {username}')
 
-    add_permissions_to_credential(user_pk, credential_pk, user_api_token=user_api_token, hermes_api_token=hermes_api_token)
+    add_permissions_to_credential(username, user_hop_auth.username, user_api_token=user_api_token, hermes_api_token=hermes_api_token)
 
-    return user_hop_auth, user_pk, credential_pk
+    return user_hop_auth
 
 
-def add_permissions_to_credential(user_pk, credential_pk, user_api_token, hermes_api_token):
-    """Via SCiMMA Auth API, add a CredentialKafkaPermisson to the given credential_pk for every applicable Topic.
+def add_permissions_to_credential(username, credential_name, user_api_token, hermes_api_token):
+    """Via SCiMMA Auth API, add a CredentialKafkaPermisson to the given credential_name for every applicable Topic.
 
     Applicable Topics is determined by
         For each Group that the User is a member of
             For each permission_received (GroupKafkaPermission)
                 The GroupKafkaPermission's 'topic' is an applicable topic for it's 'operation'
 
-    This method determines the applicable Topics ('pk' and 'operation') and hands off the work to
+    This method determines the applicable Topics ('name' and 'operation') and hands off the work to
     _add_permission_to_credential_for_user().
 
     This method also adds the User to the hermes group if not already a Member.
     """
-    user_groups = get_user_groups(user_pk, user_api_token)
-    user_group_pks = [group['pk'] for group in user_groups]
+    user_groups = get_user_groups(username, user_api_token)
+    user_group_names = [group['group'] for group in user_groups]
 
     # add User to hermes group if not already in the hermes group
     hermes_group_name = 'hermes'
-    if not hermes_group_name in [group['name'] for group in user_groups]:
-        # must get the hermes_group_pk from ALL the groups, not just the user_groups
-        hermes_group_pk = _get_hop_group_pk(hermes_group_name, user_api_token=user_api_token)
-        add_user_to_group(user_pk, hermes_group_pk, hermes_api_token)
-        user_group_pks.append(hermes_group_pk)
+    if not hermes_group_name in [group['group'] for group in user_groups]:
+        add_user_to_group(username, hermes_group_name, hermes_api_token)
+        user_group_names.append(hermes_group_name)
     else:
-        logger.info(f'add_permissions_to_credential User (pk={user_pk}) already a member of group {hermes_group_name}')
+        logger.info(f'add_permissions_to_credential User (username={username}) already a member of group {hermes_group_name}')
 
-    for group_pk in user_group_pks:
-        for group_permission in get_group_permissions_received(group_pk, user_api_token):
+    for group_name in user_group_names:
+        for group_permission in get_group_permissions_received(group_name, user_api_token):
             logger.info((f'add_permissions_to_credential Adding {group_permission["operation"]} permission to '
-                         f'topic {group_permission["topic"]} for user(cred): {user_pk}({credential_pk})'))
-            _add_permission_to_credential_for_user(user_pk, credential_pk, group_permission['topic'],
+                         f'topic {group_permission["topic"]} for user(cred): {username}({credential_name})'))
+            _add_permission_to_credential_for_user(username, credential_name, group_permission['topic'],
                                                    group_permission['operation'], user_api_token)
 
 def delete_credential(username: str, credential: Auth, user_api_token):
@@ -321,18 +314,18 @@ def delete_credential(username: str, credential: Auth, user_api_token):
     delete_user_hop_credentials(username, credential.username, user_api_token)
 
 
-def add_user_to_group(user_pk, group_pk, hermes_api_token):
-    """Add the User with user_pk to the Group with group_pk as Member.
+def add_user_to_group(username, groupname, hermes_api_token):
+    """Add the User with username to the Group with groupname as Member.
 
     Requires Admin privilege, so hermes_api_token is needed.
 
     Typically used to add User to hermes group.
     """
-    url = get_hop_auth_api_url() +  f'/groups/{group_pk}/members'
+    url = get_hop_auth_api_url() +  f'/groups/{groupname}/members'
     request_data = {
-        'user':  user_pk,
-        'group': group_pk,
-        'status': 1,  # Member=1, Owner=2
+        'user':  username,
+        'group': groupname,
+        'status': "Member",
     }
     # this requires admin priviledge so use HERMES service account API token
     # SCiMMA Auth returns  400 Bad Request if the user is already a member of the group
@@ -341,9 +334,7 @@ def add_user_to_group(user_pk, group_pk, hermes_api_token):
                              headers={'Authorization': hermes_api_token,
                                       'Content-Type': 'application/json'})
 
-    if response.status_code == 400:
-        logger.error(f'add_user_to_group ({response.status_code}) request_data: {request_data}')
-    elif response.status_code == 201:
+    if response.status_code == 201:
         logger.info(f'add_user_to_group ({response.status_code}) User added to Group. request_data: {request_data}')
     else:
         logger.warning(f'add_user_to_group response.status_code: {response.status_code} request_data: {request_data}')
@@ -354,31 +345,25 @@ def get_hop_user(username, api_token) -> dict:
     """Return the SCiMMA Auth User with the given username.
     If no SCiMMA Auth User exists with the given username, return None.
 
-    /api/v0/users returns a list of User dictionaries of the form:
+    /api/v1/users/{username} returns that user dictionary of the form:
 
     {
-        "pk": 20,
+        "id": 20,
         "username": "0d988bdd-ec83-420d-8ded-dd9091318c24",
         "email": "llindstrom@lco.global"
     }
     """
-    # TODO: this is illegal -- don't show other people's email addresses GDPR violation
-    # request the list of users from the Hop Auth API
-    url = get_hop_auth_api_url() + '/users'
+    url = f"{get_hop_auth_api_url()}/users/{username}"
     response = requests.get(url,
                             headers={'Authorization': api_token,
                                      'Content-Type': 'application/json'})
 
     if response.status_code == 200:
-        # from the response, extract the list of user dictionaries
-        hop_users = response.json()
-
-        # find the user dict whose username matches our username
-        # this is the idiom for searchng a list of dictionaries for certain key-value (username)
-        hop_user = next((item for item in hop_users if item['username'] == username), None)
+        # from the response, extract the user dictionarie
+        hop_user = response.json()
         logger.info(f'get_hop_user hop_user: {hop_user}')
     else:
-        logger.debug(f'get_hop_user: response.json(): {response.json()}')
+        logger.debug(f'get_hop_user: failed with status {response.status_code} and response.json(): {response.json()}')
         hop_user = None
 
     if hop_user is None:
@@ -387,198 +372,30 @@ def get_hop_user(username, api_token) -> dict:
     return hop_user
 
 
-def _get_hop_user_pk(username, api_token) -> int:
-    """Return the primary key of this user from the Hop Auth API. Returns None if
-    no user with the given username is returned from the API.
+def _create_credential_for_user(username: str, user_api_token) -> Auth:
+    """Creates and returns a new credential's hop Auth for the user with the given username.
     """
-    hop_user = get_hop_user(username, api_token)
-    if hop_user is not None:
-        hop_user_pk = hop_user['pk']
-    else:
-         hop_user_pk = None
-    return hop_user_pk
-
-
-def _get_hop_group_pk(group_name, user_api_token) -> int:
-    """return the primary key of the given group from the Hop Auth API
-    """
-    # request the list of groups from the Hop Auth API
-    groups_url = get_hop_auth_api_url() + '/groups'
-    response = requests.get(groups_url,
-                            headers={'Authorization': user_api_token,
-                                     'Content-Type': 'application/json'})
-    # example group dictionary: {'pk': 1, 'name': 'gcn', 'description': ''}
-    # from the response, extract the list of group dictionaries
-    hop_groups = response.json()
-
-    # find the group dict whose name matches our group_name
-    # this is the idiom for searchng a list of dictionaries for certain key-value (group_name)
-    hop_group = next((item for item in hop_groups if item['name'] == group_name), None)
-    if hop_group is not None:
-        hop_group_pk = hop_group['pk']
-        logger.debug(f'_get_hop_group_pk: PK for group {group_name} is {hop_group_pk}')
-    else:
-        hop_group_pk = None
-        logger.error(f'_get_hop_group_pk: Can not find group {group_name} in Hop Auth groups.')
-
-    return hop_group_pk
-
-
-def _get_hop_topic_from_pk(topic_pk, user_api_token) -> str:
-    """Return the Topic dictionary for the Topic with given primary key.
-
-    /api/v0/topics/<PK> returns a topic dictionary of the form:
-    {
-        'pk': the PK of the topic,
-        'owning_group': the PK of the group,
-        'name': <str>,
-        'publically_readable': Boolean,
-        'description': <str>
-    }
-    """
-    url = get_hop_auth_api_url() + f'/topics/{topic_pk}'
-    response = requests.get(url,
-                            headers={'Authorization': user_api_token,
-                                     'Content-Type': 'application/json'})
-    topic = response.json()
-    return topic
-
-
-def _get_hop_topic_pk(topic_name, user_api_token) -> int:
-    """return the primary key of the given topic from the Hop Auth API
-    """
-    logger.warning(f'_get_hop_topic_pk: Calling this functions is probably expensive and unnecessary.')
-
-    # request the list of topicss from the Hop Auth API
-    topics_url = get_hop_auth_api_url() + '/topics'
-    response = requests.get(topics_url,
-                            headers={'Authorization': user_api_token,
-                                     'Content-Type': 'application/json'})
-    # example topic dictionary:
-    # {'pk': 84, 'owning_group': 10, 'name': 'lvalert-dev.external_snews',
-    #  'publicly_readable': False, 'description': ''}
-    # from the response, extract the list of topic dictionaries
-    hop_topics = response.json()
-
-    # find the topic dict whose name matches our topic_name
-    # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
-    hop_topic = next((item for item in hop_topics if item['name'] == topic_name), None)
-    if hop_topic is not None:
-        hop_topic_pk = hop_topic['pk']
-        logger.debug(f'_get_hop_topic_pk: PK for topic {topic_name} is {hop_topic_pk}')
-    else:
-        hop_topic_pk = None
-        logger.error(f'_get_hop_topic_pk: Can not find topic {topic_name} in Hop Auth topics.')
-
-    return hop_topic_pk
-
-
-def _get_hop_credential_pk(username, credential_name, user_api_token: str, user_pk: int=None):
-    """Return the PK of the given SCiMMA Auth credential whose username matches the given
-    credential_name.
-
-    NOTES:
-      * the username argument is the SCiMMA Auth and HERMES User.get_username()
-      * the username key in the returned credential dict is the SCRAM credential name
-    """
-    if user_pk is None:
-        user_pk = _get_hop_user_pk(username, user_api_token)
-
-    # get the list of credentials for the user
-    hop_credentials = get_user_hop_credentials(user_pk, user_api_token)
-
-    # extract the one that matches the Auth user.username
-    # this is the idiom for searchng a list of dictionaries for certain key-value (topic_name)
-    hop_cred = next((item for item in hop_credentials if item['username'] == credential_name), None)
-    logger.debug(f'_get_hop_credential_pk: hop_cred {hop_cred}')
-
-    if hop_cred is not None:
-        hop_cred_pk = hop_cred['pk']
-        logger.debug(f'_get_hop_credential_pk: PK for credential {credential_name} is {hop_cred_pk}')
-    else:
-        hop_cred_pk = None
-        logger.error(f'_get_hop_credential_pk: Can not find credential {credential_name} in Hop Auth credentials.')
-
-    return hop_cred_pk
-
-
-
-def get_user_hop_authorization(hop_user: dict, user_api_token) -> Auth:
-    """Return the hop.auth.Auth instance for the user with the given username.
-    """
-    # extract values from hop_user dict
-    hop_user_pk = hop_user['pk']
-    username = hop_user['username']
-
     # Construct URL to create Hop Auth SCRAM credentials for this user
-    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    url = get_hop_auth_api_url() + f'/users/{username}/credentials'
 
-    logger.info(f'get_user_hop_authorization Creating SCRAM credentials for user {username}')
-    response = requests.post(url,
-                             data=json.dumps({'description': 'Created by HERMES'}),
-                             headers={'Authorization': user_api_token,
-                                      'Content-Type': 'application/json'})
-    # for example, {'username': 'llindstrom-93fee00b', 'password': 'asdlkjfsadkjf'}
-    logger.debug(f'get_user_hop_authorization user_credentials_response.json(): {response.json()}')
+    logger.info(f'_create_credential_for_user Creating SCRAM credentials for user {username}')
+    user_hop_authorization = None
+    try:
+        response = requests.post(url,
+                                data=json.dumps({'description': 'Created by HERMES'}),
+                                headers={'Authorization': user_api_token,
+                                        'Content-Type': 'application/json'})
+        # for example, {'username': 'llindstrom-93fee00b', 'password': 'asdlkjfsadkjf', 'pk': 0}
+        user_hop_username = response.json()['username']
+        user_hop_password = response.json()['password']
 
-    # TODO: extract and return credential_pk from response when available (ChrisW working on it)
-    user_hop_username = response.json()['username']
-    user_hop_password = response.json()['password']
-
-    # you can never again get this SCRAM credential, so save it somewhere (like the Session)
-    user_hop_authorization: Auth = Auth(user_hop_username, user_hop_password)
-
-    logger.debug(f'get_user_hop_authorization - new SCRAM creds for {username} username: {user_hop_username} password: {user_hop_password}')
+        # you can never again get this SCRAM credential, so save it somewhere (like the Session)
+        user_hop_authorization: Auth = Auth(user_hop_username, user_hop_password)
+        logger.debug(f'_create_credential_for_user user_credentials_response.json(): {response.json()}')
+    except Exception:
+        logger.error(f"_create_credential_for_user Failed to create credential for user {username} with status {response.status_code}: {response.text}")
 
     return user_hop_authorization
-
-
-def get_user_hop_credentials(user_pk, user_api_token):
-    """return a list of credential dictionaries for the user with the given username
-
-    The dictionaries look like this:
-        {
-            'pk': 147,
-            'owner': 73,  # this is the PK of the Hop Auth User
-            'username': 'llindstrom-2b434c1a',
-            'created_at': '2022-03-23T12:42:06.900590-07:00',
-            'suspended': False,
-            'description': ''
-        }
-    and we return a list of them.
-
-    NOTES:
-      * the username key in the returned credential dict is the SCRAM credential name
-
-    """
-    # limit the API query to the specific user
-    url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials'
-
-    response = requests.get(url,
-                            headers={'Authorization': user_api_token,
-                                     'Content-Type': 'application/json'})
-    # from the response, extract the list of user credential dictionaries
-    user_hop_credentials = response.json()
-    logger.debug(f'get_user_hop_credentials: {user_hop_credentials}')
-    return user_hop_credentials
-
-
-def delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, user_api_token):
-    logger.debug(f'delete_user_hop_credential_by_pk for user pk {hop_user_pk} with credential pk {credential_pk}')
-    user_credentials_detail_api_suffix = f'/users/{hop_user_pk}/credentials/{credential_pk}'
-    url = get_hop_auth_api_url() + user_credentials_detail_api_suffix
-
-    # delete the user SCRAM credential in Hop Auth
-    try:
-        response = requests.delete(url,
-                                headers={'Authorization': user_api_token,
-                                            'Content-Type': 'application/json'})
-        logger.debug(
-            (f'delete_user_hop_credential_by_pk response: {responses[response.status_code]}',
-                f'[{response.status_code}]'))
-        response.raise_for_status()
-    except Exception as e:
-        logger.error(f"delete_user_hop_credential_by_pk - Error deleting credential: {repr(e)}.")
 
 
 def delete_user_hop_credentials(username, credential_name, user_api_token):
@@ -590,23 +407,16 @@ def delete_user_hop_credentials(username, credential_name, user_api_token):
     the user logs out of HERMES, use this function to delete the SCRAM credentials
     from Hop Auth. (All this should be transparent to the user).
     """
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL
-
-    url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials'
+    url = get_hop_auth_api_url() + f'/users/{username}/credentials/{credential_name}'
 
     # find the <PK> of the SCRAM credential just issued
-    response = requests.get(url,
-                            headers={'Authorization': user_api_token,
-                                     'Content-Type': 'application/json'})
-    # from the response, extract the list of user credential dictionaries
-    user_creds = response.json()
-    # this is the idiom for searchng a list of dictionaries for certain key-value (username)
-    user_cred = next((item for item in user_creds if item["username"] == credential_name), None)
-    if user_cred is not None:
-        credential_pk = user_cred['pk']
-        delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, user_api_token)
+    response = requests.delete(url,
+                               headers={'Authorization': user_api_token,
+                                        'Content-Type': 'application/json'})
+    if response.status_code == 204:
+        logger.info(f"delete_user_hop_credentials: Successfully deleted credential {credential_name} for user {username}")
     else:
-        logger.error(f'delete_user_hop_credentials: Can not clean up SCRAM credential: {credential_name} not found in {user_creds}')
+        logger.error(f'delete_user_hop_credentials: Failed to delete {credential_name} for user {username}: status {response.status_code} and content {response.text}')
 
 
 def get_user_api_token(username: str, hermes_api_token=None):
@@ -664,298 +474,114 @@ def get_user_api_token(username: str, hermes_api_token=None):
     return user_api_token
 
 
-def get_user_groups(user_pk: int, user_api_token):
-    """Return a list of Hop Auth Groups that the user with user_pk is a member of
+def get_user_groups(username: str, user_api_token):
+    """Return a list of Hop Auth Groups that the user with username is a member of
 
-    First get the User's Groups with /api/v0/users/<PK>/memberships then
-    for each membership, get the Group details with /api/v0/groups/<PK>.
+    Get the User's Groups with /api/v1/users/<username>/memberships.
 
     Returns a list of Group dictionaries of the form:
     {
-    "pk": 25,
-    "name": "tomtoolkit",
-    "description": "TOM Toolkit Integration testing"
+    "id": 25,
+    "user": "steve",
+    "group": "tomtoolkit",
+    "status": "Member"
     }
     """
     # limit the API query to the specific users (whose pk we just found)
-    user_memberships_url = get_hop_auth_api_url() + f'/users/{user_pk}/memberships'
+    user_memberships_url = get_hop_auth_api_url() + f'/users/{username}/memberships'
+    user_memberships = []
+    try:
+        user_memberships_response = requests.get(user_memberships_url,
+                                                headers={'Authorization': user_api_token,
+                                                        'Content-Type': 'application/json'})
+        user_memberships_response.raise_for_status()
+        # from the response, extract the list of user groups
+        # GroupMembership: {'id': 97, 'user': 'steve', 'group': 'hermes', 'status': 'Owner'}
+        user_memberships = user_memberships_response.json()
+        logger.debug(f'get_user_groups user_memberships: {user_memberships}')
+    except Exception:
+        logger.error(f"get_user_groups: Failed to get user groups with status {user_memberships_response.status}: {user_memberships_response.text}")
 
-    user_memberships_response = requests.get(user_memberships_url,
-                                             headers={'Authorization': user_api_token,
-                                                      'Content-Type': 'application/json'})
-    # from the response, extract the list of user groups
-    # GroupMembership: {'pk': 97, 'user': 73, 'group': 25, 'status': 'Owner'}
-    user_memberships = user_memberships_response.json()
-    logger.debug(f'get_user_groups user_memberships: {user_memberships}')
-
-    # extract the name of the group from the group dictionaries; collect and return the list
-    groups = []
-    for group_pk in [ group['group'] for group in user_memberships]:
-        group_url = get_hop_auth_api_url() + f'/groups/{group_pk}'
-        group_response = requests.get(group_url,
-                                      headers={'Authorization': user_api_token,
-                                               'Content-Type': 'application/json'})
-        # for example:
-        # {'pk': 25, 'name': 'tomtoolkit', 'description': 'TOM Toolkit Integration testing'}
-        # {'pk': 26, 'name': 'hermes', 'description': 'Hermes - Messaging for Multi-messenger astronomy'}
-        logger.debug(f'get_user_groups group_response: {group_response.json()}')
-        groups.append(group_response.json()) # construct list of Group dictionaries
-
-    return groups
+    return user_memberships
 
 
-def get_group_topics(group_name, user_api_token) -> list:
-    """Return a list of dictionaries describing the topics owned by the given group.
-
-    /api/v0/groups/<PK>/topics returns a list of topic dictionaries of the form:
-    {
-        'pk': the PK of the topic,
-        'owning_group': the PK of the group,
-        'name': <str>,
-        'publically_readable': Boolean,
-        'description': <str>
-    }
-    """
-    group_pk = _get_hop_group_pk(group_name, user_api_token)
-
-    url = get_hop_auth_api_url() + f'/groups/{group_pk}/topics'
-    response =  requests.get(url,
-                             headers={'Authorization': user_api_token,
-                                      'Content-Type': 'application/json'})
-    topics = response.json()
-
-    logger.debug(f'get_group_topics for group {group_name} topics: {topics}')
-    return topics
-
-
-def get_topics(user_api_token, publicly_readable_only=False) -> list:
-    """Return a list of dictionaries describing SCiMMA Auth Topics.
-
-    By default, get all the topics. Set publicly_readable=True to return only pulicly
-    readable topics.
-
-    /api/v0/topics returns a list of topic dictionaries of the form:
-
-    {
-        'pk': the PK of the topic,
-        'owning_group': the PK of the group,
-        'name': <str>,
-        'publicly_readable': Boolean,
-        'description': <str>
-    }
-    """
-    url = get_hop_auth_api_url() + f'/topics'
-    response =  requests.get(url,
-                             headers={'Authorization': user_api_token,
-                                      'Content-Type': 'application/json'})
-    if publicly_readable_only:
-        topics = [topic for topic in response.json() if topic['publicly_readable']]
-    else:
-        topics = response.json()
-
-    return topics
-
-
-def get_group_permissions_received(group_pk, user_api_token):
+def get_group_permissions_received(group_name, user_api_token):
     """Return a list of dictionaries describing GroupKafkaPermissions received by the Group.
 
-    /api/v0/groups/<PK>/permissions_received returns a list of GroupKafkaPermission
+    /api/v1/groups/<group_name>/permissions_received returns a list of GroupKafkaPermission
     dictionaries of the form:
 
     {
-        'pk': the PK of the GroupKafkaPermission,
-        'principal': the PK of the Group,
-        'topic': the PK of the Topic
+        'id': the id of the GroupKafkaPermission,
+        'principal': the group name of the Group,
+        'topic': the topic name of the Topic
         'operation': <str>  # 'All', 'Read', or 'Write'
     }
     """
-    url = get_hop_auth_api_url() + f'/groups/{group_pk}/permissions_received'
-    response =  requests.get(url,
-                             headers={'Authorization': user_api_token,
-                                      'Content-Type': 'application/json'})
+    url = get_hop_auth_api_url() + f'/groups/{group_name}/permissions_received'
+    permissions = []
+    try:
+        response =  requests.get(url,
+                                headers={'Authorization': user_api_token,
+                                        'Content-Type': 'application/json'})
 
-    logger.debug(f'get_group_permissions_recieved response.status_code: {response.status_code}')
-    logger.debug(f'get_group_permissions_recieved response.text: {response.text}')
-    permissions = response.json()
+        logger.debug(f'get_group_permissions_recieved response.status_code: {response.status_code}')
+        logger.debug(f'get_group_permissions_recieved response.text: {response.text}')
+        response.raise_for_status()
+        permissions = response.json()
+    except Exception:
+        logger.error(f"get_group_permissions_recieved Failed to retrieve group {group_name} permissions with status {response.status_code}: {response.text}")
 
     return permissions
 
 
-def get_group_topic_permissions(topic_pk, user_api_token) -> list:
-    """Return a list of dictionaries describing GroupKafkaPermissions for the given Topic.
-
-    /api/v0/topics/<PK>/permissions returns a list of GroupKafkaPermission
-    dictionaries of the form:
-
-    {
-        'pk': the PK of the GroupKafkaPermission,
-        'principal': the PK of the Group,
-        'topic': the PK of the Topic
-        'operation': <str>  # 'All', 'Read', or 'Write'
-    }
-    """
-    url = get_hop_auth_api_url() + f'/topics/{topic_pk}/permissions'
-    response =  requests.get(url,
-                             headers={'Authorization': user_api_token,
-                                      'Content-Type': 'application/json'})
-    permissions = response.json()
-
-    return permissions
-
-
-def _add_permission_to_credential_for_user(user_pk: int, credential_pk: int, topic_pk: int, operation: str, api_token):
+def _add_permission_to_credential_for_user(username: str, credential_name: str, topic_name: str, operation: str, api_token):
     """Add Permission for the given Topic, to the given Credential of the given User.
 
-    POST to /api/v0/users/<PK>/credentials/<PK>/permissions with POST data:
+    POST to /api/v1/users/<username>/credentials/<credential_name>/permissions with POST data:
     data = {
-        'principal': <Credential PK>,
-        'topic': <Topic PK>,
-        'operation': <int> # (1=ALL, 2=READ, 3=WRITE)
+        'principal': <Credential name>,
+        'topic': <Topic name>,
+        'operation': <"ALL", "READ", "WRITE">
     }
     """
-    if operation == 'All':
-        operation_code = 1
-    elif operation == 'Write':
-        operation_code = 3
-    else:
-        operation_code = 2 # Read is least permissive
-
-    url = get_hop_auth_api_url() +  f'/users/{user_pk}/credentials/{credential_pk}/permissions'
+    url = get_hop_auth_api_url() +  f'/users/{username}/credentials/{credential_name}/permissions'
     request_data = {
-        'principal':  credential_pk,
-        'topic': topic_pk,
-        'operation': operation_code,
+        'principal':  credential_name,
+        'topic': topic_name,
+        'operation': operation,
     }
-    # this requires admin priviledge so use HERMES service account API token
-    response = requests.post(url,
-                             json=request_data,
-                             headers={'Authorization': api_token,
-                                      'Content-Type': 'application/json'})
-    if response.status_code == 500:
-        logger.error((f'_add_permission_to_credential_for_user ({response.status_code}) Failed to add {operation} '
-                      f'permission to topic {_get_hop_topic_from_pk(topic_pk, api_token)}'))
-        logger.debug(f'_add_permission_to_credential_for_user response.text {response.text}')
-    elif response.status_code == 200 or response.status_code == 201:
-        logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Added {operation} '
-                      f'permission to {request_data}'))
-    else:
-        logger.warning((f'_add_permission_to_credential_for_user ({response.status_code}) 201 expected for {operation} '
-                        f'permission to {request_data}'))
+    try:
+        response = requests.post(url,
+                                json=request_data,
+                                headers={'Authorization': api_token,
+                                        'Content-Type': 'application/json'})
+        response.raise_for_status()
+        logger.debug((f'_add_permission_to_credential_for_user ({response.status_code}) Added '
+                      f'permission {request_data} to credential {credential_name} for user {username}'))
+    except Exception:
+        logger.error((f'_add_permission_to_credential_for_user: Failed to add {operation} '
+                      f'permission to topic {topic_name}: status {response.status_code}, response {response.text}'))
 
 
-def get_user_writable_topics(username, hop_user_pk, credential_name, credential_pk, user_api_token, exclude_groups=None):
-    logger.warning(f"Get user writable topics with username {username}, credential {credential_name}, token {user_api_token}")
-    perm_url = get_hop_auth_api_url() + f'/users/{hop_user_pk}/credentials/{credential_pk}/permissions'
-    perm_response = requests.get(perm_url,
-                                 headers={'Authorization': user_api_token,
-                                          'Content-Type': 'application/json'})
-    permissions = perm_response.json()
+def get_user_writable_topics(username, credential_name, user_api_token, exclude_groups=None):
+    logger.info(f"Get user writable topics with username {username}, credential {credential_name}, token {user_api_token}")
+    perm_url = get_hop_auth_api_url() + f'/users/{username}/credentials/{credential_name}/permissions'
     topics = []
-    for permission in permissions:
-        # Check if permission is ALL or Write
-        if permission['operation'] in ['All', 'Write']:
-
-            # get the topic name for this this permission
-            topic_pk = permission['topic']
-            topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
-            # topic dictionaries looks like this:
-            # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
-            topics.append(topic['name'])
-    if exclude_groups:
-        for group in exclude_groups:
-            topics = [topic for topic in topics if not topic.startswith(group)]
+    try:
+        perm_response = requests.get(perm_url,
+                                    headers={'Authorization': user_api_token,
+                                            'Content-Type': 'application/json'})
+        perm_response.raise_for_status()
+        permissions = perm_response.json()
+        for permission in permissions:
+            # Check if permission is ALL or Write
+            if permission['operation'] in ['All', 'Write']:
+                topic = permission['topic']
+                topics.append(topic)
+        if exclude_groups:
+            for group in exclude_groups:
+                topics = [topic for topic in topics if not topic.startswith(group)]
+    except Exception:
+        logger.error(f"get_user_writable_topics: Failed to get writable topics for user {username} on credential {credential_name} with status {perm_response.status_code}: {perm_response.text}")
     return topics
-
-
-def get_user_topic_permissions(username, credential_name, user_api_token,
-                               exclude_groups=None, include_public_topics=True):
-    """Get the Read/Write topic permissions for the given user.
-
-    Returns a dictionary: {
-        'read' : [topic_name, ...],
-        'write': [topic_name, ...]
-    }
-
-    Topics owned by Groups listed in the exclude_groups: list(str) are filtered.
-
-    Adds publicly_readable topics to the 'read': <topic_list>, if include_public_topics is True.
-    """
-    logger.debug(f'get_user_topic_permissions user: {username} credential: {credential_name}')
-
-    hop_user_pk = _get_hop_user_pk(username, user_api_token)  # need the pk for the URL    
-    hop_cred_pk = _get_hop_credential_pk(username, credential_name, user_api_token=user_api_token)
-    user_topic_permissions = _get_user_topic_permissions(hop_user_pk, hop_cred_pk, user_api_token)
-
-    if include_public_topics:
-        # add the publicly_readable topics to the list of readable topics fro the user
-        public_topic_names = [topic['name'] for topic in get_topics(user_api_token, publicly_readable_only=True)]
-        user_topic_permissions['read'] = list(set(user_topic_permissions['read'] + public_topic_names))
-    if exclude_groups:
-        for group in exclude_groups:
-            # filter topics owned by groups in the exclude_groups list of group names
-            user_topic_permissions['write'] = [topic for topic in user_topic_permissions['write'] if not topic.startswith(group)]
-            user_topic_permissions['read'] = [topic for topic in user_topic_permissions['read'] if not topic.startswith(group)]
-
-    return user_topic_permissions
-
-
-def _get_user_topic_permissions(user_pk, credential_pk, user_api_token):
-    """ See doc string for get_user_topic_permissions.
-    Use this function when you already have the PKs for the User and Credential.
-
-    /api/v0//users/{user_pk}/credentials/{cred_pk}/permissions returns dictionaries of the form:
-    {
-        'pk': 811,
-        'principal': 147,
-        'topic': 398,
-        'operation': 'All'
-    }
-
-    However, this method returns a dictionary like this:
-    {
-        'read' : [topic_name, ...],
-        'write': [topic_name, ...]
-    }
-    """
-    perm_url = get_hop_auth_api_url() + f'/users/{user_pk}/credentials/{credential_pk}/permissions'
-    perm_response = requests.get(perm_url,
-                                 headers={'Authorization': user_api_token,
-                                          'Content-Type': 'application/json'})
-    permissions = perm_response.json()
-
-    read_topics = []
-    write_topics = []
-    for permission in permissions:
-        # get the topic name for this this permission
-        topic_pk = permission['topic']
-        topic = _get_hop_topic_from_pk(topic_pk, user_api_token)
-        # topic dictionaries looks like this:
-        # {'pk': 397, 'owning_group': 25, 'name': 'tomtoolkit.test', 'publicly_readable': False, 'description': ''}
-        logger.debug(f'get_user_topic_permissions permission: {permission}')
-        logger.debug(f'get_user_topic_permissions      topic: {topic}')
-
-        # In the UI, if Read is checked (only), then permission['operation'] is 'Read'
-        # In the UI, if Write is checked (only), then permission['operation'] is 'Write'
-        # In the UI, if Read and Write is checked, then permission['operation'] is 'All'
-
-        if permission['operation'] == 'All':
-            read_topics.append(topic['name'])
-            write_topics.append(topic['name'])
-        elif permission['operation'] == 'Write':
-            write_topics.append(topic['name'])
-        elif permission['operation'] == 'Read':
-            read_topics.append(topic['name'])
-
-    #sample_topics = {
-    #    'read': ['hermes.test', 'gcn.circular'],
-    #    'write': ['hermes.test'],
-    #    'notes': 'This is sample data',
-    #}
-
-    topic_permissions = {
-        'read': read_topics,
-        'write': write_topics,
-    }
-
-    return topic_permissions
-

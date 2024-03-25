@@ -621,7 +621,7 @@ class ProfileApiView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
+        logger.debug(f"user pk = {self.request.user.pk}, user = {self.request.user}")
         """Once authenticated, retrieve profile data"""
         qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
             'profile'
@@ -672,11 +672,9 @@ class RevokeHopCredentialApiView(APIView):
     def post(self, request):
         """A simple POST request (empty request body) with user authentication information in the HTTP header will revoke the users hop credential."""
         username = request.user.get_username()
-        hop_user_pk = request.user.profile.hop_user_pk
-        credential_pk = request.user.profile.credential_pk
         credential_name = request.user.profile.credential_name
-        if hopskotch.verify_credential_for_user(username, hop_user_pk, credential_name, credential_pk):
-            hopskotch.delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, hopskotch.get_user_api_token(username))
+        if hopskotch.verify_credential_for_user(username, credential_name):
+            hopskotch.delete_user_hop_credentials(username, credential_name, hopskotch.get_user_api_token(username))
         hopskotch.regenerate_hop_credential(request.user)
         return Response({'message': 'Hop credential revoked and regenerated.'}, status=status.HTTP_200_OK)
 

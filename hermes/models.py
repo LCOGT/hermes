@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 class Profile(models.Model):
     # This model will be used to store user settings, such as topic sort/filter preferences
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    hop_user_pk = models.BigIntegerField(default=-1, help_text='Scimma Auth User primary key')
-    credential_pk = models.BigIntegerField(default=-1, help_text='Scimma Auth User Scram Credential primary key')
     credential_name = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential name')
     credential_password = models.CharField(max_length=256, blank=True, default='', help_text='Scimma Auth User Scram Credential password')
 
@@ -37,7 +35,7 @@ class Profile(models.Model):
         except Exception as e:
             logger.warning(f"Failed to retrieve user api token: {repr(e)}")
             return []
-        return get_user_writable_topics(self.user.username, self.hop_user_pk, self.credential_name, self.credential_pk, user_api_token, exclude_groups=['sys'])
+        return get_user_writable_topics(self.user.username, self.credential_name, user_api_token, exclude_groups=['sys'])
 
 
 class OAuthToken(models.Model):
