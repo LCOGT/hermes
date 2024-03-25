@@ -25,78 +25,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-TNS_TYPES = [
-    'Afterglow',
-    'AGN',
-    'Computed-Ia',
-    'Computed-IIb',
-    'Computed-IIn',
-    'Computed-IIP',
-    'Computed-PISN',
-    'CV',
-    'FBOT',
-    'FRB',
-    'Galaxy',
-    'Gap',
-    'Gap I',
-    'Gap II',
-    'ILRT',
-    'Impostor-SN',
-    'Kilonova',
-    'LBV',
-    'Light-Echo',
-    'LRN',
-    'M dwarf',
-    'Nova',
-    'QSO',
-    'SLSN-I',
-    'SLSN-II',
-    'SLSN-R',
-    'SN',
-    'SN I',
-    'SN I-faint',
-    'SN I-rapid',
-    'SN Ia',
-    'SN Ia-91bg-like',
-    'SN Ia-91T-like',
-    'SN Ia-Ca-rich',
-    'SN Ia-CSM',
-    'SN Ia-pec',
-    'SN Ia-SC',
-    'SN Iax[02cx-like]',
-    'SN Ib',
-    'SN Ib-Ca-rich',
-    'SN Ib-pec',
-    'SN Ib/c',
-    'SN Ib/c-Ca-rich',
-    'SN Ibn',
-    'SN Ibn/Icn',
-    'SN Ic',
-    'SN Ic-BL',
-    'SN Ic-Ca-rich',
-    'SN Ic-pec',
-    'SN Icn',
-    'SN II',
-    'SN II-pec',
-    'SN IIb',
-    'SN IIL',
-    'SN IIn',
-    'SN IIn-pec',
-    'SN IIP',
-    'Std-spec',
-    'TDE',
-    'TDE-H',
-    'TDE-H-He',
-    'TDE-He',
-    'Varstar',
-    'WR',
-    'WR-WC',
-    'WR-WN',
-    'WR-WO',
-    'Other'
-]
-
-
 TARGET_ORDER = [
     'name',
     'ra',
@@ -258,6 +186,8 @@ def upload_file_to_hop(file, topic, auth):
     """
     # First generate a uuid for it
     id = uuid.uuid4()
+    # Seek to begining of file in case we already read to the end to send to TNS
+    file.file.seek(0)
     data = bson.dumps({'message': file.file.read(), 'headers': {'format': b"blob", "_id": id.bytes}})
     upload_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topic/{topic}')
     try:

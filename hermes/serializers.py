@@ -1,5 +1,4 @@
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target, Profile, OAuthToken
-from hermes.utils import TNS_TYPES
 from hermes.tns import get_reverse_tns_values
 from hermes.oauth_clients import get_access_token
 from rest_framework import serializers
@@ -25,25 +24,44 @@ class RemoveNullSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     email = serializers.CharField(source='user.email', read_only=True)
-    api_token = serializers.CharField()
+    api_token = serializers.CharField(read_only=True)
     can_submit_to_gcn = serializers.SerializerMethodField()
     integrated_apps = serializers.SerializerMethodField()
+    tns_bot_api_token = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     class Meta:
         model = Profile
         fields = (
-            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn'
+            'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn', 'tns_bot_id',
+            'tns_bot_name', 'tns_bot_api_token'
         )
 
     def get_integrated_apps(self, obj):
         tokens = OAuthToken.objects.filter(user=obj.user)
         integrated_apps = [token.integrated_app for token in tokens]
+        if obj.tns_bot_api_token and obj.tns_bot_name and obj.tns_bot_id != -1:
+            integrated_apps.append('TNS')
         return integrated_apps
 
     def get_can_submit_to_gcn(self, obj):
         return OAuthToken.objects.filter(
             user=obj.user, integrated_app=OAuthToken.IntegratedApps.GCN, group_permissions__contains=['gcn.nasa.gov/circular-submitter']
         ).exists()
+
+    def validate(self, data):
+        validated_data = super().validate(data)
+        if self.context.get('request').method == 'PATCH':
+            update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            update_fields_present = [field in validated_data for field in update_fields]
+            if any(update_fields_present) and not all(update_fields_present):
+                raise serializers.ValidationError(_(
+                    'Must update tns_bot_id, tns_bot_name, and tns_bot_api_token all together'
+                ))
+            if any([field not in update_fields for field in validated_data]):
+                raise serializers.ValidationError(_(
+                    f"Can only update profile fields: {', '.join(update_fields)}"
+                ))
+        return validated_data
 
 
 class BaseTargetSerializer(serializers.ModelSerializer):
@@ -257,6 +275,12 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
                                                        choices=['Days', 'Months', 'Years'])
 
 
+class FileInfoSerializer(RemoveNullSerializer):
+    name = serializers.CharField(required=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    url = serializers.URLField(required=False)
+
+
 class TargetDataSerializer(RemoveNullSerializer):
     name = serializers.CharField(required=True)
     ra = serializers.CharField(required=False, allow_null=True)
@@ -285,6 +309,8 @@ class TargetDataSerializer(RemoveNullSerializer):
     host_redshift = serializers.FloatField(required=False, allow_null=True)
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
     group_associations = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
+    file_info = FileInfoSerializer(required=False, many=True)
+    comments = serializers.CharField(required=False, allow_null=True)
 
     def validate_epoch(self, value):
         validate_date(value)
@@ -341,12 +367,6 @@ class TargetDataSerializer(RemoveNullSerializer):
                 except:
                     raise serializers.ValidationError(_("Must be in a format astropy understands"))
         return dec_angle.deg
-
-
-class FileInfoSerializer(RemoveNullSerializer):
-    name = serializers.CharField(required=True)
-    description = serializers.CharField(required=False, allow_blank=True)
-    url = serializers.URLField(required=False)
 
 
 class CommonDataSerializer(RemoveNullSerializer):
@@ -540,7 +560,6 @@ class GenericHermesDataSerializer(RemoveNullSerializer):
 
 
 class HermesMessageSerializer(serializers.Serializer):
-    file_info = FileInfoSerializer(required=False, many=True)
     title = serializers.CharField(required=True)
     topic = serializers.CharField(required=True)
     message_text = serializers.CharField(required=False, default='', allow_blank=True)
@@ -652,23 +671,34 @@ class HermesMessageSerializer(serializers.Serializer):
             spectroscopy_data = validated_data.get('data', {}).get('spectroscopy', [])
             target_non_field_errors = []
             photometry_non_field_errors = []
+            spectroscopy_non_field_errors = []
             if len(targets) == 0:
                 target_non_field_errors.append(_('Must fill in at least one target entry for TNS submission'))
-            if len(photometry_data) == 0 and len(spectroscopy_data) == 0:
-                photometry_non_field_errors.append(_('Must fill in at least one photometry or spectroscopy entry for TNS submission'))
+
+            is_discovery = False
+            is_classification = False
+            tns_type_error = 'Should either fill in photometry (new discovery) or spectroscopy (classification) for TNS submission'
+            if len(photometry_data) > 0 and len(spectroscopy_data) > 0:
+                photometry_non_field_errors.append(_(tns_type_error))
+                spectroscopy_non_field_errors.append(_(tns_type_error))
+            elif len(spectroscopy_data) > 0:
+                is_classification = True
+            elif len(photometry_data) > 0:
+                is_discovery = True
+            else:
+                photometry_non_field_errors.append(_(tns_type_error))
+                spectroscopy_non_field_errors.append(_(tns_type_error))
 
             targets_errors = []
             for target in targets:
                 target_error = {}
-                if not target.get('new_discovery', True):
-                    target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
                 if target.get('ra') is None:
                     target_error['ra'] = [_("Target ra must be present for TNS submission")]
                 if target.get('dec') is None:
                     target_error['dec'] = [_("Target dec must be present for TNS submission")]
                 if target.get('group_associations'):
-                    groups = target.get('group_associations')
-                    bad_groups = [group for group in groups if group not in tns_options.get('groups')]
+                    groups = target.get('group_associations', [])
+                    bad_groups = [group for group in groups if group not in tns_options.get('groups', [])]
                     if bad_groups:
                         target_error['group_associations'] = [_(f'Group associations {",".join(bad_groups)} are not valid TNS groups')]
 
@@ -679,73 +709,91 @@ class HermesMessageSerializer(serializers.Serializer):
                                                             " submission")]
                 elif discovery_info.get('reporting_group') not in tns_options.get('groups'):
                     discovery_error['reporting_group'] = [_(f"Discovery reporting group {discovery_info.get('reporting_group')} is not a valid TNS group")]
-                if not discovery_info or not discovery_info.get('discovery_source'):
-                    discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
-                                                             " submission")]
-                elif discovery_info.get('discovery_source') not in tns_options.get('groups'):
-                    discovery_error['discovery_source'] = [_(f"Discovery source group {discovery_info.get('discovery_source')} is not a valid TNS group")]
+                if not is_classification:
+                    if not target.get('new_discovery', True):
+                        target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
+                    if not discovery_info or not discovery_info.get('discovery_source'):
+                        discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
+                                                                " submission")]
+                    elif discovery_info.get('discovery_source') not in tns_options.get('groups'):
+                        discovery_error['discovery_source'] = [_(f"Discovery source group {discovery_info.get('discovery_source')} is not a valid TNS group")]
                 if discovery_error:
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
             if any(targets_errors):
                 full_error['data']['targets'] = targets_errors
 
-            photometry_errors = []
-            has_nondetection = False
-            has_detection = False
-            for photometry in photometry_data:
-                photometry_error = {}
-                if photometry.get('brightness'):
-                    has_detection = True
-                if not photometry.get('instrument'):
-                    photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
-                elif photometry.get('instrument') not in tns_options.get('instruments'):
-                    photometry_error['instrument'] = [_(f'Instrument {photometry.get("instrument")} is not a valid TNS instrument')]
-                if photometry.get('bandpass') not in tns_options.get('filters'):
-                    photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
-                if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
-                    photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
-                if photometry.get('limiting_brightness'):
-                    has_nondetection = True
-                photometry_errors.append(photometry_error)
-            if any(photometry_errors):
-                full_error['data']['photometry'] = photometry_errors
+            if is_discovery:
+                photometry_errors = []
+                has_nondetection = False
+                has_detection = False
+                for photometry in photometry_data:
+                    photometry_error = {}
+                    if photometry.get('brightness'):
+                        has_detection = True
+                    if not photometry.get('instrument'):
+                        photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
+                    elif photometry.get('instrument') not in tns_options.get('instruments'):
+                        photometry_error['instrument'] = [_(f'Instrument {photometry.get("instrument")} is not a valid TNS instrument')]
+                    if photometry.get('bandpass') not in tns_options.get('filters'):
+                        photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
+                    if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
+                        photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
+                    if photometry.get('limiting_brightness'):
+                        has_nondetection = True
+                    photometry_errors.append(photometry_error)
+                if any(photometry_errors):
+                    full_error['data']['photometry'] = photometry_errors
+                if not has_nondetection:
+                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+                if not has_detection:
+                    photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
-            spectroscopy_errors = []
-            for spectroscopy in spectroscopy_data:
-                spectroscopy_error = {}
-                classification = spectroscopy.get('classification')
-                if classification and classification not in tns_options.get('object_types'):
-                    spectroscopy_error['classification'] = [_('Must be one of the TNS classification object_types for TNS'
-                                                              ' submission')]
-                if not spectroscopy.get('instrument'):
-                    spectroscopy_error['instrument'] = [_('Spectroscopy must have instrument specified for TNS'
-                                                          ' submission')]
-                if not spectroscopy.get('observer'):
-                    spectroscopy_error['observer'] = [_('Spectroscopy must have observer specified for TNS submission')]
-                if not spectroscopy.get('reducer'):
-                    spectroscopy_error['reducer'] = [_('Spectroscopy must have reducer specified for TNS submission')]
-                if not spectroscopy.get('spec_type'):
-                    spectroscopy_error['spec_type'] = [_('Spectroscopy must have spec_type specified for TNS'
-                                                         ' submission')]
-                spectroscopy_errors.append(spectroscopy_error)
-            if any(spectroscopy_errors):
-                full_error['data']['spectroscopy'] = spectroscopy_errors
+            if is_classification:
+                spectroscopy_errors = []
+                for spectroscopy in spectroscopy_data:
+                    spectroscopy_error = {}
+                    classification = spectroscopy.get('classification')
+                    if classification and classification not in tns_options.get('object_types'):
+                        spectroscopy_error['classification'] = [_('Must be one of the TNS classification object_types for TNS'
+                                                                ' submission')]
+
+                    file_info = spectroscopy.get('file_info', [])
+                    file_error_msg = 'Must specify a .ascii or .txt spectrum file for each spectrum in a TNS classification submission'
+                    if len(file_info) == 0:
+                        spectroscopy_error['files'] = [_(file_error_msg)]
+                    else:
+                        if not any(['.ascii' in file.get('name') or '.txt' in file.get('name') for file in file_info]):
+                            spectroscopy_error['files'] = [_(file_error_msg)]
+                    if not spectroscopy.get('instrument'):
+                        spectroscopy_error['instrument'] = [_('Spectroscopy must have instrument specified for TNS'
+                                                            ' submission')]
+                    elif spectroscopy.get('instrument') not in tns_options.get('instruments'):
+                        spectroscopy_error['instrument'] = [_(f'Instrument {spectroscopy.get("instrument")} is not a valid TNS instrument')]
+                    if not spectroscopy.get('observer'):
+                        spectroscopy_error['observer'] = [_('Spectroscopy must have observer specified for TNS submission')]
+                    if not spectroscopy.get('classification'):
+                        spectroscopy_error['classification'] = [_('Spectroscopy must have a classification specified for TNS submission')]
+                    elif spectroscopy.get('classification') not in tns_options.get('object_types'):
+                        spectroscopy_error['classification'] = [_(f'Classification {spectroscopy.get("classification")} is not a valid TNS classification object_type')]
+                    if not spectroscopy.get('spec_type'):
+                        spectroscopy_error['spec_type'] = [_('Spectroscopy must have spec_type specified for TNS'
+                                                            ' submission')]
+                    spectroscopy_errors.append(spectroscopy_error)
+                if any(spectroscopy_errors):
+                    full_error['data']['spectroscopy'] = spectroscopy_errors
 
             if not validated_data.get('authors'):
                 full_error['authors'] = [_('Must set an author / reporter for TNS submission')]
-
-            if not has_nondetection:
-                photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
-
-            if not has_detection:
-                photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
             if target_non_field_errors:
                 full_error['target_non_field_errors'] = target_non_field_errors
 
             if photometry_non_field_errors:
                 full_error['photometry_non_field_errors'] = photometry_non_field_errors
+
+            if spectroscopy_non_field_errors:
+                full_error['spectroscopy_non_field_errors'] = spectroscopy_non_field_errors
 
             if full_error:
                 raise serializers.ValidationError(full_error)
