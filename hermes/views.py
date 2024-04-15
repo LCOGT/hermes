@@ -272,6 +272,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                     redshift: <>,
                     host_name: <Host galaxy name>,
                     host_redshift: <Redshift (z) of Host Galaxy>,
+                    nondetection_source: <Source Catalog for the last nondetection of this target>,
+                    nondetection_comments: <Comments about the last nondetection of this target>,
                     aliases: [
                         'alias1',
                         'alias2',

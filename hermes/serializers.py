@@ -307,6 +307,8 @@ class TargetDataSerializer(RemoveNullSerializer):
     redshift = serializers.FloatField(required=False, allow_null=True)
     host_name = serializers.CharField(required=False, allow_null=True)
     host_redshift = serializers.FloatField(required=False, allow_null=True)
+    nondetection_source = serializers.CharField(required=False, allow_null=True)
+    nondetection_comments = serializers.CharField(required=False, allow_null=True)
     aliases = serializers.ListField(child=serializers.CharField(), required=False)
     group_associations = serializers.ListField(child=serializers.CharField(), required=False, allow_null=True)
     file_info = FileInfoSerializer(required=False, many=True)
@@ -701,6 +703,9 @@ class HermesMessageSerializer(serializers.Serializer):
                     bad_groups = [group for group in groups if group not in tns_options.get('groups', [])]
                     if bad_groups:
                         target_error['group_associations'] = [_(f'Group associations {",".join(bad_groups)} are not valid TNS groups')]
+                nondetection_source = target.get('nondetection_source')
+                if nondetection_source and nondetection_source not in tns_options.get('archives'):
+                    target_error['nondetection_source'] = [_(f'Nondetection source {nondetection_source} is not a valid TNS Archive')]
 
                 discovery_info = target.get('discovery_info', {})
                 discovery_error = {}
@@ -724,13 +729,17 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['data']['targets'] = targets_errors
 
             if is_discovery:
+                targets_by_target_name = {target.get('name'): target for target  in targets}
                 photometry_errors = []
                 has_nondetection = False
                 has_detection = False
                 for photometry in photometry_data:
                     photometry_error = {}
+                    related_target = targets_by_target_name.get(photometry.get('target_name'))
                     if photometry.get('brightness'):
                         has_detection = True
+                    if photometry.get('limiting_brightness') or related_target.get('nondetection_source'):
+                        has_nondetection = True
                     if not photometry.get('instrument'):
                         photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
                     elif photometry.get('instrument') not in tns_options.get('instruments'):
@@ -739,13 +748,11 @@ class HermesMessageSerializer(serializers.Serializer):
                         photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
                     if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
                         photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
-                    if photometry.get('limiting_brightness'):
-                        has_nondetection = True
                     photometry_errors.append(photometry_error)
                 if any(photometry_errors):
                     full_error['data']['photometry'] = photometry_errors
                 if not has_nondetection:
-                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness or target nondetection_source must be specified for TNS submission'))
                 if not has_detection:
                     photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
