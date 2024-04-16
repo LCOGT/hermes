@@ -237,10 +237,10 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
             }
         earliest_nondetection = get_earliest_photometry(photometry_list, nondetection=True)
         # If nondetection_source info is present in the target, then use that
-        if target.get('nondetection_source'):
+        if discovery_info.get('nondetection_source'):
             report['non_detection'] = {
-                'archiveid': str(tns_options.get('archives', {}).get(target.get('nondetection_source'))),
-                'archival_remarks': target.get('nondetection_comments', ''),
+                'archiveid': str(tns_options.get('archives', {}).get(discovery_info.get('nondetection_source'))),
+                'archival_remarks': discovery_info.get('nondetection_comments', ''),
             }
         # Otherwise if real limiting_brightness is present in the nondetection, then use that instead
         elif earliest_nondetection.get('limiting_brightness', 0):

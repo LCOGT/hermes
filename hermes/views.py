@@ -267,13 +267,13 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         discovery_source: <>,
                         transient_type: <Type of source, one of PSN, nuc, PNV, AGN, or Other>,
                         proprietary_period: <Duration that this discovery should be kept private>,
-                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>
+                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>,
+                        nondetection_source: <Source Catalog for the last nondetection of this target>,
+                        nondetection_comments: <Comments about the last nondetection of this target>,
                     },
                     redshift: <>,
                     host_name: <Host galaxy name>,
                     host_redshift: <Redshift (z) of Host Galaxy>,
-                    nondetection_source: <Source Catalog for the last nondetection of this target>,
-                    nondetection_comments: <Comments about the last nondetection of this target>,
                     aliases: [
                         'alias1',
                         'alias2',
