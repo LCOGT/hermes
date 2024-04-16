@@ -776,7 +776,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         bad_message['data']['photometry'][0]['instrument'] = 'NotAnInstrument'
 
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'Discovery nondetection source NotAnArchive is not a valid TNS Archive', status_code=200)
+        self.assertContains(result, 'Discovery nondetection source NotAnArchive is not a valid TNS archive', status_code=200)
         self.assertContains(result, 'Discovery reporting group Notagroup is not a valid TNS group', status_code=200)
         self.assertContains(result, 'Discovery source group Also Notagroup is not a valid TNS group', status_code=200)
         self.assertContains(result, 'Bandpass NotAFilter is not a valid TNS filter', status_code=200)

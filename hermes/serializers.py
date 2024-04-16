@@ -713,7 +713,7 @@ class HermesMessageSerializer(serializers.Serializer):
                     discovery_error['reporting_group'] = [_(f"Discovery reporting group {discovery_info.get('reporting_group')} is not a valid TNS group")]
                 nondetection_source = discovery_info.get('nondetection_source')
                 if nondetection_source and nondetection_source not in tns_options.get('archives'):
-                    discovery_error['nondetection_source'] = [_(f'Discovery nondetection source {nondetection_source} is not a valid TNS Archive')]
+                    discovery_error['nondetection_source'] = [_(f'Discovery nondetection source {nondetection_source} is not a valid TNS archive')]
                 if not is_classification:
                     if not target.get('new_discovery', True):
                         target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
