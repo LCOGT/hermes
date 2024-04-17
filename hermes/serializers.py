@@ -266,6 +266,7 @@ class OrbitalElementsSerializer(RemoveNullSerializer):
 
 
 class DiscoveryInfoSerializer(RemoveNullSerializer):
+    date = serializers.CharField(required=False, allow_null=True)
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
     transient_type = serializers.ChoiceField(required=False, default='Other',
@@ -276,6 +277,9 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
     nondetection_source = serializers.CharField(required=False, allow_null=True)
     nondetection_comments = serializers.CharField(required=False, allow_null=True)
 
+    def validate_date(self, value):
+        validate_date(value)
+        return value
 
 class FileInfoSerializer(RemoveNullSerializer):
     name = serializers.CharField(required=True)
