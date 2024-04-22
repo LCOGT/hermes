@@ -155,7 +155,7 @@ class TestSubmitBasicMessageApi(TestCase):
         super().setUp()
         self.user = User.objects.create(username='testuser')
         self.profile = Profile.objects.create(
-            user=self.user, hop_user_pk=2, credential_pk=2, credential_name='abc', credential_password='abc'
+            user=self.user, credential_name='abc', credential_password='abc'
         )
         self.generic_message = {
             'title': 'Candidate message',
@@ -768,13 +768,15 @@ class TestTNSSubmission(TestBaseMessageApi):
         bad_message = deepcopy(self.basic_message)
         bad_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'Notagroup',
-            'discovery_source': 'Also Notagroup'
+            'discovery_source': 'Also Notagroup',
+            'nondetection_source': 'NotAnArchive'
         }
         bad_message['data']['photometry'][0]['bandpass'] = 'NotAFilter'
         bad_message['data']['photometry'][0]['telescope'] = 'NotATelescope'
         bad_message['data']['photometry'][0]['instrument'] = 'NotAnInstrument'
 
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
+        self.assertContains(result, 'Discovery nondetection source NotAnArchive is not a valid TNS archive', status_code=200)
         self.assertContains(result, 'Discovery reporting group Notagroup is not a valid TNS group', status_code=200)
         self.assertContains(result, 'Discovery source group Also Notagroup is not a valid TNS group', status_code=200)
         self.assertContains(result, 'Bandpass NotAFilter is not a valid TNS filter', status_code=200)
@@ -796,7 +798,19 @@ class TestTNSSubmission(TestBaseMessageApi):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['photometry'][1]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'At least one photometry nondetection / limiting_brightness must be specified for TNS submission', status_code=200)
+        self.assertContains(result, 'At least one photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission', status_code=200)
+
+    def test_submission_accepts_nondetection_source(self, mock_populate_tns):
+        good_message = deepcopy(self.basic_message)
+        good_message['data']['targets'][0]['new_discovery'] = True
+        good_message['data']['targets'][0]['discovery_info'] = {
+            'reporting_group': 'SNEX',
+            'discovery_source': 'LCO Floyds',
+            'nondetection_source': 'DSS'
+        }
+        del good_message['data']['photometry'][1]
+        result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
+        self.assertEqual(result.json(), {})
 
     def test_submission_requires_at_least_one_photometry_detection(self, mock_populate_tns):
         bad_message = deepcopy(self.basic_message)

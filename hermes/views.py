@@ -263,11 +263,14 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         epoch_of_perihelion: <Epoch of Perihelion passage (tp) in MJD>
                     },
                     discovery_info: {
-                        reporting_group: <>,
-                        discovery_source: <>,
+                        date: <Discovery date for new discoveries>,
+                        reporting_group: <TNS reporting group for TNS new discoveries>,
+                        discovery_source: <TNS source group for TNS new discoveries>,
                         transient_type: <Type of source, one of PSN, nuc, PNV, AGN, or Other>,
                         proprietary_period: <Duration that this discovery should be kept private>,
-                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>
+                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>,
+                        nondetection_source: <Source Catalog for the last nondetection of this target>,
+                        nondetection_comments: <Comments about the last nondetection of this target>,
                     },
                     redshift: <>,
                     host_name: <Host galaxy name>,

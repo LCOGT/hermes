@@ -266,6 +266,7 @@ class OrbitalElementsSerializer(RemoveNullSerializer):
 
 
 class DiscoveryInfoSerializer(RemoveNullSerializer):
+    date = serializers.CharField(required=False, allow_null=True)
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
     transient_type = serializers.ChoiceField(required=False, default='Other',
@@ -273,7 +274,12 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
                                                        choices=['Days', 'Months', 'Years'])
+    nondetection_source = serializers.CharField(required=False, allow_null=True)
+    nondetection_comments = serializers.CharField(required=False, allow_null=True)
 
+    def validate_date(self, value):
+        validate_date(value)
+        return value
 
 class FileInfoSerializer(RemoveNullSerializer):
     name = serializers.CharField(required=True)
@@ -709,6 +715,9 @@ class HermesMessageSerializer(serializers.Serializer):
                                                             " submission")]
                 elif discovery_info.get('reporting_group') not in tns_options.get('groups'):
                     discovery_error['reporting_group'] = [_(f"Discovery reporting group {discovery_info.get('reporting_group')} is not a valid TNS group")]
+                nondetection_source = discovery_info.get('nondetection_source')
+                if nondetection_source and nondetection_source not in tns_options.get('archives'):
+                    discovery_error['nondetection_source'] = [_(f'Discovery nondetection source {nondetection_source} is not a valid TNS archive')]
                 if not is_classification:
                     if not target.get('new_discovery', True):
                         target_error['new_discovery'] = [_("Target new_discovery must be set to True for TNS submission")]
@@ -724,13 +733,17 @@ class HermesMessageSerializer(serializers.Serializer):
                 full_error['data']['targets'] = targets_errors
 
             if is_discovery:
+                targets_by_target_name = {target.get('name'): target for target  in targets}
                 photometry_errors = []
                 has_nondetection = False
                 has_detection = False
                 for photometry in photometry_data:
                     photometry_error = {}
+                    related_target = targets_by_target_name.get(photometry.get('target_name'))
                     if photometry.get('brightness'):
                         has_detection = True
+                    if photometry.get('limiting_brightness') or related_target.get('discovery_info', {}).get('nondetection_source'):
+                        has_nondetection = True
                     if not photometry.get('instrument'):
                         photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
                     elif photometry.get('instrument') not in tns_options.get('instruments'):
@@ -739,13 +752,11 @@ class HermesMessageSerializer(serializers.Serializer):
                         photometry_error['bandpass'] = [_(f'Bandpass {photometry.get("bandpass")} is not a valid TNS filter')]
                     if photometry.get('telescope') and photometry.get('telescope') not in tns_options.get('telescopes'):
                         photometry_error['telescope'] = [_(f'Telescope {photometry.get("telescope")} is not a valid TNS telescope')]
-                    if photometry.get('limiting_brightness'):
-                        has_nondetection = True
                     photometry_errors.append(photometry_error)
                 if any(photometry_errors):
                     full_error['data']['photometry'] = photometry_errors
                 if not has_nondetection:
-                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness must be specified for TNS submission'))
+                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission'))
                 if not has_detection:
                     photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
