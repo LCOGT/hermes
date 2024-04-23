@@ -190,7 +190,7 @@ def submit_to_gcn(request, message, message_uuid):
     message_plaintext += '\n\n This message was sent via HERMES.  A machine readable version can be found at ' \
                          + urljoin(settings.HERMES_FRONT_END_BASE_URL, f'message/{str(message_uuid)}')
     # Then submit the plaintext message to gcn via email
-    message_data = {'subject': message['title'], 'body': message_plaintext, "format": "text/markdown"}
+    message_data = {'subject': message['title'], 'body': message_plaintext}
     access_token = get_access_token(request.user, OAuthToken.IntegratedApps.GCN)
 
     headers =  {'Authorization': f'Bearer {access_token}'}
