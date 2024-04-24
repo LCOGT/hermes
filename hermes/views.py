@@ -498,8 +498,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         encoded = blob.serialize()
                         payload = encoded["content"]
                 submit_to_hop(request, payload, headers, hop_auth)
-                return Response({"message": f"Submitted message with uuid {message_uuid}"},
-                                status=status.HTTP_200_OK)
+                data['uuid'] = message_uuid
+                return Response(data, status=status.HTTP_200_OK)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
         else:
