@@ -221,7 +221,10 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
         report['reporting_group_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('reporting_group'), -1))
         report['discovery_data_source_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('discovery_source'), -1))
         report['reporter'] = hermes_message.get('authors')
-        report['discovery_datetime'] = parse_date(earliest_photometry.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S')
+        if discovery_info.get('date'):
+            report['discovery_datetime'] = parse_date(discovery_info.get('date')).strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            report['discovery_datetime'] = parse_date(earliest_photometry.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S')
         report['at_type'] = str(tns_options.get('at_types', {}).get(discovery_info.get('transient_type'), -1))
         report['host_name'] = target.get('host_name', '')
         report['host_redshift'] = target.get('host_redshift', '')
@@ -236,7 +239,14 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
                 'proprietary_period_units': discovery_info.get('proprietary_period_units').lower()
             }
         earliest_nondetection = get_earliest_photometry(photometry_list, nondetection=True)
-        if earliest_nondetection.get('limiting_brightness', 0):
+        # If nondetection_source info is present in the target, then use that
+        if discovery_info.get('nondetection_source'):
+            report['non_detection'] = {
+                'archiveid': str(tns_options.get('archives', {}).get(discovery_info.get('nondetection_source'))),
+                'archival_remarks': discovery_info.get('nondetection_comments', ''),
+            }
+        # Otherwise if real limiting_brightness is present in the nondetection, then use that instead
+        elif earliest_nondetection.get('limiting_brightness', 0):
             report['non_detection'] = {
                 'obsdate': parse_date(earliest_nondetection.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S'),
                 'limiting_flux': earliest_nondetection.get('limiting_brightness'),

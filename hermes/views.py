@@ -263,11 +263,14 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         epoch_of_perihelion: <Epoch of Perihelion passage (tp) in MJD>
                     },
                     discovery_info: {
-                        reporting_group: <>,
-                        discovery_source: <>,
+                        date: <Discovery date for new discoveries>,
+                        reporting_group: <TNS reporting group for TNS new discoveries>,
+                        discovery_source: <TNS source group for TNS new discoveries>,
                         transient_type: <Type of source, one of PSN, nuc, PNV, AGN, or Other>,
                         proprietary_period: <Duration that this discovery should be kept private>,
-                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>
+                        proprietary_period_units: <Units for proprietary period, Days, seconds, Years>,
+                        nondetection_source: <Source Catalog for the last nondetection of this target>,
+                        nondetection_comments: <Comments about the last nondetection of this target>,
                     },
                     redshift: <>,
                     host_name: <Host galaxy name>,
@@ -495,8 +498,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         encoded = blob.serialize()
                         payload = encoded["content"]
                 submit_to_hop(request, payload, headers, hop_auth)
-                return Response({"message": f"Submitted message with uuid {message_uuid}"},
-                                status=status.HTTP_200_OK)
+                data['uuid'] = message_uuid
+                return Response(data, status=status.HTTP_200_OK)
             except APIException as ae:
                 return Response({'error': str(ae)}, status.HTTP_400_BAD_REQUEST)
         else:
@@ -621,7 +624,7 @@ class ProfileApiView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        logger.warning(f"user pk = {self.request.user.pk}, user = {self.request.user}")
+        logger.debug(f"user pk = {self.request.user.pk}, user = {self.request.user}")
         """Once authenticated, retrieve profile data"""
         qs = User.objects.filter(pk=self.request.user.pk).prefetch_related(
             'profile'
@@ -672,11 +675,9 @@ class RevokeHopCredentialApiView(APIView):
     def post(self, request):
         """A simple POST request (empty request body) with user authentication information in the HTTP header will revoke the users hop credential."""
         username = request.user.get_username()
-        hop_user_pk = request.user.profile.hop_user_pk
-        credential_pk = request.user.profile.credential_pk
         credential_name = request.user.profile.credential_name
-        if hopskotch.verify_credential_for_user(username, hop_user_pk, credential_name, credential_pk):
-            hopskotch.delete_user_hop_credential_by_pk(hop_user_pk, credential_pk, hopskotch.get_user_api_token(username))
+        if hopskotch.verify_credential_for_user(username, credential_name):
+            hopskotch.delete_user_hop_credentials(username, credential_name, hopskotch.get_user_api_token(username))
         hopskotch.regenerate_hop_credential(request.user)
         return Response({'message': 'Hop credential revoked and regenerated.'}, status=status.HTTP_200_OK)
 
