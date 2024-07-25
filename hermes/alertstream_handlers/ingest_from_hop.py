@@ -52,6 +52,8 @@ def generate_skymap_url(superevent_id: str, pipeline: str, skymap_version: int, 
 
 
 def should_ingest_topic(topic):
+    if 'test' in topic.lower() and not settings.SAVE_TEST_MESSAGES:
+        return False
     for topic_piece in TOPIC_PIECES_TO_IGNORE:
         if topic_piece in topic.lower():
             return False
@@ -300,7 +302,7 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     logger.debug(f'updating db with hermes alert {hermes_message}')
     logger.debug(f'metadata: {metadata}')
     # Only store test hermes messages if we are configured to do so
-    if hermes_message.content['topic'] in ['hermes.test', 'tomtoolkit.test'] and not settings.SAVE_TEST_MESSAGES:
+    if not should_ingest_topic(hermes_message.content['topic']):
         return
 
     # metadata.timestamp is the number of milliseconds since the epoch (UTC).

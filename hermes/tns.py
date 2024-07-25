@@ -101,7 +101,7 @@ def get_earliest_photometry(photometry_list, nondetection=False):
             continue
         elif nondetection and not photometry.get('limiting_brightness', 0):
             continue
-        date = parse_date(photometry.get('date_obs'))
+        date = parse_date(photometry.get('date_obs')).replace(tzinfo=timezone.utc)
         if not date:
             continue
         if date < earliest_date:
