@@ -237,33 +237,27 @@ def handle_gcn_notice_message(notice: GCNTextNotice, metadata: Metadata):
         GENERIC_GCN_NOTICE_PARSER.parse(message)
 
 
-def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
+def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
     """Add GNC Circular to Message db table (unless it already exists)
-
-    hop.models.GCNCircular field mapping to hermes.models.Message:
-    metadata.topic --> topic
-    subject        --> title
-    from           --> authors
-    body           --> message_text
 
     The topic and body fields will be used to query the database for the Message
     prior to creation in update_or_create()
 
     """
-    logger.debug(f'updating db with gcn_circular number {gcn_circular.header["number"]}')
-    # published date is in the header of the gcncircular
-    published_time = parse(gcn_circular.header['date'], parserinfo=parserinfo(yearfirst=True))
-    message_body = gcn_circular.body.split('---\nTo unsubscribe')[0].rstrip()
+    circular = gcn_circular.content
+    logger.debug(f'updating db with gcn_circular number {circular['circularId']}')
+    published_time = datetime.fromtimestamp(circular['createdOn'] / 1000.0)
+    message_body = circular.pop('body')
     message, created = Message.objects.get_or_create(
         # fields to be compared to find existing Message (if any)
         topic=metadata.topic,
         uuid=get_or_create_uuid_from_metadata(metadata),
         message_text=message_body,
         published=published_time,
-        title=gcn_circular.header['subject'],
-        submitter='Hop gcn.circular',
-        authors=gcn_circular.header['from'],
-        data=gcn_circular.header
+        title=circular['subject'],
+        submitter=circular['submitter'],
+        authors=circular['submitter'],
+        data=circular
     )
     GCN_CIRCULAR_PARSER.parse(message)
 
