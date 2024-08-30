@@ -245,7 +245,7 @@ def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
 
     """
     circular = gcn_circular.content
-    logger.debug(f'updating db with gcn_circular number {circular['circularId']}')
+    logger.debug(f'updating db with gcn_circular number {circular["circularId"]}')
     published_time = datetime.fromtimestamp(circular['createdOn'] / 1000.0)
     message_body = circular.pop('body')
     message, created = Message.objects.get_or_create(
