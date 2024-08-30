@@ -15,12 +15,19 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from hop.io import Metadata
-from hop.models import GCNCircular, JSONBlob
+from hop.models import GCNCircular, JSONBlob, GCNTextNotice
 
 from hermes.models import Message, NonLocalizedEvent
 from hermes import parsers
 
 logger = logging.getLogger(__name__)
+
+GENERIC_GCN_NOTICE_PARSER = parsers.GCNNoticePlaintextParser()
+GCN_TOPICS_TO_PARSERS = {
+    'ICECUBE_ASTROTRACK_GOLD': parsers.IcecubeNoticePlaintextParser(),
+    'ICECUBE_ASTROTRACK_BRONZE': parsers.IcecubeNoticePlaintextParser(),
+    'ICECUBE_CASCADE': parsers.IcecubeNoticePlaintextParser(),
+}
 
 GCN_CIRCULAR_PARSER = parsers.GCNCircularParser()
 HERMES_PARSER = parsers.HermesMessageParser()
@@ -161,10 +168,17 @@ def get_or_create_uuid_from_metadata(metadata: Metadata) -> uuid.UUID:
     return message_uuid
 
 
-def handle_generic_message(message: JSONBlob, metadata: Metadata):
+def ignore_message(blob: JSONBlob, metadata: Metadata):
+    """ Ignore the message sent here
+    """
+    return
+
+
+def handle_generic_message(blob: JSONBlob, metadata: Metadata):
     """Ingest a generic  alert from a topic we have no a priori knowledge of.
     """
     topic = metadata.topic
+    logger.warning(f"Handling message on topic {topic}")
     if topic == 'sys.heartbeat-cit':
         # Store the last timestamp we received a heartbeat message to know if the stream is alive
         cache.set('hop_stream_heartbeat', timezone.now().isoformat(), None)
@@ -179,7 +193,7 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
                 title='Generic Message',
                 uuid=get_or_create_uuid_from_metadata(metadata),
                 published=published_time,
-                data=message.content
+                data=blob.content
             )
             if created:
                 logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
@@ -187,6 +201,40 @@ def handle_generic_message(message: JSONBlob, metadata: Metadata):
                 logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
         except Exception as ex:
             logger.warning(f"Failed to ingest message from topic {topic}: {repr(ex)}")
+
+
+def handle_gcn_notice_message(notice: GCNTextNotice, metadata: Metadata):
+    """Ingest a gcn plaintext notice through the hop stream.
+    """
+    topic = metadata.topic
+    logger.warning(f"Handling message on topic {topic}")
+    if should_ingest_topic(topic):
+        logger.debug(f'updating db with gcn text notice hop message for topic {topic}')
+        # metadata.timestamp is the number of milliseconds since the epoch (UTC).
+        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
+        try:
+            message, created = Message.objects.update_or_create(
+                # these fields must match for update...
+                topic=topic,
+                uuid=get_or_create_uuid_from_metadata(metadata),
+                published=published_time,
+                message_text=notice.raw.decode('utf-8'),
+                data=notice.fields
+            )
+            if created:
+                logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
+            else:
+                logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
+        except Exception as ex:
+            logger.warning(f"Failed to ingest message from topic {topic}: {repr(ex)}")
+
+        # See if any of the specific parsers match a piece of the topic
+        for topic_piece, parser in GCN_TOPICS_TO_PARSERS.items():
+            if topic_piece in topic.upper():
+                parser.parse(message)
+                return
+        # If none of the topic pieces for more specific parsers match, then just use the generic gcn notice parser
+        GENERIC_GCN_NOTICE_PARSER.parse(message)
 
 
 def handle_gcn_circular_message(gcn_circular: GCNCircular, metadata: Metadata):
@@ -304,6 +352,7 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
     # Only store test hermes messages if we are configured to do so
     if not should_ingest_topic(hermes_message.content['topic']):
         return
+    logger.warning(f"Handling message on topic {hermes_message.content['topic']}")
 
     # metadata.timestamp is the number of milliseconds since the epoch (UTC).
     published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
@@ -330,4 +379,3 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
         logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
     else:
         logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
-

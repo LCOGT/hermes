@@ -80,26 +80,29 @@ class GCNNoticePlaintextParser(BaseParser):
 
     def parse_message(self, message):
         parsed_fields = {}
-
-        try:
-            last_entry = ''
-            for line in message.message_text.strip().splitlines():  # Remove leading/trailing newlines
-                entry = line.split(':', maxsplit=1)
-                if len(entry) > 1:
-                    key = entry[0].strip().lower()
-                    if key == last_entry and last_entry in parsed_fields:
-                        # For multi-line values repeating the key, append the values here with a newline
-                        parsed_fields[last_entry] += f'\n{entry[1].lstrip()}'
+        if not message.data:
+            try:
+                last_entry = ''
+                for line in message.message_text.strip().splitlines():  # Remove leading/trailing newlines
+                    entry = line.split(':', maxsplit=1)
+                    if len(entry) > 1:
+                        key = entry[0].strip().lower()
+                        if key == last_entry and last_entry in parsed_fields:
+                            # For multi-line values repeating the key, append the values here with a newline
+                            parsed_fields[last_entry] += f'\n{entry[1].lstrip()}'
+                        else:
+                            parsed_fields[key] = entry[1].strip()
+                        last_entry = key
                     else:
-                        parsed_fields[key] = entry[1].strip()
-                    last_entry = key
-                else:
-                    # Append multi-line values here to the previous key if a new key isn't present
-                    if last_entry:
-                        parsed_fields[last_entry] += ' ' + entry[0].strip()
-        except Exception as e:
-            logger.warn(f'parse_message failed for GCN Notice Message {message.id}: {e}')
-        
+                        # Append multi-line values here to the previous key if a new key isn't present
+                        if last_entry:
+                            parsed_fields[last_entry] += ' ' + entry[0].strip()
+            except Exception as e:
+                logger.warn(f'parse_message failed for GCN Notice Message {message.id}: {e}')
+        else:
+            logger.warn("GCN Notice already has data dictionary so just use that")
+            parsed_fields = message.data
+
         if parsed_fields and all(x.lower() in parsed_fields.get('title', '').lower() for x in ['GCN', 'NOTICE']):
             urls = self.generate_urls(parsed_fields)
             if urls and 'urls' not in parsed_fields:
