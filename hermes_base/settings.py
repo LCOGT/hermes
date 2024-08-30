@@ -273,6 +273,11 @@ ALERT_STREAMS = [
             'TOPIC_HANDLERS': {
                 '*': 'hermes.alertstream_handlers.ingest_from_hop.handle_generic_message',
                 'hermes.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
+                'mirror-test.*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
+                'gcn.classic.voevent.*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
+                'gcn.classic.text.LVC*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
+                'gcn.classic.text.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_notice_message',
+                'gcn.notices.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_notice_message',
                 'microlensing.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular*': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
                 'igwn.gwalert*': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message'
