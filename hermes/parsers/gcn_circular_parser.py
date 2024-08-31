@@ -47,7 +47,7 @@ class GCNCircularParser(BaseParser):
             message.message_parser = repr(self)
             data_with_link = message.data
             data_with_link['urls'] = {
-                    'gcn_circular': f'https://gcn.nasa.gov/circulars/{data_with_link.get("number", -1)}'
+                    'gcn_circular': f'https://gcn.nasa.gov/circulars/{data_with_link.get("circularId", -1)}'
             }
             message.data = data_with_link
             message.save()
