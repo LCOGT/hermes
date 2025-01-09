@@ -42,7 +42,7 @@ class TestTNS(TestCase):
                     'discovery_info': {
                         'discovery_source': 'LCO Floyds',
                         'reporting_group': 'SNEX',
-                        'transient_type': 'PSN',
+                        'transient_type': 'PSN - Possible SN',
                         'proprietary_period': 1,
                         'proprietary_period_units': 'years'
                     },

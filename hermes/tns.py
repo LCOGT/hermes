@@ -28,7 +28,7 @@ def populate_tns_values():
     all_tns_values = {}
     reversed_tns_values = {}
     try:
-        resp = requests.get(urljoin(settings.TNS_BASE_URL, 'api/values/'),
+        resp = requests.get(urljoin(settings.TNS_BASE_URL, 'api/get/values/'),
                             headers={'user-agent': SPOOF_USER_AGENT})
         resp.raise_for_status()
         all_tns_values = resp.json().get('data', {})
@@ -218,8 +218,8 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
             'units': target.get('dec_error_units')
         }
         discovery_info = target.get('discovery_info', {})
-        report['reporting_group_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('reporting_group'), -1))
-        report['discovery_data_source_id'] = str(tns_options.get('groups', {}).get(discovery_info.get('discovery_source'), -1))
+        report['reporting_groupid'] = str(tns_options.get('groups', {}).get(discovery_info.get('reporting_group'), -1))
+        report['data_source_groupid'] = str(tns_options.get('groups', {}).get(discovery_info.get('discovery_source'), -1))
         report['reporter'] = hermes_message.get('authors')
         if discovery_info.get('date'):
             report['discovery_datetime'] = parse_date(discovery_info.get('date')).strftime('%Y-%m-%d %H:%M:%S')
@@ -250,9 +250,9 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
             report['non_detection'] = {
                 'obsdate': parse_date(earliest_nondetection.get('date_obs')).strftime('%Y-%m-%d %H:%M:%S'),
                 'limiting_flux': earliest_nondetection.get('limiting_brightness'),
-                'flux_units': convert_flux_units(earliest_nondetection.get('limiting_brightness_unit', 'AB mag')),
-                'filter_value': str(tns_options.get('filters', {}).get(earliest_nondetection.get('bandpass'))),
-                'instrument_value': str(tns_options.get('instruments', {}).get(earliest_nondetection.get('instrument'))),
+                'flux_unitid': convert_flux_units(earliest_nondetection.get('limiting_brightness_unit', 'AB mag')),
+                'filterid': str(tns_options.get('filters', {}).get(earliest_nondetection.get('bandpass'))),
+                'instrumentid': str(tns_options.get('instruments', {}).get(earliest_nondetection.get('instrument'))),
                 'exptime': str(earliest_nondetection.get('exposure_time', '')),
                 'observer': earliest_nondetection.get('observer', ''),
                 'comments': earliest_nondetection.get('comments', ''),
@@ -268,9 +268,9 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
                     'flux': photometry.get('brightness', ''),
                     'flux_error': photometry.get('brightness_error', ''),
                     'limiting_flux': photometry.get('limiting_brightness', ''),
-                    'flux_units': convert_flux_units(photometry.get('brightness_unit', 'AB mag')),
-                    'filter_value': str(tns_options.get('filters', {}).get(photometry.get('bandpass'))),
-                    'instrument_value': str(tns_options.get('instruments', {}).get(photometry.get('instrument', ''))),
+                    'flux_unitid': convert_flux_units(photometry.get('brightness_unit', 'AB mag')),
+                    'filterid': str(tns_options.get('filters', {}).get(photometry.get('bandpass'))),
+                    'instrumentid': str(tns_options.get('instruments', {}).get(photometry.get('instrument', ''))),
                     'exptime': str(photometry.get('exposure_time', '')),
                     'observer': photometry.get('observer', ''),
                     'comments': photometry.get('comments', '')
@@ -320,7 +320,7 @@ def submit_files_to_tns(request, files):
     """ Takes in a list of Django InMemoryUploadedFile objects, and submits those to TNS.
         Returns a dict of raw filenames to TNS filenames for those files.
     """
-    url = urljoin(settings.TNS_BASE_URL, 'api/file-upload')
+    url = urljoin(settings.TNS_BASE_URL, 'api/set/file-upload')
     headers = {'User-Agent': get_tns_marker(request)}
     payload = {'api_key': get_tns_api_token(request)}
     files_data = {}
@@ -372,7 +372,7 @@ def submit_report_to_tns(request, data):
         'api_key': get_tns_api_token(request),
         'data': json.dumps(data, indent=4)
     }
-    url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report')
+    url = urljoin(settings.TNS_BASE_URL, 'api/set/bulk-report')
     headers = {'User-Agent': get_tns_marker(request)}
     try:
         response = requests.post(url, headers = headers, data = payload)
@@ -382,7 +382,7 @@ def submit_report_to_tns(request, data):
         raise BadTnsRequest("Failed to submit report to TNS")
 
     attempts = 0
-    reply_url = urljoin(settings.TNS_BASE_URL, 'api/bulk-report-reply')
+    reply_url = urljoin(settings.TNS_BASE_URL, 'api/get/bulk-report-reply')
     reply_data = {'api_key': get_tns_api_token(request), 'report_id': report_id}
     # TNS Submissions return immediately with an id, which you must then check to see if the message
     # was processed, and if it was accepted or rejected. Here we check up to 10 times, waiting 1s

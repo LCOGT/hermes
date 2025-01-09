@@ -269,8 +269,8 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
     date = serializers.CharField(required=False, allow_null=True)
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
-    transient_type = serializers.ChoiceField(required=False, default='Other',
-                                             choices=['PSN', 'NUC', 'PNV', 'AGN', 'FRB', 'Other'])
+    transient_type = serializers.ChoiceField(required=False, default='Other - Undefined',
+                                             choices=['PSN - Possible SN', 'NUC - Possibly nuclear', 'PNV - Possible Nova', 'AGN - Known AGN', 'FRB - Fast Radio Burst event', 'Other - Undefined'])
     proprietary_period = serializers.FloatField(required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
                                                        choices=['Days', 'Months', 'Years'])
