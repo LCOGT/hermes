@@ -269,9 +269,12 @@ class DiscoveryInfoSerializer(RemoveNullSerializer):
     date = serializers.CharField(required=False, allow_null=True)
     reporting_group = serializers.CharField(required=False, allow_null=True)
     discovery_source = serializers.CharField(required=False, allow_null=True)
-    transient_type = serializers.ChoiceField(required=False, default='Other - Undefined',
-                                             choices=['PSN - Possible SN', 'NUC - Possibly nuclear', 'PNV - Possible Nova', 'AGN - Known AGN', 'FRB - Fast Radio Burst event', 'Other - Undefined'])
-    proprietary_period = serializers.FloatField(required=False, allow_null=True)
+    transient_type = serializers.ChoiceField(required=False, allow_null=True,
+                                             choices=['PSN - Possible SN', 'NUC - Possibly nuclear',
+                                                      'PNV - Possible Nova', 'AGN - Known AGN',
+                                                      'FRB - Fast Radio Burst event', 'Other - Undefined'])
+    proprietary_period = serializers.FloatField(
+        required=False, allow_null=True)
     proprietary_period_units = serializers.ChoiceField(required=False, default='Days',
                                                        choices=['Days', 'Months', 'Years'])
     nondetection_source = serializers.CharField(required=False, allow_null=True)
@@ -434,7 +437,7 @@ class SpectroscopyDataSerializer(CommonDataSerializer):
     comments = serializers.CharField(required=False, allow_null=True)
     observer = serializers.CharField(required=False, allow_null=True)
     reducer = serializers.CharField(required=False, allow_null=True)
-    spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Host', 'Synthetic', 'Sky', 'Arcs'])
+    spec_type = serializers.ChoiceField(required=False, choices=['Object', 'Other', 'Host', 'Synthetic', 'Sky', 'Arcs'])
     file_info = FileInfoSerializer(required=False, many=True)
 
     def validate(self, data):
@@ -724,6 +727,8 @@ class HermesMessageSerializer(serializers.Serializer):
                     if not discovery_info or not discovery_info.get('discovery_source'):
                         discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
                                                                 " submission")]
+                    if not discovery_info or not discovery_info.get('transient_type'):
+                        discovery_error['transient_type'] = [_("Target must have a discovery info transient_type for TNS submission")]
                     elif discovery_info.get('discovery_source') not in tns_options.get('groups'):
                         discovery_error['discovery_source'] = [_(f"Discovery source group {discovery_info.get('discovery_source')} is not a valid TNS group")]
                 if discovery_error:
