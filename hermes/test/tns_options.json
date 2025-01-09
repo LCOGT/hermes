@@ -1,13 +1,13 @@
 {
     "at_types": [
-        "Other",
-        "PSN",
-        "PNV",
-        "AGN",
-        "NUC",
-        "FRB"
+        "Other - Undefined",
+        "PSN - Possible SN",
+        "PNV - Possible Nova",
+        "AGN - Known AGN",
+        "NUC - Possibly nuclear",
+        "FRB - Fast Radio Burst event"
     ],
-    "object_types": {
+    "objtypes": {
         "23": "Afterglow",
         "29": "AGN",
         "1003": "Computed-Ia",
@@ -133,13 +133,13 @@
         "7": "floyds01",
         "11": "nres02"
     },
-    "telescopes": {
+    "archives": {
         "0": "1m0a.doma.elp.lco",
         "1": "1m0a.domb.cpt.lco",
         "4": "4m0a.doma.sor",
         "11": "TVLT: The Very Large Telescope"
     },
-    "archives": {
+    "telescopes": {
         "2": "DSS",
         "0": "Other",
         "1": "SDSS"

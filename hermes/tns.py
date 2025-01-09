@@ -154,7 +154,7 @@ def convert_classification_hermes_message_to_tns(hermes_message, target_filename
 
             first_spectra = spectroscopy_by_target[target['name']][0]
             # Set classification object_type from the first spectrum
-            classification_report['objtypeid'] = str(tns_options.get('object_types', {}).get(first_spectra.get('classification'), -1))
+            classification_report['objtypeid'] = str(tns_options.get('objtypes', {}).get(first_spectra.get('classification'), -1))
             # Proprietary period of the classification uses the targets discovery info proprietary period but should be left to 0 usually
             classification_report['class_proprietary_period'] = {
                 'class_proprietary_period_value': str(discovery_info.get('proprietary_period', 0)),

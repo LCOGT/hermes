@@ -770,8 +770,8 @@ class HermesMessageSerializer(serializers.Serializer):
                 for spectroscopy in spectroscopy_data:
                     spectroscopy_error = {}
                     classification = spectroscopy.get('classification')
-                    if classification and classification not in tns_options.get('object_types'):
-                        spectroscopy_error['classification'] = [_('Must be one of the TNS classification object_types for TNS'
+                    if classification and classification not in tns_options.get('objtypes'):
+                        spectroscopy_error['classification'] = [_('Must be one of the TNS classification objtypes for TNS'
                                                                 ' submission')]
 
                     file_info = spectroscopy.get('file_info', [])
@@ -790,7 +790,7 @@ class HermesMessageSerializer(serializers.Serializer):
                         spectroscopy_error['observer'] = [_('Spectroscopy must have observer specified for TNS submission')]
                     if not spectroscopy.get('classification'):
                         spectroscopy_error['classification'] = [_('Spectroscopy must have a classification specified for TNS submission')]
-                    elif spectroscopy.get('classification') not in tns_options.get('object_types'):
+                    elif spectroscopy.get('classification') not in tns_options.get('objtypes'):
                         spectroscopy_error['classification'] = [_(f'Classification {spectroscopy.get("classification")} is not a valid TNS classification object_type')]
                     if not spectroscopy.get('spec_type'):
                         spectroscopy_error['spec_type'] = [_('Spectroscopy must have spec_type specified for TNS'
