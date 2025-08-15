@@ -280,7 +280,8 @@ ALERT_STREAMS = [
                 'microlensing.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.circular': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
                 'gcn.circulars': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_circular_message',
-                'igwn.gwalert*': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message'
+                'igwn.gwalert*': 'hermes.alertstream_handlers.ingest_from_hop.handle_igwn_message',
+                'igwn.gwistat*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message'
             },
         },
     },
