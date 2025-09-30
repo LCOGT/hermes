@@ -6,6 +6,7 @@ from astropy.coordinates import Longitude, Latitude
 from astropy import units
 from dateutil.parser import parse
 from django.utils.translation import gettext as _
+from django.utils import timezone
 from django.conf import settings
 
 import math
@@ -33,7 +34,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = (
             'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn', 'tns_bot_id',
-            'tns_bot_name', 'tns_bot_api_token'
+            'tns_bot_name', 'tns_bot_api_token', 'group_memberships'
         )
 
     def get_integrated_apps(self, obj):
@@ -100,6 +101,28 @@ class BaseTargetSerializer(serializers.ModelSerializer):
             return a.to_string(unit=units.degree, sep=':')
 
 
+class MessageUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
+        fields = [
+            'retracted', 'id', 'uuid', 'retracted_on'
+        ]
+        read_only_fields = ['id', 'uuid', 'retracted_on']
+
+    def validate_retracted(self, value):
+        if not value:
+            raise serializers.ValidationError(_("'retracted' can only be updated to True"))
+        return value
+
+    def update(self, instance, validated_data):
+        if ('retracted' in validated_data and validated_data['retracted'] != instance.retracted):
+            instance.retracted = validated_data['retracted']
+            instance.retracted_on = timezone.now()
+            instance.save(update_fields=['retracted', 'retracted_on'])
+
+        return instance
+
+
 class BaseMessageSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Message
@@ -114,9 +137,17 @@ class BaseMessageSerializer(serializers.HyperlinkedModelSerializer):
             'message_text',
             'published',
             'message_parser',
+            'retracted',
+            'retracted_on',
             'created',
             'modified'
         ]
+
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        if 'retracted_on' in result and result['retracted_on'] is None:
+            del result['retracted_on']
+        return result
 
 
 class BaseNonLocalizedEventSerializer(serializers.ModelSerializer):
@@ -654,8 +685,8 @@ class HermesMessageSerializer(serializers.Serializer):
 
     def validate_topic(self, value):
         # When running in dev mode, only allow submissions to hermes.test topic
-        if settings.SAVE_TEST_MESSAGES and value != 'hermes.test':
-            raise serializers.ValidationError(_("Hermes Dev can only submit to the hermes.test topic."))
+        if settings.SAVE_TEST_MESSAGES and 'test' not in value:
+            raise serializers.ValidationError(_("Hermes Dev can only submit to a test topic."))
         return value
 
     def validate(self, data):
