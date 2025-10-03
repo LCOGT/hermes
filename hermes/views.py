@@ -51,6 +51,9 @@ class IsAuthenticatedAndGroupOwner(IsAuthenticated):
         # Allow admin users to perform any action
         if request.user and request.user.is_staff and request.user.is_superuser:
             return True
+        # Get out if the user doesn't have a profile
+        if not hasattr(request.user, "profile"):
+            return False
         # Otherwise check if the user is an Owner of the message objects topic group
         group = obj.topic.split('.')[0]
         return request.user.profile.group_memberships.get(group, '') == 'Owner'
@@ -87,10 +90,10 @@ class MessageViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, pk=None):
         try:
             instance = Message.objects.get(pk=pk)
-        except:
+        except Message.DoesNotExist:
             try:
                 instance = Message.objects.get(uuid__startswith=pk)
-            except:
+            except Message.DoesNotExist:
                 raise Http404
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
@@ -99,10 +102,10 @@ class MessageViewSet(viewsets.ModelViewSet):
     def plaintext(self, request, pk=None):
         try:
             instance = Message.objects.get(pk=pk)
-        except:
+        except Message.DoesNotExist:
             try:
                 instance = Message.objects.get(uuid__startswith=pk)
-            except:
+            except Message.DoesNotExist:
                 raise Http404
         serializer = self.get_serializer(instance)
         plaintext_message = convert_to_plaintext(serializer.data)
