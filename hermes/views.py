@@ -90,7 +90,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, pk=None):
         try:
             instance = Message.objects.get(pk=pk)
-        except Message.DoesNotExist:
+        except (Message.DoesNotExist, ValueError):
             try:
                 instance = Message.objects.get(uuid__startswith=pk)
             except Message.DoesNotExist:
@@ -102,7 +102,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     def plaintext(self, request, pk=None):
         try:
             instance = Message.objects.get(pk=pk)
-        except Message.DoesNotExist:
+        except (Message.DoesNotExist, ValueError):
             try:
                 instance = Message.objects.get(uuid__startswith=pk)
             except Message.DoesNotExist:
