@@ -225,7 +225,7 @@ def verify_credential_for_user(username: str, credential_name: str):
         else:
             logger.warning(f"Credential with name {credential_name} for user {username} does not match")
     except Exception as e:
-        logger.warning(f"Failed to verify credential with name {credential_name} for user {username}")
+        logger.warning(f"Failed to verify credential with name {credential_name} for user {username}: {repr(e)}")
 
     return False
 

@@ -7,7 +7,7 @@ from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from rest_framework.authtoken.models import Token
-from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_token
+from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_token, get_user_groups
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,17 @@ class Profile(models.Model):
             logger.warning(f"Failed to retrieve user api token: {repr(e)}")
             return []
         return get_user_writable_topics(self.user.username, self.credential_name, user_api_token, exclude_groups=['sys'])
+
+    @property
+    def group_memberships(self):
+        """ Returns a dictionary of the form {group: group_permission} for all user's group memberships
+        """
+        try:
+            user_api_token = get_user_api_token(self.user.username)
+        except Exception as e:
+            logger.warning(f"Failed to retrieve user api token: {repr(e)}")
+            return {}
+        return {group['group']: group['status'] for group in get_user_groups(self.user.username, user_api_token)}
 
 
 class OAuthToken(models.Model):
@@ -80,6 +91,12 @@ class Message(models.Model):
     published = models.DateTimeField(auto_now_add=True,
                                      verbose_name='Time Published to Stream from message metadata.')
     message_parser = models.CharField(max_length=128, default='', blank=True)
+    retracted = models.BooleanField(default=False, db_index=True,
+                                    help_text='Whether or not this message has been retracted.')
+    retracted_on = models.DateTimeField(
+        null=True, blank=True, verbose_name='Retracted On',
+        help_text='Date this message was retracted, or null if it has not been retracted.'
+    )
     created = models.DateTimeField(auto_now_add=True, verbose_name='Time Created')
     modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
