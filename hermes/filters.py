@@ -44,7 +44,8 @@ class MessageFilter(filters.FilterSet):
         model = Message
         fields = (
             'topic', 'title', 'published', 'authors', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid', 'search'
+            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid', 'search',
+            'retracted'
         )
 
 

@@ -39,16 +39,29 @@ from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns,
 from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
-                                NonLocalizedEventSequenceSerializer, ProfileSerializer)
+                                NonLocalizedEventSequenceSerializer, ProfileSerializer, MessageUpdateSerializer)
 from hermes.oauth_clients import oauth, update_token, get_access_token
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+class IsAuthenticatedAndGroupOwner(IsAuthenticated):
+    def has_object_permission(self, request, view, obj):
+        # Allow admin users to perform any action
+        if request.user and request.user.is_staff and request.user.is_superuser:
+            return True
+        # Get out if the user doesn't have a profile
+        if not hasattr(request.user, "profile"):
+            return False
+        # Otherwise check if the user is an Owner of the message objects topic group
+        group = obj.topic.split('.')[0]
+        return request.user.profile.group_memberships.get(group, '') == 'Owner'
+
+
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
-    http_method_names = ['get', 'head', 'options']
+    http_method_names = ['get', 'head', 'options', 'patch']
     serializer_class = MessageSerializer
     filterset_class = MessageFilter
     filter_backends = (
@@ -57,20 +70,43 @@ class MessageViewSet(viewsets.ModelViewSet):
     )
     ordering = ('-id',)
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.query_params.get('include_retracted') or self.action == 'partial_update':
+            return queryset
+        else:
+            return queryset.exclude(retracted=True)
+
+    def get_permissions(self):
+        if self.action == 'partial_update':
+            return [IsAuthenticatedAndGroupOwner()]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.action == 'partial_update':
+            return MessageUpdateSerializer
+        return super().get_serializer_class()
+
     def retrieve(self, request, pk=None):
         try:
-            instance = Message.objects.get(uuid__startswith=pk)
-        except:
-            raise Http404
+            instance = Message.objects.get(pk=pk)
+        except (Message.DoesNotExist, ValueError):
+            try:
+                instance = Message.objects.get(uuid__startswith=pk)
+            except Message.DoesNotExist:
+                raise Http404
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
     @action(detail=True)
     def plaintext(self, request, pk=None):
         try:
-            instance = Message.objects.get(uuid__startswith=pk)
-        except:
-            raise Http404
+            instance = Message.objects.get(pk=pk)
+        except (Message.DoesNotExist, ValueError):
+            try:
+                instance = Message.objects.get(uuid__startswith=pk)
+            except Message.DoesNotExist:
+                raise Http404
         serializer = self.get_serializer(instance)
         plaintext_message = convert_to_plaintext(serializer.data)
 
