@@ -45,6 +45,10 @@ from hermes.oauth_clients import oauth, update_token, get_access_token
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Set hop client logger to debug to find some issues
+hop_client_logger = logging.getLogger("hop")
+hop_client_logger.setLevel(logging.DEBUG)
+
 
 class IsAuthenticatedAndGroupOwner(IsAuthenticated):
     def has_object_permission(self, request, view, obj):
@@ -206,7 +210,9 @@ def submit_to_hop(request, payload, headers, hop_auth):
     """
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
     logger.debug(f'submit_to_hop request: {request}')
-    logger.debug(f'submit_to_hop request.data: {request.data}')
+    logger.debug(f'submit_to_hop payload: {payload}')
+    logger.debug(f'submit_to_hop headers: {headers}')
+
     try:
         topic = request.data['topic']
         # Add the _sender in the header with our auth here since we originally generate it without an auth
@@ -214,7 +220,9 @@ def submit_to_hop(request, payload, headers, hop_auth):
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w') as producer:
+            logger.info(f'submit_to_hop opened stream')
             producer.write_raw(payload, headers)
+            logger.info(f'submit_to_hop writing raw to stream')
     except Exception as e:
         raise APIException(f'Error posting message to kafka: {e}')
 
