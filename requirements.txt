@@ -9,7 +9,7 @@ django-bootstrap4==22.1
 fastavro>=1.7
 whitenoise==6.0.0
 lcogt-logging==0.3.2
-hop-client<=1.0.0
+hop-client @ git+https://github.com/scimma/hop-client@admin-client-debug
 healpy>=1.16
 astropy_healpix>=0.7
 tom_alertstreams<=2.0.0
