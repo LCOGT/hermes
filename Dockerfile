@@ -1,4 +1,4 @@
-FROM python:3.9
+FROM python:3.10
 LABEL maintainer="llindstrom@lco.global"
 
 RUN apt-get --yes update && apt-get --yes install binutils libproj-dev gdal-bin
@@ -11,7 +11,7 @@ WORKDIR /hermes
 
 COPY requirements.txt /hermes
 RUN pip install --upgrade pip && pip install --no-cache-dir -r /hermes/requirements.txt
-RUN pip install gunicorn[gevent]==20.0.4
+RUN pip install gunicorn[gevent]==23.0.0
 
 COPY . /hermes
 
