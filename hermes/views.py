@@ -217,10 +217,10 @@ def submit_to_hop(request, payload, headers, hop_auth):
         topic = request.data['topic']
         # Add the _sender in the header with our auth here since we originally generate it without an auth
         headers.append(("_sender", hop_auth.username.encode("utf-8")))
-        # Must set automatic offload to False since hop-client currently won't function in gunicorn environment otherwise
-        stream = Stream(auth=hop_auth, automatic_offload=False)
+        stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
-        with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w') as producer:
+        # Must set automatic offload to False since hop-client currently won't function in gunicorn environment otherwise
+        with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w', automatic_offload=False) as producer:
             producer.write_raw(payload, headers)
     except Exception as e:
         raise APIException(f'Error posting message to kafka: {e}')
