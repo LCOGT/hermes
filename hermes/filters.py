@@ -5,7 +5,6 @@ from django.db.models import Q
 from dateutil.parser import parse
 
 from hermes.models import Message, NonLocalizedEvent, NonLocalizedEventSequence, Target
-from hermes.utils import get_all_public_topics
 
 import math
 EARTH_RADIUS_METERS = 6371008.77141506
@@ -13,41 +12,20 @@ EARTH_RADIUS_METERS = 6371008.77141506
 
 class MessageFilter(filters.FilterSet):
     uuid = filters.CharFilter(method='filter_uuid', label='UUID', help_text='Full or partial UUID search')
-    referencing_uuid = filters.CharFilter(method='filter_referencing_uuid', label='Referencing UUID', help_text='Messages referencing a hop UUID')
+    target_name = filters.CharFilter(field_name='targets__name', lookup_expr='icontains', label='Target name contains')
+    target_name_exact = filters.CharFilter(field_name='targets__name', lookup_expr='exact', label='Target name exact')
     cone_search = filters.CharFilter(method='filter_cone_search', label='Cone Search',
                                      help_text='RA, Dec, Radius (degrees)')
     polygon_search = filters.CharFilter(method='filter_polygon_search', label='Polygon Search',
                                         help_text='Comma-separated pairs of space-delimited coordinates (degrees).')
     event_id = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='icontains', label='Event Id contains')
     event_id_exact = filters.CharFilter(field_name='nonlocalizedevents__event_id', lookup_expr='exact', label='Event Id exact')
-    message_contains = filters.CharFilter(field_name='message_text', lookup_expr='icontains', help_text='Message text contains keyword')
-    data_has_key = filters.CharFilter(field_name='data', lookup_expr='has_key', help_text='Structured data contains key')
-    topic = filters.MultipleChoiceFilter(field_name='topic', choices=[], help_text='Topic contains keyword')
-    topic_exact = filters.CharFilter(field_name='topic', lookup_expr='exact', help_text='Topic exact')
-    authors = filters.CharFilter(field_name='authors', lookup_expr='icontains', help_text='Authors contains keyword')
-    submitter = filters.CharFilter(field_name='submitter', lookup_expr='icontains', help_text='Submitter contains keyword')
-    title = filters.CharFilter(field_name='title', lookup_expr='icontains', help_text='Title contains keyword')
-    search = filters.CharFilter(method='filter_search', label='Search Terms', help_text='Search multiple fields for given search terms')
-
-    def __init__(self, data=None, queryset=None, *, request=None, prefix=None):
-        super().__init__(data=data, queryset=queryset, request=request, prefix=prefix)
-        # NB: the * in the parameter list indicates that parameters following the *
-        #     are keyword parameters only.
-
-        # populating the topic choices dynamicly must be done at runtime:
-        # not possible in class variable assignment of MultipleChoiceFilter.
-        # see https://github.com/carltongibson/django-filter/blob/main/django_filters/filterset.py#L309
-        # see https://github.com/carltongibson/django-filter/blob/main/django_filters/fields.py#L253
-        self.filters['topic'].extra['choices'] = [(t, t) for t in get_all_public_topics()]
 
     class Meta:
         model = Message
         fields = (
-            'topic', 'title', 'published', 'authors', 'created', 'modified', 'cone_search', 'polygon_search', 'event_id',
-            'event_id_exact', 'data_has_key', 'topic_exact', 'message_contains', 'submitter', 'uuid', 'search',
-            'retracted'
+            'cone_search', 'polygon_search', 'event_id', 'event_id_exact', 'target_name_exact', 'target_name', 'uuid'
         )
-
 
     def filter_cone_search(self, queryset, name, value):
         ra, dec, radius = value.split(',')
@@ -68,34 +46,6 @@ class MessageFilter(filters.FilterSet):
 
     def filter_uuid(self, queryset, name, value):
         return queryset.filter(uuid__startswith=value)
-
-    def filter_referencing_uuid(self, queryset, name, value):
-        return queryset.filter(data__references__contains=[{'citation': value}])
-
-    def filter_search(self, queryset, name, value):
-        query_terms = []
-        for i, term in enumerate(value.split('"')):
-            if term.strip():
-                if i % 2 == 0:
-                    for subterm in term.split(' '):
-                        if subterm.strip():
-                            query_terms.append(subterm.strip())
-                else:
-                    # Assume this piece is within double quotes, so don't split it
-                    query_terms.append(term.strip())
-
-        aggregate_keyword_query = Q()  # empty Q-object doesn't even add WHERE clause to SQL
-        for term in query_terms:
-            aggregate_keyword_query = aggregate_keyword_query | Q(title__icontains=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(uuid__startswith=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(authors__icontains=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(submitter__icontains=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(message_text__icontains=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(targets__name__iexact=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(nonlocalizedevents__event_id__iexact=term)
-            aggregate_keyword_query = aggregate_keyword_query | Q(sequences__event__event_id__iexact=term)
-
-        return queryset.filter(aggregate_keyword_query)
 
 
 class NonLocalizedEventFilter(filters.FilterSet):

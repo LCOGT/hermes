@@ -14,11 +14,6 @@ import uuid
 import requests
 from urllib.parse import urljoin
 from django.conf import settings
-import threading
-import base64
-import re
-from scramp import ScramClient
-import secrets
 import logging
 
 
@@ -69,9 +64,10 @@ REFERENCES_ORDER = [
 ]
 
 def get_all_public_topics():
+    # TODO: Get the public topics from scimma admin or scimma archive rather than from hermes database
     all_topics = cache.get("all_public_topics", None)
     if not all_topics:
-        all_topics = sorted(list(Message.objects.order_by().values_list('topic', flat=True).distinct()))
+        all_topics = []
         cache.set("all_public_topics", all_topics, 3600)
     return all_topics
 

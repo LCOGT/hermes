@@ -67,7 +67,7 @@ class Command(BaseCommand):
         photomentry_csv_filename = options.get('filename', None)
 
         # Construct the submit URL from the command-line supplied base URL.
-        submit_url = f'{base_url}/submit/'
+        submit_url = f'{base_url}/submit_message/'
 
         # Headers - pass the SCiMMA Auth SCRAM credential in the request header
         headers = {
