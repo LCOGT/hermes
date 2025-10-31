@@ -33,13 +33,13 @@ router.register(r'topics', views.TopicViewSet, basename='topic')
 router.register(r'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
 
 urlpatterns = [
-    path('', views.MessageListView.as_view(), name='index'),
     path('admin/', admin.site.urls, name='admin'),
     path('auth/', include('mozilla_django_oidc.urls')),
     path('gcn-auth/login', views.GcnLoginRedirectView.as_view(), name='gcn-login'),
     path('gcn-auth/authorize', views.GcnAuthorizeView.as_view(), name='gcn-authorize'),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('api/v0/query/', views.QueryApiView.as_view(), name='query'),
     path('api/v0/heartbeat/', views.HeartbeatApiView.as_view(), name='heartbeat'),
     path('api/v0/profile/', views.ProfileApiView.as_view(), name='profile'),
     path('api/v0/tns_options/', views.TNSOptionsApiView.as_view(), name='tns_options'),

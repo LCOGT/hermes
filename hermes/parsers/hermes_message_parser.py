@@ -16,15 +16,13 @@ class HermesMessageParser(BaseParser):
     def __repr__(self):
         return 'Hermes Message Parser v2'
 
-    def parse_message(self, message):
+    def parse_message(self, message, data):
         ''' Hermes messages automatically come with json data, so we just need to do linking on them
         '''
-        message.message_parser = repr(self)
-        message.save()
-        self.link_message(message)
+        self.link_message(message, data.get('data', {}))
         return True
 
-    def link_targets(self, data, message):
+    def link_targets(self, message, data):
         for target_details in data.get('targets', []):
             if target_details.get('ra') and target_details.get('dec'):
                 target, _ = Target.objects.get_or_create(
@@ -35,22 +33,19 @@ class HermesMessageParser(BaseParser):
                     target.messages.add(message)
                     target.save()
 
-    def link_message(self, message):
+    def link_message(self, message, data):
         ''' Attempt to link or create extra models to relate targets or nonlocalized events to this message
         '''
-        data = message.data
-        if not data:
-            return
         if 'event_id' in data:
             nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id=data['event_id'])
             if not nonlocalizedevent.references.contains(message):
                 nonlocalizedevent.references.add(message)
                 nonlocalizedevent.save()
-        self.link_targets(data, message)
+        self.link_targets(message, data)
 
-    def parse(self, message):
+    def parse(self, message, data):
         try:
-            return self.parse_message(message)
+            return self.parse_message(message, data)
         except Exception as e:
             logger.warn(f'Unable to parse Message {message.id} with parser {self}: {e}')
             return False

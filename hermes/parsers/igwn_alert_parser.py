@@ -56,41 +56,22 @@ class IGWNAlertParser(BaseParser):
     def __repr__(self):
         return 'IGWN Alert Avro Parser v1'
 
-    def parse_message(self, message):
+    def parse_message(self, message, data):
         # Avro formatted data will likely be placed in the data field, not message_text
-        alert = message.data
-        if all([key in alert for key in self.REQUIRED_KEYS]):
-            message.message_parser = repr(self)
-            message.save()
-            self.link_message(message)
+        if all([key in data for key in self.REQUIRED_KEYS]):
+            self.link_message(message, data)
             return True
         return False
 
-    def link_message(self, message):
+    def link_message(self, message, data):
         ''' Attempt to link or create extra models to relate targets or nonlocalized events to this message
         '''
-        nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id = message.data['superevent_id'])
-        notice_type = self.convert_notice_type(message.data.get('alert_type', ''))
-        skymap_hash = None
-        skymap_version = None
-        if message.data.get('event', {}) and 'skymap_hash' in message.data.get('event', {}):
-            skymap_hash = uuid.UUID(message.data['event']['skymap_hash'])
-            skymap_version = message.data.get('event', {}).get('skymap_version', None)
-        combined_skymap_hash = None
-        combined_skymap_version = None
-        if message.data.get('external_coinc', {}) and 'combined_skymap_hash' in message.data.get('external_coinc', {}):
-            combined_skymap_hash = uuid.UUID(message.data['external_coinc']['combined_skymap_hash'])
-            combined_skymap_version = message.data.get('external_coinc', {}).get('combined_skymap_version', None)
+        nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id = data['superevent_id'])
+        notice_type = self.convert_notice_type(data.get('alert_type', ''))
         NonLocalizedEventSequence.objects.get_or_create(
-            message=message, event=nonlocalizedevent, sequence_number=message.data['sequence_num'], sequence_type=notice_type,
-            skymap_version=skymap_version, skymap_hash=skymap_hash,
-            combined_skymap_version=combined_skymap_version, combined_skymap_hash=combined_skymap_hash
+            message=message, event=nonlocalizedevent, sequence_number=data['sequence_num'], sequence_type=notice_type,
+            data=data,
         )
 
-    def parse(self, message):
-        return self.parse_message(message)
-        # try:
-        #     return self.parse_message(message)
-        # except Exception as e:
-        #     logger.warn(f'Unable to parse Message {message.id} with parser {self}: {e}')
-        #     return False
+    def parse(self, message, data):
+        return self.parse_message(message, data)
