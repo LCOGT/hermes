@@ -15,7 +15,7 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from hop.io import Metadata
-from hop.models import GCNCircular, JSONBlob, GCNTextNotice
+from hop.models import JSONBlob, GCNTextNotice
 
 from hermes.models import Message, NonLocalizedEvent
 from hermes import parsers
@@ -86,12 +86,12 @@ def get_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         latest_sequence = nle.sequences.last()
-        if latest_sequence == None:
+        if latest_sequence == None or latest_sequence.data.get('event', {}).get('skymap_version') == None or latest_sequence.data.get('event', {}).get('skymap_hash') == None:
             return 0
-        if latest_sequence.skymap_version != None and latest_sequence.skymap_hash != skymap_hash:
-            return latest_sequence.skymap_version + 1
-        if latest_sequence.skymap_version:
-            return latest_sequence.skymap_version
+        if latest_sequence.data['event']['skymap_version'] != None and latest_sequence.data['event']['skymap_hash'] != skymap_hash:
+            return latest_sequence.data['event']['skymap_version'] + 1
+        if latest_sequence.data['event']['skymap_version']:
+            return latest_sequence.data['event']['skymap_version']
         return 0
     except NonLocalizedEvent.DoesNotExist:
         return 0  # The nonlocalizedevent doesnt exist in our system yet, so this must be the first skymap version
@@ -105,8 +105,10 @@ def get_combined_skymap_version(superevent_id: str, skymap_hash: uuid) -> int:
     try:
         nle = NonLocalizedEvent.objects.get(event_id=superevent_id)
         for sequence in nle.sequences.all().reverse():
-            if sequence.combined_skymap_version != None and sequence.combined_skymap_hash and sequence.combined_skymap_hash != skymap_hash:
-                return sequence.combined_skymap_version + 1
+            combined_skymap_version = sequence.data.get('external_coinc', {}).get('combined_skymap_version')
+            combined_skymap_hash = sequence.data.get('external_coinc', {}).get('combined_skymap_hash')
+            if combined_skymap_version != None and combined_skymap_hash and combined_skymap_hash != skymap_hash:
+                return combined_skymap_version + 1
         return 0  # No previous combined_skymaps were found, so this must be the first sequence with a combined skymap
     except NonLocalizedEvent.DoesNotExist:
         return 0  # The nonlocalizedevent doesnt exist in our system yet, so this must be the first combined skymap version
@@ -184,16 +186,9 @@ def handle_generic_message(blob: JSONBlob, metadata: Metadata):
         cache.set('hop_stream_heartbeat', timezone.now().isoformat(), None)
     if should_ingest_topic(topic):
         logger.debug(f'updating db with generic hop message for topic {topic}')
-        # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
         try:
-            message, created = Message.objects.update_or_create(
-                # these fields must match for update...
-                topic=topic,
-                title='Generic Message',
-                uuid=get_or_create_uuid_from_metadata(metadata),
-                published=published_time,
-                data=blob.content
+            message, created = Message.objects.get_or_create(
+                uuid=get_or_create_uuid_from_metadata(metadata)
             )
             if created:
                 logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
@@ -211,15 +206,9 @@ def handle_gcn_notice_message(notice: GCNTextNotice, metadata: Metadata):
     if should_ingest_topic(topic):
         logger.debug(f'updating db with gcn text notice hop message for topic {topic}')
         # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-        published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
         try:
-            message, created = Message.objects.update_or_create(
-                # these fields must match for update...
-                topic=topic,
+            message, created = Message.objects.get_or_create(
                 uuid=get_or_create_uuid_from_metadata(metadata),
-                published=published_time,
-                message_text=notice.raw.decode('utf-8'),
-                data=notice.fields
             )
             if created:
                 logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
@@ -231,10 +220,10 @@ def handle_gcn_notice_message(notice: GCNTextNotice, metadata: Metadata):
         # See if any of the specific parsers match a piece of the topic
         for topic_piece, parser in GCN_TOPICS_TO_PARSERS.items():
             if topic_piece in topic.upper():
-                parser.parse(message)
+                parser.parse(message, notice.fields)
                 return
         # If none of the topic pieces for more specific parsers match, then just use the generic gcn notice parser
-        GENERIC_GCN_NOTICE_PARSER.parse(message)
+        GENERIC_GCN_NOTICE_PARSER.parse(message, notice.fields)
 
 
 def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
@@ -246,20 +235,10 @@ def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
     """
     circular = gcn_circular.content
     logger.debug(f'updating db with gcn_circular number {circular["circularId"]}')
-    published_time = datetime.fromtimestamp(circular['createdOn'] / 1000.0)
-    message_body = circular.pop('body')
     message, created = Message.objects.get_or_create(
-        # fields to be compared to find existing Message (if any)
-        topic=metadata.topic,
         uuid=get_or_create_uuid_from_metadata(metadata),
-        message_text=message_body,
-        published=published_time,
-        title=circular['subject'],
-        submitter=circular['submitter'],
-        authors=circular['submitter'],
-        data=circular
     )
-    GCN_CIRCULAR_PARSER.parse(message)
+    GCN_CIRCULAR_PARSER.parse(message, circular)
 
     if created:
         logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
@@ -272,10 +251,6 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
     # Only store test alerts if we are configured to do so
     if alert.get('superevent_id', '').startswith('M') and not settings.SAVE_TEST_MESSAGES:
         return
-    # These alerts have a created timestamp, so use that for the published time instead of metadata timestamp
-    published_time: datetime.date = parse(alert.get('time_created'))
-    # Generate a descriptive title for these: event id + alert type
-    title = f"{alert.get('superevent_id')} - {alert.get('alert_type')}"
     alert_uuid = get_or_create_uuid_from_metadata(metadata)
 
     # Here we do a bit of pre-processing for IGWN alerts in order to be able to remove the skymap before saving the file
@@ -312,22 +287,11 @@ def handle_igwn_message(message: JSONBlob, metadata: Metadata):
     alert['sequence_num'] = get_sequence_number(alert['superevent_id'])
 
     logger.debug(f"Storing message for igwn alert {alert_uuid}: {alert}")
-    try:
-        message, created = Message.objects.update_or_create(
-            # all these fields must match for update...
-            topic=metadata.topic,
-            uuid=alert_uuid,
-            title=title,
-            submitter=get_sender_from_metadata(metadata),
-            authors='LVK',
-            message_text='',
-            defaults={'published': published_time, 'data': alert}
-        )
-    except KeyError as err:
-        logger.error(f'Required key not found in {metadata.topic} alert: {alert_uuid}.')
-        return
+    message, created = Message.objects.get_or_create(
+        uuid=alert_uuid,
+    )
 
-    IGWN_ALERT_PARSER.parse(message)
+    IGWN_ALERT_PARSER.parse(message, alert)
 
     if created:
         logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
@@ -348,28 +312,13 @@ def handle_hermes_message(hermes_message: JSONBlob,  metadata: Metadata):
         return
     logger.warning(f"Handling message on topic {hermes_message.content['topic']}")
 
-    # metadata.timestamp is the number of milliseconds since the epoch (UTC).
-    published_time: datetime.date = datetime.fromtimestamp(metadata.timestamp/1e3, tz=timezone.utc)
+    message, created = Message.objects.get_or_create(
+        uuid=get_or_create_uuid_from_metadata(metadata),
+    )
 
-    try:
-        message, created = Message.objects.update_or_create(
-            # all these fields must match for update...
-            topic=hermes_message.content['topic'],
-            uuid=get_or_create_uuid_from_metadata(metadata),
-            title=hermes_message.content['title'],
-            submitter=hermes_message.content['submitter'],
-            authors=hermes_message.content['authors'],
-            data=hermes_message.content['data'],
-            message_text=hermes_message.content['message_text'],
-            published=published_time,
-        )
-    except KeyError as err:
-        logger.error(f'Required key not found in {metadata.topic} alert: {hermes_message}.')
-        return
-    
-    HERMES_PARSER.parse(message)
+    HERMES_PARSER.parse(message, hermes_message.content)
 
     if created:
         logger.debug(f'created new Message with id: {message.id} and uuid: {message.uuid}')
     else:
-        logger.debug(f'found existing Message with and uuid: {message.uuid} id: {message.id}')
+        logger.debug(f'found existing Message with uuid: {message.uuid} id: {message.id}')

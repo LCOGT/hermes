@@ -79,29 +79,12 @@ class OAuthToken(models.Model):
 class Message(models.Model):
     class Meta:
         # -created means newest first
-        ordering = ['-created']  # to avoid DRF pagination UnorderedObjectListWarning
+        ordering = ['-id']  # to avoid DRF pagination UnorderedObjectListWarning
 
-    topic = models.TextField(blank=True, db_index=True)
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
-    title = models.TextField(blank=True)
-    submitter = models.TextField(blank=True)
-    authors = models.TextField(blank=True)
-    data = models.JSONField(null=True, blank=True)
-    message_text = models.TextField(blank=True)
-    published = models.DateTimeField(auto_now_add=True,
-                                     verbose_name='Time Published to Stream from message metadata.')
-    message_parser = models.CharField(max_length=128, default='', blank=True)
-    retracted = models.BooleanField(default=False, db_index=True,
-                                    help_text='Whether or not this message has been retracted.')
-    retracted_on = models.DateTimeField(
-        null=True, blank=True, verbose_name='Retracted On',
-        help_text='Date this message was retracted, or null if it has not been retracted.'
-    )
-    created = models.DateTimeField(auto_now_add=True, verbose_name='Time Created')
-    modified = models.DateTimeField(auto_now=True, verbose_name='Last Modified')
 
     def __str__(self):
-        return f'{self.uuid} on {self.topic}: {self.title} from {self.authors}'
+        return f'{self.uuid}'
 
 
 class Target(models.Model):
@@ -143,24 +126,10 @@ class NonLocalizedEventSequence(models.Model):
 
     message = models.ForeignKey(Message, related_name='sequences', on_delete=models.CASCADE)
     event = models.ForeignKey(NonLocalizedEvent, related_name='sequences', on_delete=models.CASCADE)
+    data = models.JSONField(null=True, blank=True)
     sequence_number = models.PositiveSmallIntegerField(
         default=1,
         help_text='The sequence_number or iteration of a specific nonlocalized event.'    
     )
-    skymap_version = models.PositiveSmallIntegerField(
-        null=True, blank=True,
-        help_text='Version of the skymap for this event, derived from detecting a change in the raw skymap from its hash'
-    )
-    skymap_hash = models.UUIDField(
-        null=True, blank=True,
-        help_text='A UUID from an md5 hash of the raw skymap file contents, used to detect when the skymap has changed'
-    )
-    combined_skymap_version = models.PositiveSmallIntegerField(
-        null=True, blank=True,
-        help_text='Version of the combined skymap for this event, derived from detecting a change in the raw skymap from its hash'
-    )
-    combined_skymap_hash = models.UUIDField(
-        null=True, blank=True,
-        help_text='A UUID from an md5 hash of the raw combined skymap file contents, used to detect when the skymap has changed'
-    )
     sequence_type = models.CharField(max_length=64, default='', blank=True, choices=NonLocalizedEventSequenceType.choices, help_text='The alert type for this sequence')
+    created = models.DateTimeField(auto_now_add=True, verbose_name='Time Created')

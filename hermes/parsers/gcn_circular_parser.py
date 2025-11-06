@@ -29,35 +29,27 @@ class GCNCircularParser(BaseParser):
     def __repr__(self):
         return 'GCN Circular Parser v2'
 
-    def link_message(self, message):
+    def link_message(self, message, data):
         superevent_regex = re.compile(r'S\d{6}[a-z]*')  # matches S######??, where ?? is any number of lowercase alphas
-        if 'eventId' in message.data:
-            matches = superevent_regex.findall(message.data['eventId'])
+        if 'eventId' in data:
+            matches = superevent_regex.findall(data['eventId'])
             for match in matches:
                 nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id=match)
                 if not nonlocalizedevent.references.contains(message):
                     nonlocalizedevent.references.add(message)
                     nonlocalizedevent.save()
 
-    def parse_message(self, message):
+    def parse_message(self, message, data):
         ''' extra_data contains the header information for gcn circular messages
         '''
-        parsed_fields = message.data
-        if 'circularId' in parsed_fields:
-            message.message_parser = repr(self)
-            data_with_link = message.data
-            data_with_link['urls'] = {
-                    'gcn_circular': f'https://gcn.nasa.gov/circulars/{data_with_link.get("circularId", -1)}'
-            }
-            message.data = data_with_link
-            message.save()
-            self.link_message(message)
+        if 'circularId' in data:
+            self.link_message(message, data)
             return True
         return False
 
-    def parse(self, message):
+    def parse(self, message, data):
         try:
-            return self.parse_message(message)
+            return self.parse_message(message, data)
         except Exception as e:
             logger.warn(f'Unable to parse Message {message.id} with parser {self}: {e}')
             return False

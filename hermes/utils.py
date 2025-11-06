@@ -8,17 +8,14 @@ from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from hop.http_scram import SCRAMAuth
+from hop.models import GCNTextNotice
 import smtplib
 import bson
+import base64
 import uuid
 import requests
 from urllib.parse import urljoin
 from django.conf import settings
-import threading
-import base64
-import re
-from scramp import ScramClient
-import secrets
 import logging
 
 
@@ -68,10 +65,52 @@ REFERENCES_ORDER = [
     'url'
 ]
 
+
+def remove_nan_and_inf(value):
+    if value == 'NaN' or value == 'Infinity' or value == '-Infinity':
+        return None
+
+
+def convert_messages(bson_data):
+    for i, message in enumerate(bson_data['messages']):
+        bson_data['messages'][i] = convert_message(message)
+    return bson_data
+
+
+def convert_message(bson_message):
+    """ take BSON formatted messages from scimma archive responses and convert to the proper form (JSON/AVRO/)
+    """
+    format = 'json'
+    # This step converts all the bytestrings stored within the message data into string strings
+    message = {'metadata': bson_message['metadata'], 'annotations': bson_message['annotations']}
+    if(message['metadata'].get('key')):
+        message['metadata']['key'] = message['metadata']['key'].decode('utf-8')
+    headers = bson_message.get('metadata', {}).get('headers', [])
+    message['metadata']['headers'] = {}
+    for header in headers:
+        try:
+            message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
+        except UnicodeDecodeError:
+            message['metadata']['headers'][header[0]] = base64.b64encode(header[1]).decode('ascii')
+
+        if header[0] == '_format':
+            format = header[1].decode('utf-8')
+
+    # Right now, only differentiate the gcntextnotice type - treat all other types as json deserializable
+    match format:
+        case 'gcntextnotice':
+            model = GCNTextNotice.deserialize(bson_message['message'])
+            message['message'] = model.fields
+        case _:
+            message['message'] = json.loads(bson_message['message'].decode('utf-8'), parse_constant=remove_nan_and_inf)
+    return message
+
+
 def get_all_public_topics():
+    # TODO: Get the public topics from scimma admin or scimma archive rather than from hermes database
     all_topics = cache.get("all_public_topics", None)
     if not all_topics:
-        all_topics = sorted(list(Message.objects.order_by().values_list('topic', flat=True).distinct()))
+        all_topics = []
         cache.set("all_public_topics", all_topics, 3600)
     return all_topics
 
