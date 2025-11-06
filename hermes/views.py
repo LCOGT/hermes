@@ -1,6 +1,7 @@
 import logging
 import uuid
 import bson
+import json
 from urllib.parse import urljoin
 import requests
 from dateutil.parser import parse
@@ -35,7 +36,7 @@ from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns,
                         convert_classification_hermes_message_to_tns, submit_classification_report_to_tns, BadTnsRequest)
-from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop
+from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop, convert_messages
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -647,11 +648,11 @@ class QueryApiView(RetrieveAPIView):
         query_params = f'?limit={limit}'
         start = request.query_params.get('start')
         if start:
-            start = parse(start).timestamp()
+            start = parse(start).timestamp() * 1000.0
             query_params += f'&start={start}'
         end = request.query_params.get('end')
         if end:
-            end = parse(end).timestamp()
+            end = parse(end).timestamp() * 1000.0
             query_params += f'&end={end}'
         offset = request.query_params.get('offset', 0)
         if offset:
@@ -660,8 +661,8 @@ class QueryApiView(RetrieveAPIView):
         archive_url += '/' + query_params
         response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
         response.raise_for_status()
-
-        return Response(bson.loads(response.content), status=status.HTTP_200_OK)
+        messages = convert_messages(bson.loads(response.content))
+        return Response(messages, status=status.HTTP_200_OK)
 
 
 class RevokeApiTokenApiView(APIView):

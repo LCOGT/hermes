@@ -1,7 +1,4 @@
-from dateutil.parser import parse
-from datetime import datetime, timezone
 import logging
-import re
 
 from django.contrib.gis.geos import Point
 
