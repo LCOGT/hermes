@@ -268,7 +268,7 @@ def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
 
 
 def handle_igwn_message(message: JSONBlob, metadata: Metadata):
-    alert = message.content[0]
+    alert = message.content
     # Only store test alerts if we are configured to do so
     if alert.get('superevent_id', '').startswith('M') and not settings.SAVE_TEST_MESSAGES:
         return
