@@ -155,7 +155,7 @@ class NonLocalizedEventSerializer(BaseNonLocalizedEventSerializer):
         fields = BaseNonLocalizedEventSerializer.Meta.fields + ['sequences', 'references']
 
     def get_sequences(self, instance):
-        sequences = instance.sequences.all().order_by('message__published')
+        sequences = instance.sequences.all().order_by('created')
         return NonLocalizedEventSequenceSerializer(sequences, many=True).data
 
 

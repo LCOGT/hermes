@@ -247,7 +247,11 @@ def handle_gcn_circular_message(gcn_circular: JSONBlob, metadata: Metadata):
 
 
 def handle_igwn_message(message: JSONBlob, metadata: Metadata):
-    alert = message.content[0]
+    # AVRO data content can be a list of JSONBlobs or a single Blob
+    try:
+        alert = message.content[0]
+    except KeyError:
+        alert = message.content
     # Only store test alerts if we are configured to do so
     if alert.get('superevent_id', '').startswith('M') and not settings.SAVE_TEST_MESSAGES:
         return

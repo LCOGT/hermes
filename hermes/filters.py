@@ -52,22 +52,22 @@ class NonLocalizedEventFilter(filters.FilterSet):
     event_id_exact = filters.CharFilter(field_name='event_id', lookup_expr='exact', label='Event Id exact')
     event_id = filters.CharFilter(field_name='event_id', lookup_expr='icontains', label='Event Id contains')
     referenced_by_uuid = filters.CharFilter(method='filter_referenced_by_uuid', label='Referenced by UUID', help_text='Messages referenced by a hop UUID')
-    published_after = filters.CharFilter(method='filter_published_after', label='Published after')
-    published_before = filters.CharFilter(method='filter_published_before', label='Published before')
+    created_after = filters.CharFilter(method='filter_created_after', label='Created after')
+    created_before = filters.CharFilter(method='filter_created_before', label='Created before')
 
     class Meta:
         model = NonLocalizedEvent
         fields = (
-            'event_id', 'event_id_exact', 'referenced_by_uuid', 'published_after', 'published_before'
+            'event_id', 'event_id_exact', 'referenced_by_uuid', 'created_after', 'created_before'
         )
 
-    def filter_published_before(self, queryset, name, value):
+    def filter_created_before(self, queryset, name, value):
         parsed_date = parse(value)
-        return queryset.filter(sequences__message__published__lte=parsed_date).distinct()
+        return queryset.filter(sequences__created__lte=parsed_date).distinct()
 
-    def filter_published_after(self, queryset, name, value):
+    def filter_created_after(self, queryset, name, value):
         parsed_date = parse(value)
-        return queryset.filter(sequences__message__published__gte=parsed_date).distinct()
+        return queryset.filter(sequences__created__gte=parsed_date).distinct()
 
     def filter_referenced_by_uuid(self, queryset, name, value):
         return queryset.filter(references__uuid__startswith=value)

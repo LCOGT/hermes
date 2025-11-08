@@ -1,17 +1,16 @@
 from django.core.cache import cache
 from django.http import QueryDict
 from rest_framework import parsers
+from rest_framework.renderers import JSONRenderer
 from rest_framework.exceptions import APIException
-from hermes.models import Message
 import json
 from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from hop.http_scram import SCRAMAuth
-from hop.models import GCNTextNotice
+from hop.io import Consumer, Deserializer
 import smtplib
 import bson
-import base64
 import uuid
 import requests
 from urllib.parse import urljoin
@@ -66,9 +65,17 @@ REFERENCES_ORDER = [
 ]
 
 
-def remove_nan_and_inf(value):
-    if value == 'NaN' or value == 'Infinity' or value == '-Infinity':
-        return None
+# Use custom JSON encoder to remove bytestrings from the deserialized bson output
+# Bytestrings seem to just be raw data bytes, which aren't utf-8 encoded so can't be JSONified
+class RemoveBytesEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return '...'
+        return json.JSONEncoder.default(self, obj)
+
+
+class RemoveBytesRenderer(JSONRenderer):
+    encoder_class = RemoveBytesEncoder
 
 
 def convert_messages(bson_data):
@@ -80,6 +87,17 @@ def convert_messages(bson_data):
 def convert_message(bson_message):
     """ take BSON formatted messages from scimma archive responses and convert to the proper form (JSON/AVRO/)
     """
+    # Use the hop facilities to deserialize the bson message into something closer to JSON
+    message = Consumer.ExternalMessage(
+        data=bson_message['message'],
+        headers=bson_message['metadata']['headers'],
+        topic=bson_message['metadata']['topic'],
+        partition=None,
+        offset=None,
+        timestamp=bson_message['metadata']['timestamp'],
+        key=bson_message['metadata'].get('key')
+    )
+    payload = Deserializer.deserialize(message)
     format = 'json'
     # This step converts all the bytestrings stored within the message data into string strings
     message = {'metadata': bson_message['metadata'], 'annotations': bson_message['annotations']}
@@ -88,21 +106,23 @@ def convert_message(bson_message):
     headers = bson_message.get('metadata', {}).get('headers', [])
     message['metadata']['headers'] = {}
     for header in headers:
-        try:
-            message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
-        except UnicodeDecodeError:
-            message['metadata']['headers'][header[0]] = base64.b64encode(header[1]).decode('ascii')
-
+        if header[0] == '_id':
+            message['metadata']['headers'][header[0]] = str(uuid.UUID(bytes=header[1]))
+        else:
+            try:
+                message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
+            except UnicodeDecodeError:
+                message['metadata']['headers'][header[0]] = header[1]
         if header[0] == '_format':
             format = header[1].decode('utf-8')
 
-    # Right now, only differentiate the gcntextnotice type - treat all other types as json deserializable
+    # Right now, only differentiate the gcntextnotice type - treat all other types the same
     match format:
         case 'gcntextnotice':
-            model = GCNTextNotice.deserialize(bson_message['message'])
-            message['message'] = model.fields
+            message['message'] = payload.fields
         case _:
-            message['message'] = json.loads(bson_message['message'].decode('utf-8'), parse_constant=remove_nan_and_inf)
+            message['message'] = payload.content
+
     return message
 
 
