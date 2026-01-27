@@ -29,7 +29,6 @@ router.register(r'messages', views.MessageViewSet, 'messages')
 router.register(r'nonlocalizedevents', views.NonLocalizedEventViewSet, 'events')
 router.register(r'nonlocalizedeventsequence', views.NonLocalizedEventSequenceViewSet, 'eventsequences')
 router.register(r'targets', views.TargetViewSet, 'targets')
-router.register(r'topics', views.TopicViewSet, basename='topic')
 router.register(r'submit_message', views.SubmitHermesMessageViewSet, 'submit_message')
 
 urlpatterns = [
@@ -39,7 +38,9 @@ urlpatterns = [
     path('gcn-auth/authorize', views.GcnAuthorizeView.as_view(), name='gcn-authorize'),
     path('', include('hermes.urls')),
     path('api/v0/', include(router.urls)),
+    path('api/v0/query/message/<str:uuid>', views.MessageApiView.as_view(), name='query-message'),
     path('api/v0/query/', views.QueryApiView.as_view(), name='query'),
+    path('api/v0/topics/', views.TopicApiView.as_view(), name='topics'),
     path('api/v0/heartbeat/', views.HeartbeatApiView.as_view(), name='heartbeat'),
     path('api/v0/profile/', views.ProfileApiView.as_view(), name='profile'),
     path('api/v0/tns_options/', views.TNSOptionsApiView.as_view(), name='tns_options'),

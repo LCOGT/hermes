@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from hop.http_scram import SCRAMAuth
 from hop.io import Consumer, Deserializer
+from hop.models import GCNTextNotice
 import smtplib
 import bson
 import uuid
@@ -87,41 +88,46 @@ def convert_messages(bson_data):
 def convert_message(bson_message):
     """ take BSON formatted messages from scimma archive responses and convert to the proper form (JSON/AVRO/)
     """
-    # Use the hop facilities to deserialize the bson message into something closer to JSON
-    message = Consumer.ExternalMessage(
-        data=bson_message['message'],
-        headers=bson_message['metadata']['headers'],
-        topic=bson_message['metadata']['topic'],
-        partition=None,
-        offset=None,
-        timestamp=bson_message['metadata']['timestamp'],
-        key=bson_message['metadata'].get('key')
-    )
-    payload = Deserializer.deserialize(message)
-    format = 'json'
-    # This step converts all the bytestrings stored within the message data into string strings
     message = {'metadata': bson_message['metadata'], 'annotations': bson_message['annotations']}
+    # Use the hop facilities to deserialize the bson message into something closer to JSON
+    if 'message' in bson_message:
+        external_message = Consumer.ExternalMessage(
+            data=bson_message.get('message'),
+            headers=bson_message['metadata']['headers'],
+            topic=bson_message['metadata']['topic'],
+            partition=None,
+            offset=None,
+            timestamp=bson_message['metadata']['timestamp'],
+            key=bson_message['metadata'].get('key')
+        )
+        payload = Deserializer.deserialize(external_message)
+        # Right now, gcntextnotice messages have `fields` but not `content`. Also, not supported VOEvent message types yet...
+        if hasattr(payload, 'content'):
+            message['message'] = payload.content
+        elif hasattr(payload, 'fields'):
+            message['message'] = payload.fields
+        elif hasattr(payload, 'WhereWhen'):
+            # This means its a VOEvent type message, so pull the data into a dictionary here
+            voevent_message = vars(payload)
+            del voevent_message['_raw']
+            message['message'] = voevent_message
+
+    # This step converts all the bytestrings stored within the message data into string strings
     if(message['metadata'].get('key')):
         message['metadata']['key'] = message['metadata']['key'].decode('utf-8')
-    headers = bson_message.get('metadata', {}).get('headers', [])
-    message['metadata']['headers'] = {}
-    for header in headers:
-        if header[0] == '_id':
-            message['metadata']['headers'][header[0]] = str(uuid.UUID(bytes=header[1]))
-        else:
-            try:
-                message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
-            except UnicodeDecodeError:
-                message['metadata']['headers'][header[0]] = header[1]
-        if header[0] == '_format':
-            format = header[1].decode('utf-8')
-
-    # Right now, only differentiate the gcntextnotice type - treat all other types the same
-    match format:
-        case 'gcntextnotice':
-            message['message'] = payload.fields
-        case _:
-            message['message'] = payload.content
+    if 'headers' in message['metadata']:
+        headers = bson_message.get('metadata', {}).get('headers', [])
+        message['metadata']['headers'] = {}
+        for header in headers:
+            if header[0] == '_id':
+                message['metadata']['headers'][header[0]] = str(uuid.UUID(bytes=header[1]))
+            else:
+                try:
+                    message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
+                except UnicodeDecodeError:
+                    message['metadata']['headers'][header[0]] = header[1]
+    if 'con_text_uuid' in message['annotations']:
+        message['annotations']['con_text_uuid'] = str(message['annotations']['con_text_uuid'])
 
     return message
 

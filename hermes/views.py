@@ -36,7 +36,7 @@ from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns,
                         convert_classification_hermes_message_to_tns, submit_classification_report_to_tns, BadTnsRequest)
-from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop, convert_messages, RemoveBytesRenderer
+from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop, convert_messages, convert_message, RemoveBytesRenderer
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -631,9 +631,49 @@ class HeartbeatApiView(RetrieveAPIView):
         }
         return Response(response)
 
-# TODO: Replace this with other scimma archive api call when its ready
+
+class TopicApiView(RetrieveAPIView):
+    """ View to get list of available topics from SCiMMA Archive
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response.raise_for_status()
+        return Response(bson.loads(response.content), status=status.HTTP_200_OK)
+
+
+class MessageApiView(RetrieveAPIView):
+    """ View to get a single message from the SCiMMA Archive given its uuid
+        This is just a passthrough that injects the scram authentication into the request
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [RemoveBytesRenderer]
+
+    def get(self, request, *args, **kwargs):
+        uuid = self.kwargs['uuid']
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
+        archive_url += uuid
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response.raise_for_status()
+        message = convert_message(bson.loads(response.content))
+        return Response(message, status=status.HTTP_200_OK)
+
+
+# TODO: Enhance this with other parameters when they are added to scimma archive
 class QueryApiView(RetrieveAPIView):
-    """ View to query the SCIMMA Archive for messages
+    """ View to query the SCiMMA Archive for messages
     """
     permission_classes = [IsAuthenticated]
     renderer_classes = [RemoveBytesRenderer]
@@ -644,22 +684,24 @@ class QueryApiView(RetrieveAPIView):
             hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
         else:
             return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
-        topic = request.query_params.get('topic', 'hermes.test')
-        limit = request.query_params.get('limit', 16)
-        query_params = f'?limit={limit}'
+        topics = request.query_params.getlist('topic')
+        limit = request.query_params.get('limit', 10)
+        query_params = f'?meta=true&asc=false&limit={limit}'
+        for topic in topics:
+            query_params += f'&topic={topic}'
         start = request.query_params.get('start')
         if start:
             start = parse(start).timestamp() * 1000.0
-            query_params += f'&start={start}'
+            query_params += f'&start_time={start}'
         end = request.query_params.get('end')
         if end:
             end = parse(end).timestamp() * 1000.0
-            query_params += f'&end={end}'
-        offset = request.query_params.get('offset', 0)
-        if offset:
-            query_params += f'&offset={offset}'
-        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topic/{topic}')
-        archive_url += '/' + query_params
+            query_params += f'&end_time={end}'
+        page = request.query_params.get('page', 0)
+        if page:
+            query_params += f'&page={page}'
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'messages')
+        archive_url += query_params
         response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
         response.raise_for_status()
         messages = convert_messages(bson.loads(response.content))
