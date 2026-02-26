@@ -1,7 +1,6 @@
 import logging
 import uuid
 import bson
-import json
 from urllib.parse import urljoin
 import requests
 from dateutil.parser import parse
@@ -697,6 +696,9 @@ class QueryApiView(RetrieveAPIView):
         if end:
             end = parse(end).timestamp() * 1000.0
             query_params += f'&end_time={end}'
+        search_query = request.query_params.get('search_query', '')
+        if search_query:
+            query_params += f'&search_query={search_query}'
         page = request.query_params.get('page', 0)
         if page:
             query_params += f'&page={page}'
