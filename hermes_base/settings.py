@@ -302,9 +302,7 @@ AUTHLIB_OAUTH_CLIENTS = {
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    # add custom headers here
-]
+CORS_ALLOW_METHODS = ['get', 'post', 'patch', 'options', 'GET', 'POST', 'PATCH', 'OPTIONS']
 
 
 # Default primary key field type

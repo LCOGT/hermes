@@ -254,7 +254,7 @@ def upload_file_to_hop(file, topic, auth):
     id = uuid.uuid4()
     # Seek to begining of file in case we already read to the end to send to TNS
     file.file.seek(0)
-    data = bson.dumps({'message': file.file.read(), 'headers': {'format': b"blob", "_id": id.bytes}})
+    data = bson.dumps({'message': file.file.read(), 'headers': {'format': b"blob", "_id": id.bytes, "file_name": file.name.encode('utf-8'), "title": file.name.encode('utf-8')}})
     upload_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topic/{topic}')
     try:
         response = requests.post(upload_url, data=data, auth=SCRAMAuth(auth, shortcut=True))

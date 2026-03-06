@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.conf import settings
 
 #from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.middleware import csrf
 from django.core.cache import cache
 from django.views.generic import RedirectView, View
@@ -145,18 +145,19 @@ def submit_to_hop(request, payload, headers, hop_auth):
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
     logger.debug(f'submit_to_hop request: {request}')
     logger.debug(f'submit_to_hop payload: {payload}')
-    logger.debug(f'submit_to_hop headers: {headers}')
 
     try:
         topic = request.data['topic']
         # Add the _sender in the header with our auth here since we originally generate it without an auth
         headers.append(("_sender", hop_auth.username.encode("utf-8")))
+        logger.debug(f'submit_to_hop headers: {headers}')
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         # Must set automatic offload to False since hop-client currently won't function in gunicorn environment otherwise
         with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w', automatic_offload=False) as producer:
             producer.write_raw(payload, headers)
     except Exception as e:
+        logger.error(f'Error submitting message to hop: {e}')
         raise APIException(f'Error posting message to kafka: {e}')
 
 
@@ -474,6 +475,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         blob = JSONBlob(content=data)
                         encoded = blob.serialize()
                         payload = encoded["content"]
+                # Add the title into the headers
+                headers.append(("title", data.get("title").encode("utf-8")))
                 submit_to_hop(request, payload, headers, hop_auth)
                 data['uuid'] = message_uuid
                 return Response(data, status=status.HTTP_200_OK)
@@ -646,6 +649,39 @@ class TopicApiView(RetrieveAPIView):
         response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
         response.raise_for_status()
         return Response(bson.loads(response.content), status=status.HTTP_200_OK)
+
+
+class ProxyMessageDownloadView(RetrieveAPIView):
+    """ View to get a single file from the SCiMMA Archive given its uuid
+        This is just a passthrough that injects the scram authentication into the request
+    """
+    permission_classes = [IsAuthenticated]
+    def get(self, request, *args, **kwargs):
+        uuid = self.kwargs['uuid']
+        content_type = request.GET.get('content_type', None)
+        filename = request.GET.get('filename', None)
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
+        archive_url += f'{uuid}/raw_file/{filename}'
+
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True), stream=True)
+        response.raise_for_status()
+        if not content_type:
+            content_type = response.headers.get('content-type', 'application/octet-stream')
+        if not filename:
+            filename = uuid
+
+        proxy_response = StreamingHttpResponse(response.raw, content_type=content_type)
+        proxy_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        if 'content-length' in response.headers:
+            proxy_response['Content-Length'] = response.headers['content-length']
+
+        return proxy_response
 
 
 class MessageApiView(RetrieveAPIView):
