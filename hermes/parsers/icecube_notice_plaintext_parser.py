@@ -66,14 +66,14 @@ class IcecubeNoticePlaintextParser(GCNNoticePlaintextParser):
             logger.warn(f'Unable to parse source coordinates for icecube gcn notice: {e}')
         return target_name, ra, dec
 
-    def link_message(self, message):
+    def link_message(self, message, data):
         ''' Attempt to link or create extra models to relate targets or nonlocalized events to this message
         '''
-        if not message.data:
+        if not data:
             return
         event_id = ''
-        if 'run_num' in message.data and 'event_num' in message.data:
-            event_id = f"{message.data['run_num']}_{message.data['event_num']}"
+        if 'run_num' in data and 'event_num' in data:
+            event_id = f"{data['run_num']}_{data['event_num']}"
         if event_id:
             nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(
                 event_id = event_id, event_type=NonLocalizedEvent.NonLocalizedEventType.NEUTRINO)
@@ -81,22 +81,19 @@ class IcecubeNoticePlaintextParser(GCNNoticePlaintextParser):
                 nonlocalizedevent.references.add(message)
                 nonlocalizedevent.save()
 
-        sequence_number = int(message.data.get('revision', 0))
+        data['urls'] = self.generate_urls(data)
+
+        sequence_number = int(data.get('revision', 0))
         notice_type = NonLocalizedEventSequence.NonLocalizedEventSequenceType.INITIAL
         if sequence_number > 0:
             notice_type = NonLocalizedEventSequence.NonLocalizedEventSequenceType.UPDATE
-        skymap_hash = None
-        skymap_version = None
-        if message.data.get('skymap_fits_url', ''):
-            skymap_hash = uuid.uuid3(uuid.NAMESPACE_URL, message.data['skymap_fits_url'])  # Just hash the skymap url, since that should be enough to determine uniqueness
-            skymap_version = 1  # Icecube cascade events don't get updates, so we only have one version
         NonLocalizedEventSequence.objects.get_or_create(
             message=message, event=nonlocalizedevent, sequence_number=sequence_number, sequence_type=notice_type,
-            skymap_version=skymap_version, skymap_hash=skymap_hash,
+            data=data
         )
-        
+
         # Now parse the center target as well
-        target_name, ra, dec = self.parse_target(message.data, event_id)
+        target_name, ra, dec = self.parse_target(data, event_id)
         if target_name and ra and dec:
             target, _ = Target.objects.get_or_create(name=target_name, coordinate=Point(float(ra), float(dec), srid=4035))
             if not target.messages.contains(message):

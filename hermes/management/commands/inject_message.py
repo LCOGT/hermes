@@ -33,8 +33,65 @@ BASE_LVK_MESSAGE = {
     'urls': {'gracedb': 'https://gracedb.ligo.org/superevents/MS181101ab/view/'}
 }
 
-BASE_LVC_COUNTERPART = 'TITLE:            GCN/LVC COUNTERPART NOTICE\nNOTICE_DATE:      {published}\nNOTICE_TYPE:      Injected {type}\nCNTRPART_RA:      {target_ra}d +19h 59m 32.4s (J2000),\n       300.0523d +20h 00m 12.5s (current),\n      299.4524d +19h 57m 48.5s (1950)\nCNTRPART_DEC:     {target_dec}d +40d 43 51.6 (J2000),\n   +40.7847d +40d 47 04.9 (current),\n    +40.5932d +40d 35 35.4 (1950)\nCNTRPART_ERROR:   7.6 [arcsec, radius]\nEVENT_TRIG_NUM:   {event_id}\nEVENT_DATE:       18599 TJD;   116 DOY;   2019/04/26 (yy/mm/dd)\nEVENT_TIME:       55315.00 SOD (15:21:55.00) UT\nOBS_DATE:         18599 TJD;   116 DOY;   19/04/26\nOBS_TIME:         73448.0 SOD (20:24:08.00) UT\nOBS_DUR:          72.7 [sec]\nINTENSITY:        1.00e-11 +/- 2.00e-12 [erg/cm2/sec]\nENERGY:           0.3-10 [keV]\nTELESCOPE:        Swift-XRT\nSOURCE_SERNUM:    {source_sernum}\nRANK:             2\nWARN_FLAG:        0\nSUBMITTER:        {author}\nSUN_POSTN:         34.11d (+02h 16m 26s)  +13.66d (+13d 39 45)\nSUN_DIST:          84.13 [deg]   Sun_angle= 6.3 [hr] (West of Sun)\nMOON_POSTN:       309.58d (+20h 38m 19s)  -19.92d (-19d 55 00)\nMOON_DIST:         61.34 [deg]\nMOON_ILLUM:       50 [%]\nGAL_COORDS:        76.19,  5.74 [deg] galactic lon,lat of the counterpart\nECL_COORDS:       317.73, 59.32 [deg] ecliptic lon,lat of the counterpart\nCOMMENTS:         LVC Counterpart.\nCOMMENTS:         This matches a catalogued X-ray source: 1RXH J195932.6+404351\nCOMMENTS:         This source has been given a rank of 2\nCOMMENTS:         Ranks indicate how likely the object is to be\nCOMMENTS:         the GW counterpart. Ranks go from 1-4 with\nCOMMENTS:         1 being the most likely and 4 the least.\nCOMMENTS:         See http://www.swift.ac.uk/ranks.php for details.\nCOMMENTS:         MAY match a known transient, will be checked manually.'
-BASE_ICECUBE_CASCADE = 'TITLE:            GCN/AMON NOTICE\nNOTICE_DATE:      {published}\nNOTICE_TYPE:      Injected ICECUBE Cascade\nEVENT_NAME:       IceCubeCascade-xxxxxxx\nSTREAM:           26\nRUN_NUM:          138069\nEVENT_NUM:        {event_id}\nSRC_RA:           {target_ra}d +15h 02m 56s (J2000),\n                  225.6759d +15h 02m 42s (current),\n                  225.8605d +15h 03m 27s (1950)\nSRC_DEC:          {target_dec}d +75d 21 24 (J2000),\n                  +75.2654d +75d 15 56 (current),\n                  +75.5508d +75d 33 03 (1950)\nSRC_ERROR:        5.59 [deg radius, stat+systematic, 90 containment]\nSRC_ERROR50:      3.06 [deg radius, stat+systematic, 50 containment]\nDISCOVERY_DATE:   20117 TJD;   173 DOY;   23/06/22 (yy/mm/dd)\nDISCOVERY_TIME:   35936 SOD 09:58:56.53 UT\nREVISION:         {sequence_number}\nENERGY:           52.29 [TeV]\nSIGNALNESS:       9.0012e-01 [dn]\nFAR:              0.3189 [yr^-1]\nSUN_POSTN:         90.83d +06h 03m 18s  +23.43d +23d 26 00\nSUN_DIST:          77.29 [deg]   Sun_angle= -9.0 [hr] (East of Sun)\nMOON_POSTN:       141.95d +09h 27m 47s  +20.08d +20d 04 54\nMOON_DIST:         69.01 [deg]\nGAL_COORDS:       112.75, 39.06 [deg] galactic lon,lat of the event\nECL_COORDS:       128.89, 73.68 [deg] ecliptic lon,lat of the event\nSKYMAP_FITS_URL:  https://roc.icecube.wisc.edu/public/hese_cascades/hese_60117_run00138069.evt000072184188.fits\nSKYMAP_PNG_URL:   https://roc.icecube.wisc.edu/public/hese_cascades/hese_60117_run00138069.evt000072184188.png\nCOMMENTS:         IceCube Cascade event.  \nCOMMENTS:         The position error is the combined statistical and the systematic.'
+BASE_LVC_COUNTERPART = {
+    "rank": "3",
+    "title": "GCN/LVC COUNTERPART NOTICE",
+    "energy": "0.3-10 [keV]",
+    "obs_dur": "1632.2 [sec]",
+    "comments": "LVC Counterpart.\nDetection flag was 'GOOD'  \nSignificance of fading: 0 sigma  \nThis source has been given a rank of 3  \nRanks indicate how likely the object is to be  \nthe GW counterpart. Ranks go from 1-4 with   \n1 being the most likely and 4 the least.  \nSee http://www.swift.ac.uk/ranks.php for details.",
+    "obs_date": "20426 TJD;   117 DOY;   24/04/26",
+    "obs_time": "44575.0 SOD {12:22:55.00} UT",
+    "sun_dist": "94.58 [deg]   Sun_angle= -5.8 [hr] (East of Sun)",
+    "intensity": "5.00e-13 +/- 1.30e-13 [erg/cm2/sec]",
+    "moon_dist": "103.34 [deg]",
+    "submitter": "Phil_Evans",
+    "sun_postn": "34.70d {+02h 18m 49s}  +13.86d {+13d 51' 48\"}",
+    "telescope": "Swift-XRT",
+    "warn_flag": "0",
+    "ecl_coords": "133.58,-48.19 [deg] ecliptic lon,lat of the counterpart",
+    "event_date": "20422 TJD;   113 DOY;   2024/04/22 (yy/mm/dd)",
+    "event_time": "77713.00 SOD {21:35:13.00} UT",
+    "gal_coords": "247.48,  1.60 [deg] galactic lon,lat of the counterpart",
+    "moon_illum": "92 [%]",
+    "moon_postn": "247.00d {+16h 28m 00s}  -26.06d {-26d 03' 19\"}",
+    "cntrpart_ra": "121.8573d {+08h 07m 25.7s} (J2000), 122.1038d {+08h 08m 24.9s} (current), 121.3503d {+08h 05m 24.0s} (1950)",
+    "notice_date": "Fri 26 Apr 24 19:23:31 UT",
+    "notice_type": "Other",
+    "cntrpart_dec": "-29.4592d {-29d 27' 33.1\"} (J2000), -29.5309d {-29d 31' 51.1\"} (current), -29.3133d {-29d 18' 47.8\"} (1950)",
+    "source_sernum": "255",
+    "cntrpart_error": "5.0 [arcsec, radius]",
+    "event_trig_num": "S240422ed"
+}
+
+BASE_ICECUBE_CASCADE = {
+    "far": "0.3110 [yr^-1]",
+    "title": "GCN/AMON NOTICE",
+    "energy": "96.63 [TeV]",
+    "src_ra": "111.9776d {+07h 27m 55s} (J2000),\n112.3027d {+07h 29m 13s} (current),\n111.3448d {+07h 25m 23s} (1950)",
+    "stream": "26",
+    "run_num": "141344",
+    "src_dec": "-1.7676d {-01d 46' 02\"} (J2000),\n-1.8215d {-01d 49' 16\"} (current),\n-1.6648d {-01d 39' 52\"} (1950)",
+    "comments": "IceCube Cascade event.\nThe position error is the combined statistical and the systematic.",
+    "revision": "0",
+    "sun_dist": "57.65 [deg]   Sun_angle= 3.8 [hr] (West of Sun)",
+    "event_num": "29341777",
+    "moon_dist": "81.12 [deg]",
+    "src_error": "13.28 [deg radius, stat+systematic, 90% containment]",
+    "sun_postn": "169.66d {+11h 18m 39s}   +4.45d {+04d 26' 52\"}",
+    "ecl_coords": "114.05,-23.39 [deg] ecliptic lon,lat of the event",
+    "event_name": "IceCubeCascade-250911a",
+    "gal_coords": "218.70,  7.29 [deg] galactic lon,lat of the event",
+    "moon_postn": "32.17d {+02h 08m 40s}  +17.03d {+17d 01' 59\"}",
+    "signalness": "9.0012e-01 [dn]",
+    "notice_date": "Thu 11 Sep 25 05:47:53 UT",
+    "notice_type": "ICECUBE Cascade",
+    "src_error50": "7.28 [deg radius, stat+systematic, 50% containment]",
+    "discovery_date": "20929 TJD;   254 DOY;   25/09/11 (yy/mm/dd)",
+    "discovery_time": "16117 SOD {04:28:37.14} UT",
+    "skymap_png_url": "https://roc.icecube.wisc.edu/public/hese_cascades/hese_60929_run00141344.evt000029341777.png",
+    "skymap_fits_url": "https://roc.icecube.wisc.edu/public/hese_cascades/hese_60929_run00141344.evt000029341777.fits"
+}
+
 BASE_GCN_CIRCULAR = {
     "header":
     {
@@ -67,41 +124,22 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         logger.info(f"Injecting test message of type: {options.get('type')}")
         if options.get('type') == 'LVC_COUNTERPART':
-            message_text = BASE_LVC_COUNTERPART.format(
-                published=options.get('published'),
-                event_id=options.get('event_id'),
-                source_sernum=options.get('source_sernum'),
-                author=options.get('author'),
-                target_ra=options.get('target_ra'),
-                target_dec=options.get('target_dec'),
-                type=options.get('type')
-            )
-            message, _ = Message.objects.get_or_create(
-                topic=options.get('type'),
-                message_text=message_text,
-                defaults={
-                    'authors': options.get('author'),
-                    'submitter': 'inject_message command'
-                }
-            )
-            GCNNoticePlaintextParser().parse(message)
+            message_payload = deepcopy(BASE_LVC_COUNTERPART)
+            message_payload['event_trig_num'] = options.get('event_id')
+            message_payload['source_sernum'] = options.get('source_sernum')
+            message_payload['cntrpart_ra'] = f"{options.get('target_ra')}d,"
+            message_payload['cntrpart_dec'] = f"{options.get('target_dec')}d,"
+            message = Message.objects.create()
+            GCNNoticePlaintextParser().parse(message, message_payload)
         elif options.get('type') == 'ICECUBE_CASCADE':
-            message_text = BASE_ICECUBE_CASCADE.format(
-                published=options.get('published'),
-                event_id=options.get('event_id'),
-                sequence_number=options.get('sequence_number'),
-                target_ra=options.get('target_ra'),
-                target_dec=options.get('target_dec'),
-                type=options.get('type')
-            )
-            message, _ = Message.objects.get_or_create(
-                topic=options.get('type'),
-                message_text=message_text,
-                defaults={
-                    'submitter': 'inject_message command'
-                }
-            )
-            IcecubeNoticePlaintextParser().parse(message)
+            message_payload = deepcopy(BASE_ICECUBE_CASCADE)
+            message_payload['event_num'] = options.get('event_id')
+            message_payload['run_num'] = options.get('sequence_number')
+            message_payload['src_ra'] = f"{options.get('target_ra')}d,"
+            message_payload['src_dec'] = f"{options.get('target_dec')}d,"
+            message_payload['notice_type'] = options.get('type')
+            message = Message.objects.create()
+            IcecubeNoticePlaintextParser().parse(message, message_payload)
         elif 'LVC' in options.get('type'):
             base_type = options.get('type').split('_')[1]
             message_payload = deepcopy(BASE_LVK_MESSAGE)
@@ -117,30 +155,12 @@ class Command(BaseCommand):
                     'combined_skymap_version': options.get('skymap_version'),
                     'combined_skymap_hash': uuid.uuid4().hex
                 }
-            title = f"{options.get('superevent_id')} - {base_type}"
-            message, _ = Message.objects.get_or_create(
-                topic=options.get('type'),
-                title=title,
-                data=message_payload,
-                published=parse(options.get('published')),
-                defaults={
-                    'submitter': 'inject_message command',
-                    'authors': options.get('author')
-                }
-            )
-            IGWNAlertParser().parse(message)
+            message = Message.objects.create()
+            IGWNAlertParser().parse(message, message_payload)
         elif options.get('type') == 'GCN_CIRCULAR':
             header = deepcopy(BASE_GCN_CIRCULAR['header'])
             header['subject'] = header['subject'].format(event_id=options.get('event_id'))
             header['date'] = header['date'].format(published=options.get('published'))
             header['from'] = header['from'].format(author=options.get('author'))
-            message, _ = Message.objects.get_or_create(
-                topic=options.get('type'),
-                submitter='inject_message command',
-                authors=options.get('author'),
-                published=parse(options.get('published')),
-                title=header['subject'],
-                message_text=BASE_GCN_CIRCULAR['body'],
-                data=header
-            )
-            GCNCircularParser().parse(message)
+            message = Message.objects.create()
+            GCNCircularParser().parse(message, header)
