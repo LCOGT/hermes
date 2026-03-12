@@ -173,6 +173,9 @@ def get_or_create_uuid_from_metadata(metadata: Metadata) -> uuid.UUID:
 def ignore_message(blob: JSONBlob, metadata: Metadata):
     """ Ignore the message sent here
     """
+    if 'heartbeat' in metadata.topic:
+        # Store the last timestamp we received a heartbeat message to know if the stream is alive
+        cache.set('hop_stream_heartbeat', timezone.now().isoformat(), None)
     return
 
 

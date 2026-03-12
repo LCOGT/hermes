@@ -640,15 +640,20 @@ class TopicApiView(RetrieveAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Get the hop_auth for the user, or return an error
-        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-        else:
-            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
-        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
-        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
-        response.raise_for_status()
-        return Response(bson.loads(response.content), status=status.HTTP_200_OK)
+        # First check if we've cached the topics for this user
+        topics = cache.get(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', None)
+        if topics is None:
+            # Get the hop_auth for the user, or return an error
+            if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+                hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+            else:
+                return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+            archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
+            response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+            response.raise_for_status()
+            topics = bson.loads(response.content)
+            cache.set(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', topics, 1800)
+        return Response(topics, status=status.HTTP_200_OK)
 
 
 class ProxyMessageDownloadView(RetrieveAPIView):
