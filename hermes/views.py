@@ -652,6 +652,8 @@ class TopicApiView(RetrieveAPIView):
             response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
             response.raise_for_status()
             topics = bson.loads(response.content)
+            # Sort the topics to be in alphabetical ordering
+            topics['topics'].sort()
             cache.set(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', topics, 1800)
         return Response(topics, status=status.HTTP_200_OK)
 

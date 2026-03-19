@@ -12,6 +12,10 @@ from hermes.brokers.hopskotch import get_user_writable_topics, get_user_api_toke
 logger = logging.getLogger(__name__)
 
 
+def get_default_topics():
+    return ['gcn.circulars', 'igwn.gwalert', 'hermes.test', 'hermes.message', 'hermes.photometry', 'hermes.spectroscopy']
+
+
 class Profile(models.Model):
     # This model will be used to store user settings, such as topic sort/filter preferences
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -23,6 +27,8 @@ class Profile(models.Model):
                                     help_text='TNS Bot Name to use when submitting to TNS from this user')
     tns_bot_api_token = models.CharField(max_length=64, default='', blank=True,
                                          help_text='TNS Bot API Token to use when submitting to TNS from this user')
+    default_topics_list = ArrayField(models.CharField(max_length=255, blank=True), default=get_default_topics, blank=True,
+                                          help_text='List of default topics to show in the UI for this user')
 
     @property
     def api_token(self):
@@ -126,7 +132,7 @@ class NonLocalizedEventSequence(models.Model):
 
     message = models.ForeignKey(Message, related_name='sequences', on_delete=models.CASCADE)
     event = models.ForeignKey(NonLocalizedEvent, related_name='sequences', on_delete=models.CASCADE)
-    data = models.JSONField(null=True, blank=True)
+    data = models.JSONField(default=dict, blank=True)
     sequence_number = models.PositiveSmallIntegerField(
         default=1,
         help_text='The sequence_number or iteration of a specific nonlocalized event.'    

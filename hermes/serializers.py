@@ -34,7 +34,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = (
             'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn', 'tns_bot_id',
-            'tns_bot_name', 'tns_bot_api_token', 'group_memberships'
+            'tns_bot_name', 'tns_bot_api_token', 'group_memberships', 'default_topics_list'
         )
 
     def get_integrated_apps(self, obj):
@@ -52,9 +52,15 @@ class ProfileSerializer(serializers.ModelSerializer):
     def validate(self, data):
         validated_data = super().validate(data)
         if self.context.get('request').method == 'PATCH':
-            update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            tns_update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            update_fields = tns_update_fields + ['default_topics_list']
+            tns_update_fields_present = [field in validated_data for field in tns_update_fields]
             update_fields_present = [field in validated_data for field in update_fields]
-            if any(update_fields_present) and not all(update_fields_present):
+            if not any(update_fields_present):
+                raise serializers.ValidationError(_(
+                    f"Must update at least one of {', '.join(update_fields)}"
+                ))
+            elif any(tns_update_fields_present) and not all(tns_update_fields_present):
                 raise serializers.ValidationError(_(
                     'Must update tns_bot_id, tns_bot_name, and tns_bot_api_token all together'
                 ))

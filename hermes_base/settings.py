@@ -229,7 +229,7 @@ HERMES_EMAIL_USERNAME = os.getenv('HERMES_EMAIL_USERNAME', 'hermes@lco.global')
 HERMES_EMAIL_PASSWORD = os.getenv('HERMES_EMAIL_PASSWORD', "please set HERMES_EMAIL_PASSWORD env var")
 
 # TODO: set up helm chart for dev and prod environments; this default works for local development
-HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:8001/')
+HERMES_FRONT_END_BASE_URL = os.getenv('HERMES_FRONT_END_BASE_URL', default='http://127.0.0.1:5173/')
 
 # https://docs.djangoproject.com/en/4.0/ref/settings/#login-redirect-url
 LOGIN_URL = '/'  # This is the default redirect URL for user authentication tests
@@ -272,7 +272,7 @@ ALERT_STREAMS = [
             # Group ID must be prefixed with SCiMMA SCRAM credential username to open the SCiMMA kafka stream
             'GROUP_ID': SCIMMA_AUTH_USERNAME + '-' + os.getenv('HOPSKOTCH_GROUP_ID', 'hermes2-dev'),
             'TOPIC_HANDLERS': {
-                '*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
+                'sys.heartbeat': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
                 'hermes.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_hermes_message',
                 'gcn.classic.text.LVC*': 'hermes.alertstream_handlers.ingest_from_hop.ignore_message',
                 'gcn.classic.text.*': 'hermes.alertstream_handlers.ingest_from_hop.handle_gcn_notice_message',
