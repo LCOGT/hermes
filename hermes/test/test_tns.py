@@ -85,7 +85,7 @@ class TestTNS(TestCase):
         tns_message = convert_discovery_hermes_message_to_tns(self.hermes_message, filenames_mapping={})
         expected_tns_message = {'0': {'at_type': '1',
        'dec': {'error': None, 'units': None, 'value': '42.2'},
-       'discovery_data_source_id': '5',
+       'data_source_groupid': '5',
        'discovery_datetime': parse_date(self.hermes_message['data']['photometry'][0]['date_obs']).strftime('%Y-%m-%d %H:%M:%S'),
        'host_name': 'm33',
        'host_redshift': 23,
@@ -95,20 +95,20 @@ class TestTNS(TestCase):
                          'comments': 'This nondection occured 11 days ago from '
                                      'LCO telescopes.',
                          'exptime': '540',
-                         'filter_value': '5',
-                         'flux_units': '1',
-                         'instrument_value': '236',
+                         'filterid': '5',
+                         'flux_unitid': '1',
+                         'instrumentid': '236',
                          'limiting_flux': 25.0,
                          'obsdate': parse_date(self.hermes_message['data']['photometry'][1]['date_obs']).strftime('%Y-%m-%d %H:%M:%S'),
                          'observer': 'Lindy'},
        'photometry': {'photometry_group': {'0': {'comments': 'Really nice '
                                                              'discovery!',
                                                  'exptime': '24.7',
-                                                 'filter_value': '5',
+                                                 'filterid': '5',
                                                  'flux': 22.5,
                                                  'flux_error': 1.5,
-                                                 'flux_units': '1',
-                                                 'instrument_value': '236',
+                                                 'flux_unitid': '1',
+                                                 'instrumentid': '236',
                                                  'limiting_flux': '',
                                                  'obsdate': parse_date(self.hermes_message['data']['photometry'][0]['date_obs']).strftime('%Y-%m-%d %H:%M:%S'),
                                                  'observer': 'Curtis'}}},
@@ -120,7 +120,6 @@ class TestTNS(TestCase):
        'remarks': 'This is a candidate message.',
        'reporter': 'Test Person1 <testperson1@gmail.com>, Test Person2 '
                    '<testperson2@gmail.com>',
-       'reporting_group_id': '1',
+       'reporting_groupid': '1',
        'transient_redshift': 17}}
-
         self.assertDictEqual(tns_message, expected_tns_message)

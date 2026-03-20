@@ -88,8 +88,8 @@ class IcecubeNoticePlaintextParser(GCNNoticePlaintextParser):
         if sequence_number > 0:
             notice_type = NonLocalizedEventSequence.NonLocalizedEventSequenceType.UPDATE
         NonLocalizedEventSequence.objects.get_or_create(
-            message=message, event=nonlocalizedevent, sequence_number=sequence_number, sequence_type=notice_type,
-            data=data
+            event=nonlocalizedevent, sequence_number=sequence_number, sequence_type=notice_type,
+            data=data, defaults={'message': message}
         )
 
         # Now parse the center target as well

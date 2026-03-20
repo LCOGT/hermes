@@ -69,8 +69,8 @@ class IGWNAlertParser(BaseParser):
         nonlocalizedevent, _ = NonLocalizedEvent.objects.get_or_create(event_id = data['superevent_id'])
         notice_type = self.convert_notice_type(data.get('alert_type', ''))
         NonLocalizedEventSequence.objects.get_or_create(
-            message=message, event=nonlocalizedevent, sequence_number=data['sequence_num'], sequence_type=notice_type,
-            data=data,
+            event=nonlocalizedevent, sequence_number=data['sequence_num'], sequence_type=notice_type,
+            data=data, defaults={'message': message}
         )
 
     def parse(self, message, data):

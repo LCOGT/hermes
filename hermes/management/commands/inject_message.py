@@ -93,14 +93,11 @@ BASE_ICECUBE_CASCADE = {
 }
 
 BASE_GCN_CIRCULAR = {
-    "header":
-    {
-        "title":"GCN CIRCULAR",
-        "number":"28609",
-        "subject":"{event_id}: No candidate counterparts from the Zwicky Transient Facility",
-        "date":"{published}",
-        "from":"{author}"
-    },
+    "title":"GCN CIRCULAR",
+    "circularId":"28609",
+    "subject":"{event_id}: No candidate counterparts from the Zwicky Transient Facility",
+    "createdOn":"{published}",
+    "submitter":"{author}",
     "body":"This is an injected test gcn circular message."
 }
 
@@ -158,9 +155,10 @@ class Command(BaseCommand):
             message = Message.objects.create()
             IGWNAlertParser().parse(message, message_payload)
         elif options.get('type') == 'GCN_CIRCULAR':
-            header = deepcopy(BASE_GCN_CIRCULAR['header'])
-            header['subject'] = header['subject'].format(event_id=options.get('event_id'))
-            header['date'] = header['date'].format(published=options.get('published'))
-            header['from'] = header['from'].format(author=options.get('author'))
+            circular = deepcopy(BASE_GCN_CIRCULAR)
+            circular['subject'] = circular['subject'].format(event_id=options.get('event_id'))
+            circular['eventId'] = options.get('event_id')
+            circular['createdOn'] = circular['createdOn'].format(published=options.get('published'))
+            circular['submitter'] = circular['submitter'].format(author=options.get('author'))
             message = Message.objects.create()
-            GCNCircularParser().parse(message, header)
+            GCNCircularParser().parse(message, circular)
