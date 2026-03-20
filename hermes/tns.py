@@ -111,6 +111,17 @@ def get_earliest_photometry(photometry_list, nondetection=False):
     return earliest_photometry
 
 
+def convert_target_units(error_value, hermes_units):
+    """ Convert from hermes supported ra/dec error units into TNS units value """
+    if hermes_units == 'degrees':
+        return error_value, 'deg'
+    elif hermes_units == 'mas':
+        return error_value / 1000.0, 'arcsec'
+    else:
+        # arcsec and arcmin are already supported values
+        return error_value, hermes_units
+
+
 def convert_flux_units(hermes_units):
     """ Convert from hermes supported flux units into TNS units value """
     if hermes_units == 'AB mag':
@@ -207,15 +218,17 @@ def convert_discovery_hermes_message_to_tns(hermes_message, filenames_mapping):
         photometry_list = [photometry for photometry in data.get('photometry', []) if photometry.get('target_name') == target.get('name')]
         earliest_photometry = get_earliest_photometry(photometry_list)
         report = {'related_files': {}}
+        ra_error, ra_error_units = convert_target_units(target.get('ra_error'), target.get('ra_error_units'))
+        dec_error, dec_error_units = convert_target_units(target.get('dec_error'), target.get('dec_error_units'))
         report['ra'] = {
             'value': target.get('ra'),
-            'error': target.get('ra_error'),
-            'units': target.get('ra_error_units')
+            'error': ra_error,
+            'units': ra_error_units
         }
         report['dec'] = {
             'value': target.get('dec'),
-            'error': target.get('dec_error'),
-            'units': target.get('dec_error_units')
+            'error': dec_error,
+            'units': dec_error_units
         }
         discovery_info = target.get('discovery_info', {})
         report['reporting_groupid'] = str(tns_options.get('groups', {}).get(discovery_info.get('reporting_group'), -1))
