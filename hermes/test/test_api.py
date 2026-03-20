@@ -123,32 +123,6 @@ class TestApiFiltering(TestCase):
         self.assertContains(result, self.target2_ra)
         self.assertContains(result, self.target2_dec)
 
-    def test_get_messages_by_search_event_id(self):
-        result = self.client.get(reverse('messages-list') + f'?search={self.event2_id}')
-        self.assertEqual(result.status_code, 200)
-        # Two from the event and 1 from a counterpart message on that event
-        self.assertEqual(len(result.json()['results']), 3)
-
-    def test_get_messages_by_search_topic(self):
-        result = self.client.get(reverse('messages-list') + '?search=COUNTERPART')
-        self.assertEqual(result.status_code, 200)
-        # 3 from counterpart notices, 2 from subject line of gcn circulars
-        self.assertEqual(len(result.json()['results']), 5)
-
-    def test_get_messages_by_search_multiple_or(self):
-        result = self.client.get(reverse('messages-list') + '?search=CIRCULAR COUNTERPART')
-        self.assertEqual(result.status_code, 200)
-        self.assertEqual(len(result.json()['results']), 5)
-
-    def test_get_messages_by_search_quoted_string_together(self):
-        result = self.client.get(reverse('messages-list') + '?search="GCN CIRCULAR"')
-        self.assertEqual(result.status_code, 200)
-        self.assertEqual(len(result.json()['results']), 2)
-        result = self.client.get(reverse('messages-list') + '?search=GCN CIRCULAR')
-        self.assertEqual(result.status_code, 200)
-        # All 10 test messages have either GCN or CIRCULAR in them
-        self.assertEqual(len(result.json()['results']), 5)
-
 
 class TestSubmitBasicMessageApi(TestCase):
     def setUp(self):
@@ -738,7 +712,8 @@ class TestTNSSubmission(TestBaseMessageApi):
         good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
-            'discovery_source': 'LCO Floyds'
+            'discovery_source': 'LCO Floyds',
+            'transient_type': 'PSN - Possible SN',
         }
         result = self.client.post(reverse('submit_message-validate'), good_message, content_type="application/json")
         self.assertEqual(result.json(), {})
@@ -798,7 +773,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         bad_message = deepcopy(self.basic_message)
         del bad_message['data']['photometry'][1]
         result = self.client.post(reverse('submit_message-validate'), bad_message, content_type="application/json")
-        self.assertContains(result, 'At least one photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission', status_code=200)
+        self.assertContains(result, 'At least one separate photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission', status_code=200)
 
     def test_submission_accepts_nondetection_source(self, mock_populate_tns):
         good_message = deepcopy(self.basic_message)
@@ -806,6 +781,7 @@ class TestTNSSubmission(TestBaseMessageApi):
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
             'discovery_source': 'LCO Floyds',
+            'transient_type': 'PSN - Possible SN',
             'nondetection_source': 'DSS'
         }
         del good_message['data']['photometry'][1]
@@ -884,7 +860,8 @@ class TestTNSSubmission(TestBaseMessageApi):
         good_message['data']['targets'][0]['new_discovery'] = True
         good_message['data']['targets'][0]['discovery_info'] = {
             'reporting_group': 'SNEX',
-            'discovery_source': 'LCO Floyds'
+            'discovery_source': 'LCO Floyds',
+            'transient_type': 'PSN - Possible SN',
         }
         good_message['data']['targets'][0]['group_associations'] = [
             'SNEX',

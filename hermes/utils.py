@@ -1,24 +1,21 @@
 from django.core.cache import cache
 from django.http import QueryDict
 from rest_framework import parsers
+from rest_framework.renderers import JSONRenderer
 from rest_framework.exceptions import APIException
-from hermes.models import Message
 import json
 from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from hop.http_scram import SCRAMAuth
+from hop.io import Consumer, Deserializer
+from hop.models import GCNTextNotice
 import smtplib
 import bson
 import uuid
 import requests
 from urllib.parse import urljoin
 from django.conf import settings
-import threading
-import base64
-import re
-from scramp import ScramClient
-import secrets
 import logging
 
 
@@ -68,10 +65,78 @@ REFERENCES_ORDER = [
     'url'
 ]
 
+
+# Use custom JSON encoder to remove bytestrings from the deserialized bson output
+# Bytestrings seem to just be raw data bytes, which aren't utf-8 encoded so can't be JSONified
+class RemoveBytesEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return '...'
+        return json.JSONEncoder.default(self, obj)
+
+
+class RemoveBytesRenderer(JSONRenderer):
+    encoder_class = RemoveBytesEncoder
+
+
+def convert_messages(bson_data):
+    for i, message in enumerate(bson_data['messages']):
+        bson_data['messages'][i] = convert_message(message)
+    return bson_data
+
+
+def convert_message(bson_message):
+    """ take BSON formatted messages from scimma archive responses and convert to the proper form (JSON/AVRO/)
+    """
+    message = {'metadata': bson_message['metadata'], 'annotations': bson_message['annotations']}
+    # Use the hop facilities to deserialize the bson message into something closer to JSON
+    if 'message' in bson_message:
+        external_message = Consumer.ExternalMessage(
+            data=bson_message.get('message'),
+            headers=bson_message['metadata']['headers'],
+            topic=bson_message['metadata']['topic'],
+            partition=None,
+            offset=None,
+            timestamp=bson_message['metadata']['timestamp'],
+            key=bson_message['metadata'].get('key')
+        )
+        payload = Deserializer.deserialize(external_message)
+        # Right now, gcntextnotice messages have `fields` but not `content`. Also, not supported VOEvent message types yet...
+        if hasattr(payload, 'content'):
+            message['message'] = payload.content
+        elif hasattr(payload, 'fields'):
+            message['message'] = payload.fields
+        elif hasattr(payload, 'WhereWhen'):
+            # This means its a VOEvent type message, so pull the data into a dictionary here
+            voevent_message = vars(payload)
+            del voevent_message['_raw']
+            message['message'] = voevent_message
+
+    # This step converts all the bytestrings stored within the message data into string strings
+    if(message['metadata'].get('key')):
+        message['metadata']['key'] = message['metadata']['key'].decode('utf-8')
+    if 'headers' in message['metadata']:
+        headers = bson_message.get('metadata', {}).get('headers', [])
+        message['metadata']['headers'] = {}
+        for header in headers:
+            if header[0] == '_id':
+                message['metadata']['headers'][header[0]] = str(uuid.UUID(bytes=header[1]))
+            else:
+                try:
+                    message['metadata']['headers'][header[0]] = header[1].decode('utf-8')
+                except UnicodeDecodeError:
+                    message['metadata']['headers'][header[0]] = header[1]
+    if 'con_text_uuid' in message['annotations']:
+        message['annotations']['con_text_uuid'] = str(message['annotations']['con_text_uuid'])
+
+    return message
+
+
 def get_all_public_topics():
+    # TODO: Get the public topics from scimma admin or scimma archive rather than from hermes database
     all_topics = cache.get("all_public_topics", None)
     if not all_topics:
-        all_topics = sorted(list(Message.objects.order_by().values_list('topic', flat=True).distinct()))
+        all_topics = []
         cache.set("all_public_topics", all_topics, 3600)
     return all_topics
 
@@ -189,7 +254,7 @@ def upload_file_to_hop(file, topic, auth):
     id = uuid.uuid4()
     # Seek to begining of file in case we already read to the end to send to TNS
     file.file.seek(0)
-    data = bson.dumps({'message': file.file.read(), 'headers': {'format': b"blob", "_id": id.bytes}})
+    data = bson.dumps({'message': file.file.read(), 'headers': {'format': b"blob", "_id": id.bytes, "file_name": file.name.encode('utf-8'), "title": file.name.encode('utf-8')}})
     upload_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topic/{topic}')
     try:
         response = requests.post(upload_url, data=data, auth=SCRAMAuth(auth, shortcut=True))

@@ -1,19 +1,18 @@
-import json
 import logging
 import uuid
+import bson
 from urllib.parse import urljoin
 import requests
+from dateutil.parser import parse
 
 from django.contrib.auth.models import User
 from django.conf import settings
 
 #from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.middleware import csrf
 from django.core.cache import cache
-from django.views.generic import ListView, DetailView, FormView, RedirectView, View
-from django.urls import reverse_lazy
-from django.shortcuts import redirect
+from django.views.generic import RedirectView, View
 from django.http import Http404
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
@@ -30,16 +29,16 @@ from hop import Stream
 from hop.auth import Auth
 from hop.io import Producer
 from hop.models import JSONBlob
+from hop.http_scram import SCRAMAuth
 
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
-from hermes.forms import MessageForm
 from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns,
                         convert_classification_hermes_message_to_tns, submit_classification_report_to_tns, BadTnsRequest)
-from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop
+from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop, convert_messages, convert_message, RemoveBytesRenderer
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
-                                NonLocalizedEventSequenceSerializer, ProfileSerializer, MessageUpdateSerializer)
+                                NonLocalizedEventSequenceSerializer, ProfileSerializer)
 from hermes.oauth_clients import oauth, update_token, get_access_token
 
 logger = logging.getLogger(__name__)
@@ -48,19 +47,6 @@ logger.setLevel(logging.DEBUG)
 # Set hop client logger to debug to find some issues
 hop_client_logger = logging.getLogger("hop")
 hop_client_logger.setLevel(logging.DEBUG)
-
-
-class IsAuthenticatedAndGroupOwner(IsAuthenticated):
-    def has_object_permission(self, request, view, obj):
-        # Allow admin users to perform any action
-        if request.user and request.user.is_staff and request.user.is_superuser:
-            return True
-        # Get out if the user doesn't have a profile
-        if not hasattr(request.user, "profile"):
-            return False
-        # Otherwise check if the user is an Owner of the message objects topic group
-        group = obj.topic.split('.')[0]
-        return request.user.profile.group_memberships.get(group, '') == 'Owner'
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -73,23 +59,6 @@ class MessageViewSet(viewsets.ModelViewSet):
         DjangoFilterBackend
     )
     ordering = ('-id',)
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.request.query_params.get('include_retracted') or self.action == 'partial_update':
-            return queryset
-        else:
-            return queryset.exclude(retracted=True)
-
-    def get_permissions(self):
-        if self.action == 'partial_update':
-            return [IsAuthenticatedAndGroupOwner()]
-        return super().get_permissions()
-
-    def get_serializer_class(self):
-        if self.action == 'partial_update':
-            return MessageUpdateSerializer
-        return super().get_serializer_class()
 
     def retrieve(self, request, pk=None):
         try:
@@ -170,59 +139,25 @@ class TopicViewSet(viewsets.ViewSet):
         return response
 
 
-class MessageListView(ListView):
-    # change the model form Message to User for OIDC experimentation
-    model = User
-    template_name = 'hermes/message_list.html'
-
-
-class MessageDetailView(DetailView):
-    model = Message
-
-
-class MessageFormView(FormView):
-    permission_classes = [IsAuthenticated]
-    template_name = "hermes/generic_message.html"
-    form_class = MessageForm
-    success_url = reverse_lazy('index')
-
-    def form_valid(self, form):
-        super().form_valid(form)
-        new_message_data = form.cleaned_data
-
-        # List of universal Fields
-        non_json_fields = ['title', 'authors', 'message_text']
-        non_json_dict = {key: new_message_data[key] for key in new_message_data.keys() if key in non_json_fields}
-        message = Message(**non_json_dict)
-
-        # convert form specific data to JSON
-        json_dict = {key: new_message_data[key] for key in new_message_data.keys() if key not in non_json_fields}
-        json_data = json.dumps(json_dict, indent=4)
-        message.data = json_data
-
-        message.save()
-
-        return redirect(self.get_success_url())
-
-
 def submit_to_hop(request, payload, headers, hop_auth):
     """Open the Hopskotch kafka stream for write and publish an Alert
     """
     logger.info(f'submit_to_hop User {request.user} with credentials {hop_auth.username}')
     logger.debug(f'submit_to_hop request: {request}')
     logger.debug(f'submit_to_hop payload: {payload}')
-    logger.debug(f'submit_to_hop headers: {headers}')
 
     try:
         topic = request.data['topic']
         # Add the _sender in the header with our auth here since we originally generate it without an auth
         headers.append(("_sender", hop_auth.username.encode("utf-8")))
+        logger.debug(f'submit_to_hop headers: {headers}')
         stream = Stream(auth=hop_auth)
         # open for write ('w') returns a hop.io.Producer instance
         # Must set automatic offload to False since hop-client currently won't function in gunicorn environment otherwise
         with stream.open(f'{settings.SCIMMA_KAFKA_BASE_URL}{topic}', 'w', automatic_offload=False) as producer:
             producer.write_raw(payload, headers)
     except Exception as e:
+        logger.error(f'Error submitting message to hop: {e}')
         raise APIException(f'Error posting message to kafka: {e}')
 
 
@@ -540,6 +475,8 @@ class SubmitHermesMessageViewSet(viewsets.ViewSet):
                         blob = JSONBlob(content=data)
                         encoded = blob.serialize()
                         payload = encoded["content"]
+                # Add the title into the headers
+                headers.append(("title", data.get("title").encode("utf-8")))
                 submit_to_hop(request, payload, headers, hop_auth)
                 data['uuid'] = message_uuid
                 return Response(data, status=status.HTTP_200_OK)
@@ -695,6 +632,125 @@ class HeartbeatApiView(RetrieveAPIView):
             'is_authenticated': request.user.is_authenticated
         }
         return Response(response)
+
+
+class TopicApiView(RetrieveAPIView):
+    """ View to get list of available topics from SCiMMA Archive
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # First check if we've cached the topics for this user
+        topics = cache.get(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', None)
+        if topics is None:
+            # Get the hop_auth for the user, or return an error
+            if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+                hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+            else:
+                return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+            archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
+            response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+            response.raise_for_status()
+            topics = bson.loads(response.content)
+            # Sort the topics to be in alphabetical ordering
+            topics['topics'].sort()
+            cache.set(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', topics, 1800)
+        return Response(topics, status=status.HTTP_200_OK)
+
+
+class ProxyMessageDownloadView(RetrieveAPIView):
+    """ View to get a single file from the SCiMMA Archive given its uuid
+        This is just a passthrough that injects the scram authentication into the request
+    """
+    permission_classes = [IsAuthenticated]
+    def get(self, request, *args, **kwargs):
+        uuid = self.kwargs['uuid']
+        content_type = request.GET.get('content_type', None)
+        filename = request.GET.get('filename', None)
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
+        archive_url += f'{uuid}/raw_file/{filename}'
+
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True), stream=True)
+        response.raise_for_status()
+        if not content_type:
+            content_type = response.headers.get('content-type', 'application/octet-stream')
+        if not filename:
+            filename = uuid
+
+        proxy_response = StreamingHttpResponse(response.raw, content_type=content_type)
+        proxy_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        if 'content-length' in response.headers:
+            proxy_response['Content-Length'] = response.headers['content-length']
+
+        return proxy_response
+
+
+class MessageApiView(RetrieveAPIView):
+    """ View to get a single message from the SCiMMA Archive given its uuid
+        This is just a passthrough that injects the scram authentication into the request
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [RemoveBytesRenderer]
+
+    def get(self, request, *args, **kwargs):
+        uuid = self.kwargs['uuid']
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
+        archive_url += uuid
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response.raise_for_status()
+        message = convert_message(bson.loads(response.content))
+        return Response(message, status=status.HTTP_200_OK)
+
+
+# TODO: Enhance this with other parameters when they are added to scimma archive
+class QueryApiView(RetrieveAPIView):
+    """ View to query the SCiMMA Archive for messages
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [RemoveBytesRenderer]
+
+    def get(self, request):
+        # Get the hop_auth for the user, or return an error
+        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
+            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
+        else:
+            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        topics = request.query_params.getlist('topic')
+        limit = request.query_params.get('limit', 10)
+        query_params = f'?meta=true&asc=false&limit={limit}'
+        for topic in topics:
+            query_params += f'&topic={topic}'
+        start = request.query_params.get('start')
+        if start:
+            start = parse(start).timestamp() * 1000.0
+            query_params += f'&start_time={start}'
+        end = request.query_params.get('end')
+        if end:
+            end = parse(end).timestamp() * 1000.0
+            query_params += f'&end_time={end}'
+        search_query = request.query_params.get('search_query', '')
+        if search_query:
+            query_params += f'&search_query={search_query}'
+        page = request.query_params.get('page', 0)
+        if page:
+            query_params += f'&page={page}'
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'messages')
+        archive_url += query_params
+        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response.raise_for_status()
+        messages = convert_messages(bson.loads(response.content))
+        return Response(messages, status=status.HTTP_200_OK)
 
 
 class RevokeApiTokenApiView(APIView):

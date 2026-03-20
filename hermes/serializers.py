@@ -34,7 +34,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = (
             'api_token', 'email', 'credential_name', 'writable_topics', 'integrated_apps', 'can_submit_to_gcn', 'tns_bot_id',
-            'tns_bot_name', 'tns_bot_api_token', 'group_memberships'
+            'tns_bot_name', 'tns_bot_api_token', 'group_memberships', 'default_topics_list'
         )
 
     def get_integrated_apps(self, obj):
@@ -52,9 +52,15 @@ class ProfileSerializer(serializers.ModelSerializer):
     def validate(self, data):
         validated_data = super().validate(data)
         if self.context.get('request').method == 'PATCH':
-            update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            tns_update_fields = ['tns_bot_id', 'tns_bot_name', 'tns_bot_api_token']
+            update_fields = tns_update_fields + ['default_topics_list']
+            tns_update_fields_present = [field in validated_data for field in tns_update_fields]
             update_fields_present = [field in validated_data for field in update_fields]
-            if any(update_fields_present) and not all(update_fields_present):
+            if not any(update_fields_present):
+                raise serializers.ValidationError(_(
+                    f"Must update at least one of {', '.join(update_fields)}"
+                ))
+            elif any(tns_update_fields_present) and not all(tns_update_fields_present):
                 raise serializers.ValidationError(_(
                     'Must update tns_bot_id, tns_bot_name, and tns_bot_api_token all together'
                 ))
@@ -101,53 +107,13 @@ class BaseTargetSerializer(serializers.ModelSerializer):
             return a.to_string(unit=units.degree, sep=':')
 
 
-class MessageUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Message
-        fields = [
-            'retracted', 'id', 'uuid', 'retracted_on'
-        ]
-        read_only_fields = ['id', 'uuid', 'retracted_on']
-
-    def validate_retracted(self, value):
-        if not value:
-            raise serializers.ValidationError(_("'retracted' can only be updated to True"))
-        return value
-
-    def update(self, instance, validated_data):
-        if ('retracted' in validated_data and validated_data['retracted'] != instance.retracted):
-            instance.retracted = validated_data['retracted']
-            instance.retracted_on = timezone.now()
-            instance.save(update_fields=['retracted', 'retracted_on'])
-
-        return instance
-
-
 class BaseMessageSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Message
         fields = [
             'id',
-            'topic',
-            'uuid',
-            'title',
-            'submitter',
-            'authors',
-            'data',
-            'message_text',
-            'published',
-            'message_parser',
-            'retracted',
-            'retracted_on',
-            'created',
-            'modified'
+            'uuid'
         ]
-
-    def to_representation(self, instance):
-        result = super().to_representation(instance)
-        if 'retracted_on' in result and result['retracted_on'] is None:
-            del result['retracted_on']
-        return result
 
 
 class BaseNonLocalizedEventSerializer(serializers.ModelSerializer):
@@ -182,7 +148,8 @@ class NonLocalizedEventSequenceSerializer(serializers.ModelSerializer):
             'id',
             'sequence_number',
             'sequence_type',
-            'message'
+            'message',
+            'data'
         ]
 
 
@@ -194,7 +161,7 @@ class NonLocalizedEventSerializer(BaseNonLocalizedEventSerializer):
         fields = BaseNonLocalizedEventSerializer.Meta.fields + ['sequences', 'references']
 
     def get_sequences(self, instance):
-        sequences = instance.sequences.all().order_by('message__published')
+        sequences = instance.sequences.all().order_by('created')
         return NonLocalizedEventSequenceSerializer(sequences, many=True).data
 
 
@@ -758,10 +725,10 @@ class HermesMessageSerializer(serializers.Serializer):
                     if not discovery_info or not discovery_info.get('discovery_source'):
                         discovery_error['discovery_source'] = [_("Target must have discovery info discovery source for TNS"
                                                                 " submission")]
-                    if not discovery_info or not discovery_info.get('transient_type'):
-                        discovery_error['transient_type'] = [_("Target must have a discovery info transient_type for TNS submission")]
                     elif discovery_info.get('discovery_source') not in tns_options.get('groups'):
                         discovery_error['discovery_source'] = [_(f"Discovery source group {discovery_info.get('discovery_source')} is not a valid TNS group")]
+                    if not discovery_info or not discovery_info.get('transient_type'):
+                        discovery_error['transient_type'] = [_("Target must have a discovery info transient_type for TNS submission")]
                 if discovery_error:
                     target_error['discovery_info'] = discovery_error
                 targets_errors.append(target_error)
@@ -778,7 +745,9 @@ class HermesMessageSerializer(serializers.Serializer):
                     related_target = targets_by_target_name.get(photometry.get('target_name'))
                     if photometry.get('brightness'):
                         has_detection = True
-                    if photometry.get('limiting_brightness') or related_target.get('discovery_info', {}).get('nondetection_source'):
+                    elif photometry.get('limiting_brightness'):
+                        has_nondetection = True
+                    if  related_target.get('discovery_info', {}).get('nondetection_source'):
                         has_nondetection = True
                     if not photometry.get('instrument'):
                         photometry_error['instrument'] = [_('Photometry must have instrument specified for TNS submission')]
@@ -792,7 +761,7 @@ class HermesMessageSerializer(serializers.Serializer):
                 if any(photometry_errors):
                     full_error['data']['photometry'] = photometry_errors
                 if not has_nondetection:
-                    photometry_non_field_errors.append(_(f'At least one photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission'))
+                    photometry_non_field_errors.append(_(f'At least one separate photometry nondetection / limiting_brightness or target discovery nondetection_source must be specified for TNS submission'))
                 if not has_detection:
                     photometry_non_field_errors.append(_(f'At least one photometry detection / brightness must be specified for TNS submission'))
 
