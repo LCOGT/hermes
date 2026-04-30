@@ -634,7 +634,7 @@ class HeartbeatApiView(RetrieveAPIView):
         return Response(response)
 
 
-class TopicApiView(RetrieveAPIView):
+class TopicApiView(APIView):
     """ View to get list of available topics from SCiMMA Archive
     """
     permission_classes = []
@@ -657,7 +657,10 @@ class TopicApiView(RetrieveAPIView):
                 response = requests.get(archive_url, auth=scram_auth)
             else:
                 response = requests.get(archive_url)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                return Response({'error': str(e)}, status=e.response.status_code)
             topics = bson.loads(response.content)
             # Sort the topics to be in alphabetical ordering
             topics['topics'].sort()
@@ -665,11 +668,12 @@ class TopicApiView(RetrieveAPIView):
         return Response(topics, status=status.HTTP_200_OK)
 
 
-class ProxyMessageDownloadView(RetrieveAPIView):
+class ProxyMessageDownloadView(APIView):
     """ View to get a single file from the SCiMMA Archive given its uuid
         This is just a passthrough that injects the scram authentication into the request
     """
     permission_classes = []
+
     def get(self, request, *args, **kwargs):
         uuid = self.kwargs['uuid']
         content_type = request.GET.get('content_type', None)
@@ -683,7 +687,10 @@ class ProxyMessageDownloadView(RetrieveAPIView):
         else:
             response = requests.get(archive_url, stream=True)
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': str(e)}, status=e.response.status_code)
         if not content_type:
             content_type = response.headers.get('content-type', 'application/octet-stream')
         if not filename:
@@ -698,12 +705,19 @@ class ProxyMessageDownloadView(RetrieveAPIView):
         return proxy_response
 
 
-class MessageApiView(RetrieveAPIView):
+class MessageApiView(APIView):
     """ View to get a single message from the SCiMMA Archive given its uuid
         This is just a passthrough that injects the scram authentication into the request
     """
     permission_classes = []
     renderer_classes = [RemoveBytesRenderer]
+
+    def get_permissions(self):
+        if self.request.method == 'PATCH':
+            # Use a more restrictive permission for PATCH
+            return [IsAuthenticated()]
+        # Default permissions for GET, POST, DELETE, etc.
+        return [permission() for permission in self.permission_classes]
 
     def get(self, request, *args, **kwargs):
         uuid = self.kwargs['uuid']
@@ -715,13 +729,34 @@ class MessageApiView(RetrieveAPIView):
             response = requests.get(archive_url, auth=scram_auth)
         else:
             response = requests.get(archive_url)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': str(e)}, status=e.response.status_code)
         message = convert_message(bson.loads(response.content))
         return Response(message, status=status.HTTP_200_OK)
 
+    def patch(self, request, *args, **kwargs):
+        uuid = self.kwargs['uuid']
+        retracted = request.data.get('retracted')
+        if retracted is None or not isinstance(retracted, bool):
+            return Response({'error': "'retracted' must be provided as a boolean value."}, status=status.HTTP_400_BAD_REQUEST)
+        scram_auth = scram_auth_for_user(request.user)
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
+        archive_url += f'{uuid}/retraction'
+        if scram_auth:
+            response = requests.put(archive_url, auth=scram_auth, json={'retracted': retracted})
+        else:
+            return Response({'error': "User must be authenticated with a valid SCiMMA Auth credential to access this API"}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': str(e)}, status=e.response.status_code)
+        return Response(response.json(), status=status.HTTP_200_OK)
+
 
 # TODO: Enhance this with other parameters when they are added to scimma archive
-class QueryApiView(RetrieveAPIView):
+class QueryApiView(APIView):
     """ View to query the SCiMMA Archive for messages
     """
     permission_classes = []
@@ -746,6 +781,9 @@ class QueryApiView(RetrieveAPIView):
         search_query = request.query_params.get('search_query', '')
         if search_query:
             query_params += f'&search_query={search_query}'
+        include_retracted = request.query_params.get('include_retracted', 'true')
+        if include_retracted.lower() in ['false', 'true']:
+            query_params += f"&include_retracted={include_retracted.lower() == 'true'}"
         page = request.query_params.get('page', 0)
         if page:
             query_params += f'&page={page}'
@@ -755,7 +793,10 @@ class QueryApiView(RetrieveAPIView):
             response = requests.get(archive_url, auth=scram_auth)
         else:
             response = requests.get(archive_url)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': str(e)}, status=e.response.status_code)
         messages = convert_messages(bson.loads(response.content))
         return Response(messages, status=status.HTTP_200_OK)
 
