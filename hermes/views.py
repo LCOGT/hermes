@@ -743,16 +743,16 @@ class MessageApiView(APIView):
             return Response({'error': "'retracted' must be provided as a boolean value."}, status=status.HTTP_400_BAD_REQUEST)
         scram_auth = scram_auth_for_user(request.user)
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
-        archive_url += f'{uuid}/retraction'
+        archive_url += f'{uuid}/retraction?retracted={str(retracted).lower()}'
         if scram_auth:
-            response = requests.put(archive_url, auth=scram_auth, json={'retracted': retracted})
+            response = requests.put(archive_url, auth=scram_auth)
         else:
             return Response({'error': "User must be authenticated with a valid SCiMMA Auth credential to access this API"}, status=status.HTTP_401_UNAUTHORIZED)
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=e.response.status_code)
-        return Response(response.json(), status=status.HTTP_200_OK)
+        return Response({'success': 'true'}, status=status.HTTP_200_OK)
 
 
 # TODO: Enhance this with other parameters when they are added to scimma archive
@@ -783,7 +783,7 @@ class QueryApiView(APIView):
             query_params += f'&search_query={search_query}'
         include_retracted = request.query_params.get('include_retracted', 'true')
         if include_retracted.lower() in ['false', 'true']:
-            query_params += f"&include_retracted={include_retracted.lower() == 'true'}"
+            query_params += f"&include_retracted={include_retracted.lower()}"
         page = request.query_params.get('page', 0)
         if page:
             query_params += f'&page={page}'
