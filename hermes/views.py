@@ -29,13 +29,13 @@ from hop import Stream
 from hop.auth import Auth
 from hop.io import Producer
 from hop.models import JSONBlob
-from hop.http_scram import SCRAMAuth
 
 from hermes.brokers import hopskotch
 from hermes.models import Message, Target, NonLocalizedEvent, NonLocalizedEventSequence, OAuthToken
 from hermes.tns import (get_tns_values, convert_discovery_hermes_message_to_tns, submit_at_report_to_tns, submit_files_to_tns,
                         convert_classification_hermes_message_to_tns, submit_classification_report_to_tns, BadTnsRequest)
-from hermes.utils import get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop, convert_messages, convert_message, RemoveBytesRenderer
+from hermes.utils import (get_all_public_topics, convert_to_plaintext, MultipartJsonFileParser, upload_file_to_hop,
+                          convert_messages, convert_message, RemoveBytesRenderer, scram_auth_for_user)
 from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter, NonLocalizedEventSequenceFilter
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
@@ -637,24 +637,27 @@ class HeartbeatApiView(RetrieveAPIView):
 class TopicApiView(RetrieveAPIView):
     """ View to get list of available topics from SCiMMA Archive
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
 
     def get(self, request):
+        # Get the hop_auth for the user if one is logged in
+        scram_auth = scram_auth_for_user(request.user)
         # First check if we've cached the topics for this user
-        topics = cache.get(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', None)
+        if scram_auth:
+            username = request.user.username
+            cred_name = request.user.profile.credential_name
+        else:
+            username = 'anonymous'
+            cred_name = 'public'
+        topics = cache.get(f'user_{username}_{cred_name}_topics', None)
         if topics is None:
-            # Get the hop_auth for the user, or return an error
-            if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-                hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-            else:
-                return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
             archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
-            response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+            response = requests.get(archive_url, auth=scram_auth)
             response.raise_for_status()
             topics = bson.loads(response.content)
             # Sort the topics to be in alphabetical ordering
             topics['topics'].sort()
-            cache.set(f'user_{request.user.username}_{request.user.profile.credential_name}_topics', topics, 1800)
+            cache.set(f'user_{username}_{cred_name}_topics', topics, 1800)
         return Response(topics, status=status.HTTP_200_OK)
 
 
@@ -662,20 +665,16 @@ class ProxyMessageDownloadView(RetrieveAPIView):
     """ View to get a single file from the SCiMMA Archive given its uuid
         This is just a passthrough that injects the scram authentication into the request
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
     def get(self, request, *args, **kwargs):
         uuid = self.kwargs['uuid']
         content_type = request.GET.get('content_type', None)
         filename = request.GET.get('filename', None)
-        # Get the hop_auth for the user, or return an error
-        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-        else:
-            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        # Get the hop_auth for the user, or return an None
+        scram_auth = scram_auth_for_user(request.user)
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
         archive_url += f'{uuid}/raw_file/{filename}'
-
-        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True), stream=True)
+        response = requests.get(archive_url, auth=scram_auth, stream=True)
         response.raise_for_status()
         if not content_type:
             content_type = response.headers.get('content-type', 'application/octet-stream')
@@ -695,19 +694,16 @@ class MessageApiView(RetrieveAPIView):
     """ View to get a single message from the SCiMMA Archive given its uuid
         This is just a passthrough that injects the scram authentication into the request
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
     renderer_classes = [RemoveBytesRenderer]
 
     def get(self, request, *args, **kwargs):
         uuid = self.kwargs['uuid']
-        # Get the hop_auth for the user, or return an error
-        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-        else:
-            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        # Get the hop_auth for the user, or return an None
+        scram_auth = scram_auth_for_user(request.user)
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
         archive_url += uuid
-        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response = requests.get(archive_url, auth=scram_auth)
         response.raise_for_status()
         message = convert_message(bson.loads(response.content))
         return Response(message, status=status.HTTP_200_OK)
@@ -717,15 +713,12 @@ class MessageApiView(RetrieveAPIView):
 class QueryApiView(RetrieveAPIView):
     """ View to query the SCiMMA Archive for messages
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
     renderer_classes = [RemoveBytesRenderer]
 
     def get(self, request):
-        # Get the hop_auth for the user, or return an error
-        if request.user.is_authenticated and request.user.profile.credential_name and request.user.profile.credential_password:
-            hop_auth = Auth(user=request.user.profile.credential_name, password=request.user.profile.credential_password)
-        else:
-            return Response({'error': f'User account does not have an associated SCIMMA auth credential. Please logout and log back in.'})
+        # Get the hop_auth for the user, or return an None
+        scram_auth = scram_auth_for_user(request.user)
         topics = request.query_params.getlist('topic')
         limit = request.query_params.get('limit', 10)
         query_params = f'?meta=true&asc=false&limit={limit}'
@@ -747,7 +740,7 @@ class QueryApiView(RetrieveAPIView):
             query_params += f'&page={page}'
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'messages')
         archive_url += query_params
-        response = requests.get(archive_url, auth=SCRAMAuth(hop_auth, shortcut=True))
+        response = requests.get(archive_url, auth=scram_auth)
         response.raise_for_status()
         messages = convert_messages(bson.loads(response.content))
         return Response(messages, status=status.HTTP_200_OK)
