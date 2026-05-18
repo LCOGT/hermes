@@ -651,15 +651,11 @@ class TopicApiView(APIView):
             cred_name = 'public'
         topics = cache.get(f'user_{username}_{cred_name}_topics', None)
         if topics is None:
-
             archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'topics')
-            if scram_auth:
-                response = requests.get(archive_url, auth=scram_auth)
-            else:
-                response = requests.get(archive_url)
             try:
+                response = requests.get(archive_url, auth=scram_auth)
                 response.raise_for_status()
-            except requests.exceptions.HTTPError as e:
+            except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
                 return Response({'error': str(e)}, status=e.response.status_code)
             topics = bson.loads(response.content)
             # Sort the topics to be in alphabetical ordering
@@ -682,14 +678,10 @@ class ProxyMessageDownloadView(APIView):
         scram_auth = scram_auth_for_user(request.user)
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
         archive_url += f'{uuid}/raw_file/{filename}'
-        if scram_auth:
-            response = requests.get(archive_url, auth=scram_auth, stream=True)
-        else:
-            response = requests.get(archive_url, stream=True)
-
         try:
+            response = requests.get(archive_url, auth=scram_auth, stream=True)
             response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
             return Response({'error': str(e)}, status=e.response.status_code)
         if not content_type:
             content_type = response.headers.get('content-type', 'application/octet-stream')
@@ -725,13 +717,10 @@ class MessageApiView(APIView):
         scram_auth = scram_auth_for_user(request.user)
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'msg/')
         archive_url += uuid
-        if scram_auth:
-            response = requests.get(archive_url, auth=scram_auth)
-        else:
-            response = requests.get(archive_url)
         try:
+            response = requests.get(archive_url, auth=scram_auth)
             response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
             return Response({'error': str(e)}, status=e.response.status_code)
         message = convert_message(bson.loads(response.content))
         return Response(message, status=status.HTTP_200_OK)
@@ -789,13 +778,10 @@ class QueryApiView(APIView):
             query_params += f'&page={page}'
         archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, f'messages')
         archive_url += query_params
-        if scram_auth:
-            response = requests.get(archive_url, auth=scram_auth)
-        else:
-            response = requests.get(archive_url)
         try:
+            response = requests.get(archive_url, auth=scram_auth)
             response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
             return Response({'error': str(e)}, status=e.response.status_code)
         messages = convert_messages(bson.loads(response.content))
         return Response(messages, status=status.HTTP_200_OK)
