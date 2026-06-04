@@ -20,4 +20,5 @@ astropy>=5.2
 django-extensions # for shell_plus debugging
 requests==2.32.5
 scramp==1.4.1
+tenacity>=8.2
 jsons==1.6.3 # for Auth serialization

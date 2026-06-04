@@ -3,7 +3,6 @@ import logging
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.utils.http import urlencode
-from rest_framework.authentication import TokenAuthentication
 
 from mozilla_django_oidc import auth
 
@@ -18,23 +17,6 @@ class NotInKafkaUsers(PermissionDenied):
     belong to in order to submit to the Hopskotch kafka steam.
     """
     pass
-
-
-class HermesTokenAuthentication(TokenAuthentication):
-    def authenticate(self, request, **kwargs):
-        """Override this method to verify hop credential is valid within profile and regenerate it if not
-
-        Notes:
-         * the user is a django.contrib.auth.User instance
-         * the safe way to the username is user.get_username()
-
-        Extends base class method.
-        """
-        auth = super().authenticate(request, **kwargs)  # returns a tuple of (user, token)
-        if auth:
-            hopskotch.check_and_regenerate_hop_credential(auth[0])
-
-        return auth  # mimic super()
 
 
 class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
@@ -215,7 +197,8 @@ class HopskotchOIDCAuthenticationBackend(auth.OIDCAuthenticationBackend):
         """
         logger.warning("Trying to authenticate!!!")
         user = super().authenticate(request, **kwargs) # django.contrib.auth.models.User
-        hopskotch.check_and_regenerate_hop_credential(user)
+        if user and (not user.profile.credential_name or not user.profile.credential_password):
+            hopskotch.regenerate_hop_credential(user)
 
         return user # mimic super()
 
