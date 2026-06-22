@@ -38,10 +38,10 @@ class Profile(models.Model):
     def writable_topics(self):
         try:
             user_api_token = get_user_api_token(self.user.username)
+            return get_user_writable_topics(self.user.username, self.credential_name, user_api_token, exclude_groups=['sys'])
         except Exception as e:
-            logger.warning(f"Failed to retrieve user api token: {repr(e)}")
+            logger.warning(f"Failed to retrieve writable topics: {repr(e)}")
             return []
-        return get_user_writable_topics(self.user.username, self.credential_name, user_api_token, exclude_groups=['sys'])
 
     @property
     def group_memberships(self):
@@ -49,10 +49,10 @@ class Profile(models.Model):
         """
         try:
             user_api_token = get_user_api_token(self.user.username)
+            return {group['group']: group['status'] for group in get_user_groups(self.user.username, user_api_token)}
         except Exception as e:
-            logger.warning(f"Failed to retrieve user api token: {repr(e)}")
+            logger.warning(f"Failed to retrieve group memberships: {repr(e)}")
             return {}
-        return {group['group']: group['status'] for group in get_user_groups(self.user.username, user_api_token)}
 
 
 class OAuthToken(models.Model):

@@ -809,9 +809,29 @@ class RevokeHopCredentialApiView(APIView):
         """A simple POST request (empty request body) with user authentication information in the HTTP header will revoke the users hop credential."""
         username = request.user.get_username()
         credential_name = request.user.profile.credential_name
-        if hopskotch.verify_credential_for_user(username, credential_name):
-            hopskotch.delete_user_hop_credentials(username, credential_name, hopskotch.get_user_api_token(username))
-        hopskotch.regenerate_hop_credential(request.user)
+        user_api_token = hopskotch.get_user_api_token(username)
+
+        old_groups = []
+        old_permissions = []
+        try:
+            old_groups = hopskotch.get_user_groups(username, user_api_token)
+            old_permissions = hopskotch.get_credential_permissions(username, credential_name, user_api_token)
+        except Exception as e:
+            logger.warning(f'Failed to capture existing credential state for {username}, proceeding without restoring: {repr(e)}')
+
+        try:
+            if hopskotch.verify_credential_for_user(username, credential_name):
+                hopskotch.delete_user_hop_credentials(username, credential_name, user_api_token)
+        except Exception:
+            # If we fail to verify the credential, just ignore trying to delete it
+            pass
+
+        try:
+            hopskotch.regenerate_hop_credential(request.user, old_groups, old_permissions)
+        except Exception as e:
+            logger.error(f'Failed to regenerate hop credential for {username}: {repr(e)}')
+            return Response({'error': 'Failed to regenerate hop credential. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         return Response({'message': 'Hop credential revoked and regenerated.'}, status=status.HTTP_200_OK)
 
     def get_endpoint_name(self):

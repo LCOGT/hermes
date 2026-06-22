@@ -253,12 +253,11 @@ REST_FRAMEWORK = {
     'DEFAULT_METADATA_CLASS': 'rest_framework.metadata.SimpleMetadata',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.SessionAuthentication',
-        'hermes.auth_backends.HermesTokenAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 100,
 }
-
 
 # TOM-Alertstreams configuration
 ALERT_STREAMS = [
