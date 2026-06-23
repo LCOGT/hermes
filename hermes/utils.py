@@ -8,6 +8,7 @@ from collections import defaultdict
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from hop.http_scram import SCRAMAuth
+from hop.auth import Auth
 from hop.io import Consumer, Deserializer
 from hop.models import GCNTextNotice
 import smtplib
@@ -64,6 +65,14 @@ REFERENCES_ORDER = [
     'citation',
     'url'
 ]
+
+
+def scram_auth_for_user(user):
+    if user.is_authenticated and user.profile.credential_name and user.profile.credential_password:
+        hop_auth = Auth(user=user.profile.credential_name, password=user.profile.credential_password)
+        return SCRAMAuth(hop_auth, shortcut=True)
+    else:
+        return None
 
 
 # Use custom JSON encoder to remove bytestrings from the deserialized bson output
