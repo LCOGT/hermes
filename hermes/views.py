@@ -50,6 +50,7 @@ hop_client_logger.setLevel(logging.DEBUG)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = Message.objects.all()
     http_method_names = ['get', 'head', 'options', 'patch']
     serializer_class = MessageSerializer
@@ -87,6 +88,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 
 class TargetViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = Target.objects.all()
     http_method_names = ['get', 'head', 'options']
     serializer_class = TargetSerializer
@@ -99,6 +101,7 @@ class TargetViewSet(viewsets.ModelViewSet):
 
 
 class NonLocalizedEventViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = NonLocalizedEvent.objects.all()
     http_method_names = ['get', 'head', 'options']
     serializer_class = NonLocalizedEventSerializer
@@ -119,6 +122,7 @@ class NonLocalizedEventViewSet(viewsets.ModelViewSet):
 
 
 class NonLocalizedEventSequenceViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
     queryset = NonLocalizedEventSequence.objects.all()
     http_method_names = ['get', 'head', 'options']
     serializer_class = NonLocalizedEventSequenceSerializer
