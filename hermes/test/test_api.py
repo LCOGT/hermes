@@ -50,6 +50,9 @@ class TestApiFiltering(TestCase):
         session = self.client.session
         session['user_api_token_expiration'] = (timezone.now() + timedelta(days=1)).isoformat()
         session.save()
+        # The API viewsets now require an authenticated user
+        self.user = User.objects.create(username='testuser')
+        self.client.force_login(self.user)
 
     def test_models_are_created(self):
         self.assertEquals(Message.objects.all().count(), 10)
