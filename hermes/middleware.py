@@ -156,11 +156,22 @@ class InfluxDBRequestLogger:
             },
             'fields': {
                 'path': request.get_full_path(),
+                'client_ip': self._client_ip(request),
                 'response_size': response_size,
                 'latency_ms': round(latency_ms, 3),
                 'count': 1,
             },
         }
+
+    @staticmethod
+    def _client_ip(request):
+        # the real client is the leftmost X-Forwarded-For entry
+        # REMOTE_ADDR is the fallback for dev. The leftmost x-forwarded-for is
+        # client-supplied and therefore spoofable, which is acceptable for observability.
+        forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '')
 
     def _dispatch_write(self, point):
         # Without gevent (dev/tests) write inline.
