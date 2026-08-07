@@ -21,6 +21,12 @@ brokers:
   hopskotch:
     groupId: 'hermes-dev'
 
+influxdb:
+  enabled: true
+  asynchronousMode: true
+  measurement: "hermes_dev_requests"
+  certSecretName: "hermes-influxdb-certs"
+
 hermesFrontEndBaseUrl: https://hermes-dev.lco.global/
 
 gcnEmail: circulars@dev.gcn.nasa.gov

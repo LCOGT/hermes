@@ -23,6 +23,12 @@ gcnEmail: circulars@gcn.nasa.gov
 
 hermesFrontEndBaseUrl: https://hermes.lco.global/
 
+influxdb:
+  enabled: true
+  asynchronousMode: true
+  measurement: "hermes_requests"
+  certSecretName: "hermes-influxdb-certs"
+
 scimma:
   authBaseUrl: https://my.hop.scimma.org/hopauth
   archiveBaseUrl: https://archive-api.hop.scimma.org/
