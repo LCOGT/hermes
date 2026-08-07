@@ -103,7 +103,23 @@ spec:
             - name: tmp-ingester
               mountPath: /tmp
               readOnly: false
+            {{- if .Values.influxdb.certSecretName }}
+            - name: influxdb-certs
+              mountPath: {{ .Values.influxdb.mountPath }}
+              readOnly: true
+            {{- end }}
       volumes:
+        {{- if .Values.influxdb.certSecretName }}
+        - name: influxdb-certs
+          secret:
+            secretName: {{ .Values.influxdb.certSecretName }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.influxdb.certKey }}
+                path: {{ .Values.influxdb.certKey }}
+              - key: {{ .Values.influxdb.keyKey }}
+                path: {{ .Values.influxdb.keyKey }}
+        {{- end }}
         - name: app-configuration
           configMap:
             name: {{ include "hermes.fullname" . }}
