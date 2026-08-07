@@ -79,6 +79,7 @@ MIDDLEWARE = [
     'hermes.middleware.SCiMMAAuthSessionRefresh',  # refresh SCiMMA Auth API tokens if necessary
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'hermes.middleware.InfluxDBRequestLogger',
 ]
 
 ROOT_URLCONF = 'hermes_base.urls'
@@ -221,6 +222,22 @@ SCIMMA_AUTH_PASSWORD = os.getenv('SCIMMA_AUTH_PASSWORD', '')
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 SCIMMA_KAFKA_BASE_URL = os.getenv("SCIMMA_KAFKA_BASE_URL", default="kafka://dev.hop.scimma.org/")
 SCIMMA_ARCHIVE_BASE_URL = os.getenv("SCIMMA_ARCHIVE_BASE_URL", default="https://archive-api.dev.hop.scimma.org/")
+
+
+# InfluxDB v1 request-logging configuration (see hermes.middleware.InfluxDBRequestLogger).
+# When INFLUXDB_ENABLED is false the middleware removes itself and adds no overhead.
+INFLUXDB_ENABLED = str2bool(os.getenv('INFLUXDB_ENABLED', 'false'))
+INFLUXDB_ASYNCHRONOUS_MODE = str2bool(os.getenv('INFLUXDB_ASYNCHRONOUS_MODE', 'false'))
+INFLUXDB_MAX_CONCURRENT_WRITES = int(os.getenv('INFLUXDB_MAX_CONCURRENT_WRITES', '50'))
+INFLUXDB_HOST = os.getenv('INFLUXDB_HOST', 'localhost')
+INFLUXDB_PORT = int(os.getenv('INFLUXDB_PORT', '443'))
+INFLUXDB_DATABASE = os.getenv('INFLUXDB_DATABASE', 'hermes')
+INFLUXDB_MEASUREMENT = os.getenv('INFLUXDB_MEASUREMENT', 'hermes_requests')
+INFLUXDB_USERNAME = os.getenv('INFLUXDB_USERNAME', '')
+INFLUXDB_PASSWORD = os.getenv('INFLUXDB_PASSWORD', '')
+INFLUXDB_TIMEOUT = int(os.getenv('INFLUXDB_TIMEOUT', '10'))
+INFLUXDB_CLIENT_CERT = os.getenv('INFLUXDB_CLIENT_CERT', '')
+INFLUXDB_CLIENT_KEY = os.getenv('INFLUXDB_CLIENT_KEY', '')
 
 
 GCN_EMAIL = os.getenv('GCN_EMAIL', 'circulars@dev.gcn.nasa.gov')

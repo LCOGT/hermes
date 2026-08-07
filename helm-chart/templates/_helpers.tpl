@@ -132,6 +132,30 @@ build it here and use it everywhere.
   value: {{ .Values.gcnEmail }}
 - name: GCN_BASE_URL
   value: {{ .Values.gcn.baseUrl }}
+- name: INFLUXDB_ENABLED
+  value: {{ .Values.influxdb.enabled | quote }}
+- name: INFLUXDB_ASYNCHRONOUS_MODE
+  value: {{ .Values.influxdb.asynchronousMode | quote }}
+- name: INFLUXDB_MAX_CONCURRENT_WRITES
+  value: {{ .Values.influxdb.maxConcurrentWrites | quote }}
+{{- if .Values.influxdb.host }}
+- name: INFLUXDB_HOST
+  value: {{ .Values.influxdb.host | quote }}
+{{- end }}
+- name: INFLUXDB_PORT
+  value: {{ .Values.influxdb.port | quote }}
+- name: INFLUXDB_DATABASE
+  value: {{ .Values.influxdb.database | quote }}
+- name: INFLUXDB_MEASUREMENT
+  value: {{ .Values.influxdb.measurement | quote }}
+- name: INFLUXDB_TIMEOUT
+  value: {{ .Values.influxdb.timeout | quote }}
+{{- if .Values.influxdb.certSecretName }}
+- name: INFLUXDB_CLIENT_CERT
+  value: {{ printf "%s/%s" .Values.influxdb.mountPath .Values.influxdb.certKey | quote }}
+- name: INFLUXDB_CLIENT_KEY
+  value: {{ printf "%s/%s" .Values.influxdb.mountPath .Values.influxdb.keyKey | quote }}
+{{- end }}
 {{- end }}
 
 {{/*
