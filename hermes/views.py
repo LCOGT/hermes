@@ -1,7 +1,8 @@
 import logging
 import uuid
+import json
 import bson
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin
 import requests
 from dateutil.parser import parse
 
@@ -40,6 +41,7 @@ from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter,
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
 from hermes.oauth_clients import oauth, update_token, get_access_token
+from hermes import zenodo_client
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -747,6 +749,171 @@ class MessageApiView(APIView):
             return Response({'error': str(e)}, status=e.response.status_code)
         return Response({'success': 'true'}, status=status.HTTP_200_OK)
 
+
+class DoiMintApiView(APIView):
+    """ View to mint a Zenodo DOI for one or more Hermes messages.
+    This is the only view in this file that talks to Zenodo rather than the
+    SCiMMA Archive. It fetches each requested message (and its file
+    attachment, if any) from the archive using the same scram_auth_for_user
+    pattern as MessageApiView/ProxyMessageDownloadView, then hands the
+    content to zenodo_client to create, populate, and publish a deposition.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        message_uuids = request.data.get('message_uuids')
+        metadata = request.data.get('metadata')
+
+        if not message_uuids or not isinstance(message_uuids, list):
+            return Response(
+                {'error': "'message_uuids' must be provided as a non-empty list."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not metadata or not metadata.get('title') or not metadata.get('creators'):
+            return Response(
+                {'error': "'metadata' must be provided with at least 'title' and 'creators'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        scram_auth = scram_auth_for_user(request.user)
+        if not scram_auth:
+            return Response(
+                {'error': 'User must be authenticated with a valid SCiMMA Auth credential to access this API'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        files = []
+        try:
+            for message_uuid in message_uuids:
+                filename, content_bytes = self._fetch_message_content(message_uuid, scram_auth)
+                files.append((filename, content_bytes))
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+            return Response(
+                {'error': f'Failed to fetch message {message_uuid} from archive: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        try:
+            published = zenodo_client.mint_doi_for_package(metadata, files)
+        except zenodo_client.ZenodoError as e:
+            logger.error(f'DOI minting failed for user {request.user}: {e}')
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        response_body = {'doi': published['doi'], 'record_url': published['links']['record_html']}
+
+        # Record the newly minted DOI in the archive's DOI-tracking tables, so
+        # future mint attempts can detect duplicates. 
+        try:
+            record_response = requests.post(
+                urljoin(settings.SCIMMA_ARCHIVE_DOI_BASE_URL, 'doi/'),
+                json={
+                    'doi': published['doi'],
+                    'record_url': published['links']['record_html'],
+                    'title': metadata['title'],
+                    'message_uuids': message_uuids,
+                },
+                auth=scram_auth,
+            )
+            record_response.raise_for_status()
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+            logger.error(
+                f'DOI {published["doi"]} was minted successfully on Zenodo, but recording it in the '
+                f'archive failed: {e}'
+            )
+            response_body['archive_recording_failed'] = True
+
+        return Response(response_body, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _fetch_message_content(message_uuid, scram_auth):
+        """
+        Fetch a single message's content from the SCiMMA archive, mirroring
+        MessageApiView.get(). If the message has a file attachment, fetch the
+        raw file instead (mirroring ProxyMessageDownloadView) and use its
+        original filename; otherwise package the message's own JSON record.
+        """
+        archive_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'msg/')
+        response = requests.get(archive_url + message_uuid, auth=scram_auth)
+        response.raise_for_status()
+        message = convert_message(bson.loads(response.content))
+
+        file_name = message.get('annotations', {}).get('file_name')
+        if file_name:
+            file_url = urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'msg/')
+            file_url += f'{message_uuid}/raw_file/{file_name}'
+            file_response = requests.get(file_url, auth=scram_auth, stream=True)
+            file_response.raise_for_status()
+            return file_name, file_response.content
+
+        json_bytes = json.dumps(message, indent=2, default=str).encode('utf-8')
+        return f'{message_uuid}.json', json_bytes
+
+class DoiCheckApiView(APIView):
+    """
+    View to check whether any of a set of candidate messages have already
+    been used in a previously minted DOI - either as an exact duplicate of
+    the same package, or as a member of some other DOI's package.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        message_uuids = request.query_params.getlist('message_uuids')
+        if not message_uuids:
+            return Response(
+                {'error': "At least one 'message_uuids' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        scram_auth = scram_auth_for_user(request.user)
+        if not scram_auth:
+            return Response(
+                {'error': 'User must be authenticated with a valid SCiMMA Auth credential to access this API'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        try:
+            response = requests.get(
+                urljoin(settings.SCIMMA_ARCHIVE_DOI_BASE_URL, 'doi/check'),
+                params={'uuid': message_uuids},
+                auth=scram_auth,
+            )
+            response.raise_for_status()
+        except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
+            return Response(
+                {'error': f'Failed to check for existing DOIs: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        candidate_set_size = len(message_uuids)
+        conflicts = response.json().get('conflicts', [])
+
+        for conflict in conflicts:
+            is_exact_match = (
+                conflict['matched_count'] == conflict['total_message_count'] == candidate_set_size
+            )
+            if is_exact_match:
+                return Response({
+                    'status': 'blocked',
+                    'doi': conflict['doi'],
+                    'record_url': conflict['record_url'],
+                    'title': conflict['title'],
+                }, status=status.HTTP_200_OK)
+
+        if conflicts:
+            return Response({
+                'status': 'warning',
+                'conflicts': [
+                    {
+                        'doi': c['doi'],
+                        'record_url': c['record_url'],
+                        'title': c['title'],
+                        'matched_uuids': c['matched_uuids'],
+                    }
+                    for c in conflicts
+                ],
+            }, status=status.HTTP_200_OK)
+
+        return Response({'status': 'ok'}, status=status.HTTP_200_OK)
 
 # TODO: Enhance this with other parameters when they are added to scimma archive
 class QueryApiView(APIView):

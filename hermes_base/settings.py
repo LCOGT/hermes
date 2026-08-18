@@ -221,6 +221,7 @@ SCIMMA_AUTH_PASSWORD = os.getenv('SCIMMA_AUTH_PASSWORD', '')
 KAFKA_USER_AUTH_GROUP = os.getenv("KAFKA_USER_AUTH_GROUP", default="kafkaUsers")
 SCIMMA_KAFKA_BASE_URL = os.getenv("SCIMMA_KAFKA_BASE_URL", default="kafka://dev.hop.scimma.org/")
 SCIMMA_ARCHIVE_BASE_URL = os.getenv("SCIMMA_ARCHIVE_BASE_URL", default="https://archive-api.dev.hop.scimma.org/")
+SCIMMA_ARCHIVE_DOI_BASE_URL = os.getenv("SCIMMA_ARCHIVE_DOI_BASE_URL", default=SCIMMA_ARCHIVE_BASE_URL)
 
 
 GCN_EMAIL = os.getenv('GCN_EMAIL', 'circulars@dev.gcn.nasa.gov')
