@@ -40,6 +40,8 @@ urlpatterns = [
     path('api/v0/', include(router.urls)),
     path('api/v0/query/download/<str:uuid>/', views.ProxyMessageDownloadView.as_view(), name='download-message'),
     path('api/v0/query/message/<str:uuid>/', views.MessageApiView.as_view(), name='query-message'),
+    path('api/v0/doi/mint/', views.DoiMintApiView.as_view(), name='doi-mint'),
+    path('api/v0/doi/check/', views.DoiCheckApiView.as_view(), name='doi-check'),
     path('api/v0/query/', views.QueryApiView.as_view(), name='query'),
     path('api/v0/topics/', views.TopicApiView.as_view(), name='topics'),
     path('api/v0/heartbeat/', views.HeartbeatApiView.as_view(), name='heartbeat'),
