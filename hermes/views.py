@@ -751,7 +751,7 @@ class MessageApiView(APIView):
 
 class DoiMintApiView(APIView):
     """
-    View to mint a Zenodo DOI for one or more Hermes messages.
+    View to mint a Zenodo DOI for one or more HOP (SCiMMA Archive) messages.
 
     This is a thin, authenticated proxy: the actual minting (fetching
     message/file content, talking to Zenodo, and recording the result)
@@ -787,7 +787,7 @@ class DoiMintApiView(APIView):
 
         try:
             archive_response = requests.post(
-                urljoin(settings.SCIMMA_ARCHIVE_DOI_BASE_URL, 'doi/mint'),
+                urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'doi/mint'),
                 json={'message_uuids': message_uuids, 'metadata': metadata},
                 auth=scram_auth,
             )
@@ -832,7 +832,7 @@ class DoiCheckApiView(APIView):
 
         try:
             archive_response = requests.get(
-                urljoin(settings.SCIMMA_ARCHIVE_DOI_BASE_URL, 'doi/check'),
+                urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'doi/check'),
                 params={'uuid': message_uuids},
                 auth=scram_auth,
             )
