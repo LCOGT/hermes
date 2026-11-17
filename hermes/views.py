@@ -788,7 +788,8 @@ class DoiMintApiView(APIView):
         try:
             archive_response = requests.post(
                 urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'doi/mint'),
-                json={'message_uuids': message_uuids, 'metadata': metadata},
+                data=bson.dumps({'message_uuids': message_uuids, 'metadata': metadata}),
+                headers={'Content-Type': 'application/bson'},
                 auth=scram_auth,
             )
         except requests.exceptions.ConnectionError as e:
@@ -800,7 +801,7 @@ class DoiMintApiView(APIView):
         if not archive_response.ok:
             return Response({'error': archive_response.text}, status=archive_response.status_code)
 
-        return Response(archive_response.json(), status=archive_response.status_code)
+        return Response(bson.loads(archive_response.content), status=archive_response.status_code)
 
 
 class DoiCheckApiView(APIView):
@@ -845,7 +846,7 @@ class DoiCheckApiView(APIView):
         if not archive_response.ok:
             return Response({'error': archive_response.text}, status=archive_response.status_code)
 
-        return Response(archive_response.json(), status=archive_response.status_code)
+        return Response(bson.loads(archive_response.content), status=archive_response.status_code)
 
 
 # TODO: Enhance this with other parameters when they are added to scimma archive
