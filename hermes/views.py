@@ -1,7 +1,7 @@
 import logging
 import uuid
 import bson
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin
 import requests
 from dateutil.parser import parse
 
@@ -40,6 +40,7 @@ from hermes.filters import MessageFilter, TargetFilter, NonLocalizedEventFilter,
 from hermes.serializers import (MessageSerializer, TargetSerializer, NonLocalizedEventSerializer, HermesMessageSerializer,
                                 NonLocalizedEventSequenceSerializer, ProfileSerializer)
 from hermes.oauth_clients import oauth, update_token, get_access_token
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -746,6 +747,106 @@ class MessageApiView(APIView):
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=e.response.status_code)
         return Response({'success': 'true'}, status=status.HTTP_200_OK)
+
+
+class DoiMintApiView(APIView):
+    """
+    View to mint a Zenodo DOI for one or more HOP (SCiMMA Archive) messages.
+
+    This is a thin, authenticated proxy: the actual minting (fetching
+    message/file content, talking to Zenodo, and recording the result)
+    happens entirely inside the SCiMMA archive, as a single operation, to
+    avoid the risk of an inconsistent state between a successfully minted
+    Zenodo DOI and a failed record of it. Hermes' only responsibilities
+    here are validating the request shape and forwarding it with the
+    calling user's own SCiMMA Auth credential.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        message_uuids = request.data.get('message_uuids')
+        metadata = request.data.get('metadata')
+
+        if not message_uuids or not isinstance(message_uuids, list):
+            return Response(
+                {'error': "'message_uuids' must be provided as a non-empty list."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if not metadata or not metadata.get('title') or not metadata.get('creators'):
+            return Response(
+                {'error': "'metadata' must be provided with at least 'title' and 'creators'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        scram_auth = scram_auth_for_user(request.user)
+        if not scram_auth:
+            return Response(
+                {'error': 'User must be authenticated with a valid SCiMMA Auth credential to access this API'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        try:
+            archive_response = requests.post(
+                urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'doi/mint'),
+                data=bson.dumps({'message_uuids': message_uuids, 'metadata': metadata}),
+                headers={'Content-Type': 'application/bson'},
+                auth=scram_auth,
+            )
+        except requests.exceptions.ConnectionError as e:
+            return Response(
+                {'error': f'Failed to reach the archive to mint DOI: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        if not archive_response.ok:
+            return Response({'error': archive_response.text}, status=archive_response.status_code)
+
+        return Response(bson.loads(archive_response.content), status=archive_response.status_code)
+
+
+class DoiCheckApiView(APIView):
+    """
+    View to check whether any of a set of candidate messages have already
+    been used in a previously minted DOI.
+
+    This is a thin, authenticated proxy: the archive itself determines
+    whether the candidate set is an exact duplicate, a partial overlap, or
+    has no conflicts at all - Hermes only forwards the request with the
+    calling user's own credential and relays the result.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        message_uuids = request.query_params.getlist('message_uuids')
+        if not message_uuids:
+            return Response(
+                {'error': "At least one 'message_uuids' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        scram_auth = scram_auth_for_user(request.user)
+        if not scram_auth:
+            return Response(
+                {'error': 'User must be authenticated with a valid SCiMMA Auth credential to access this API'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        try:
+            archive_response = requests.get(
+                urljoin(settings.SCIMMA_ARCHIVE_BASE_URL, 'doi/check'),
+                params={'uuid': message_uuids},
+                auth=scram_auth,
+            )
+        except requests.exceptions.ConnectionError as e:
+            return Response(
+                {'error': f'Failed to check for existing DOIs: {e}'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        if not archive_response.ok:
+            return Response({'error': archive_response.text}, status=archive_response.status_code)
+
+        return Response(bson.loads(archive_response.content), status=archive_response.status_code)
 
 
 # TODO: Enhance this with other parameters when they are added to scimma archive
